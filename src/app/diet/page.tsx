@@ -743,7 +743,7 @@ export default function DietPage() {
         const cancerTypeText = userDietContext.cancerType?.trim() ? userDietContext.cancerType.trim() : '미입력';
         const stageLabel = activeStage?.stage_label?.trim() || '미입력';
         const stageTypeLabel = activeStage ? STAGE_TYPE_LABELS[activeStage.stage_type] : '미입력';
-        const stageOrderText = activeStage ? `${activeStage.stage_order}순서` : '미입력';
+        const stageOrderText = activeStage ? String(activeStage.stage_order) : '미입력';
         const stageStatusText = activeStage
             ? activeStage.status === 'active'
                 ? '진행중'
