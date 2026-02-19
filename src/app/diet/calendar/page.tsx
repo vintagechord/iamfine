@@ -27,6 +27,16 @@ type DietStore = {
     preferences?: PreferenceType[];
     dailyPreferences?: Record<string, PreferenceType[]>;
     carryPreferences?: PreferenceType[];
+    logs?: Record<string, DayLog>;
+};
+
+type TrackItem = {
+    name: string;
+    eaten: boolean;
+};
+
+type DayLog = {
+    meals: Partial<Record<'breakfast' | 'lunch' | 'dinner' | 'snack', TrackItem[]>>;
 };
 
 const DISCLAIMER_TEXT =
@@ -57,6 +67,7 @@ function parseDietStore(raw: string | null) {
         return {
             dailyPreferences: {} as Record<string, PreferenceType[]>,
             carryPreferences: [] as PreferenceType[],
+            logs: {} as Record<string, DayLog>,
         };
     }
 
@@ -78,11 +89,13 @@ function parseDietStore(raw: string | null) {
         return {
             dailyPreferences,
             carryPreferences: carryPreferences.length > 0 ? carryPreferences : legacyPreferences,
+            logs: parsed.logs && typeof parsed.logs === 'object' ? (parsed.logs as Record<string, DayLog>) : {},
         };
     } catch {
         return {
             dailyPreferences: {} as Record<string, PreferenceType[]>,
             carryPreferences: [] as PreferenceType[],
+            logs: {} as Record<string, DayLog>,
         };
     }
 }
@@ -110,6 +123,94 @@ function toMonthInputValue(year: number, monthZeroBased: number) {
     return `${year}-${String(monthZeroBased + 1).padStart(2, '0')}`;
 }
 
+function offsetDateKey(baseDateKey: string, offset: number) {
+    const [year, month, day] = baseDateKey.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + offset);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+function eatenNames(log: DayLog) {
+    const slots: Array<'breakfast' | 'lunch' | 'dinner' | 'snack'> = ['breakfast', 'lunch', 'dinner', 'snack'];
+    return slots.flatMap((slot) => (log.meals[slot] ?? []).filter((item) => item.eaten).map((item) => item.name));
+}
+
+function normalizeText(input: string) {
+    return input.trim().toLowerCase();
+}
+
+function countKeywords(text: string, keywords: string[]) {
+    const normalized = normalizeText(text);
+    return keywords.reduce((count, keyword) => count + (normalized.includes(keyword) ? 1 : 0), 0);
+}
+
+function mergePreferences(...lists: Array<PreferenceType[]>) {
+    const merged = new Set<PreferenceType>();
+    lists.forEach((list) => {
+        list.forEach((item) => merged.add(item));
+    });
+    return Array.from(merged);
+}
+
+function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, referenceDateKey: string) {
+    const lookbackText = Array.from({ length: 14 }, (_, index) => {
+        const dateKey = offsetDateKey(referenceDateKey, -(index + 1));
+        const log = logs[dateKey];
+        if (!log) {
+            return '';
+        }
+        return eatenNames(log).join(' ');
+    })
+        .join(' ')
+        .trim();
+
+    if (!lookbackText) {
+        return [] as PreferenceType[];
+    }
+
+    const suggestions: PreferenceType[] = [];
+    const add = (value: PreferenceType) => {
+        if (!suggestions.includes(value)) {
+            suggestions.push(value);
+        }
+    };
+
+    const flourSugarCount =
+        countKeywords(lookbackText, ['빵', '라면', '면', '파스타', '피자', '도넛']) +
+        countKeywords(lookbackText, ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림']);
+    const proteinCount = countKeywords(lookbackText, ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유']);
+    const vegetableCount = countKeywords(lookbackText, ['브로콜리', '양배추', '시금치', '오이', '당근', '버섯', '샐러드', '채소']);
+
+    if (flourSugarCount >= 8) {
+        add('healthy');
+        add('digestive');
+    }
+    if (proteinCount < 6) {
+        add('high_protein');
+    }
+    if (vegetableCount < 6) {
+        add('vegetable');
+    }
+
+    const yesterdayLog = logs[offsetDateKey(referenceDateKey, -1)];
+    if (yesterdayLog) {
+        const yesterdayText = eatenNames(yesterdayLog).join(' ');
+        const heavyCount =
+            countKeywords(yesterdayText, ['튀김', '치킨', '야식', '술', '맥주', '소주', '족발', '보쌈']) +
+            countKeywords(yesterdayText, ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림']);
+        if (heavyCount >= 3) {
+            add('healthy');
+            add('digestive');
+            add('low_salt');
+        }
+    }
+
+    return suggestions.slice(0, 4);
+}
+
 export default function DietCalendarPage() {
     const now = new Date();
 
@@ -117,6 +218,7 @@ export default function DietCalendarPage() {
     const [userId, setUserId] = useState<string | null>(null);
     const [stageType, setStageType] = useState<StageType>('other');
     const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
+    const [logs, setLogs] = useState<Record<string, DayLog>>({});
     const [monthValue, setMonthValue] = useState(toMonthInputValue(now.getFullYear(), now.getMonth()));
 
     const { year, month } = useMemo(() => parseMonthKey(monthValue), [monthValue]);
@@ -157,6 +259,7 @@ export default function DietCalendarPage() {
 
             const parsed = parseDietStore(localStorage.getItem(getStoreKey(uid)));
             setDailyPreferences(parsed.dailyPreferences);
+            setLogs(parsed.logs);
             setLoading(false);
         };
 
@@ -172,24 +275,31 @@ export default function DietCalendarPage() {
 
         return basePlans.map((basePlan) => {
             const byDatePreferences = dailyPreferences[basePlan.date];
-            const influencedPreferences: PreferenceType[] = [];
-            const appliedPreferences = byDatePreferences ?? influencedPreferences;
+            const adaptivePreferences = recommendAdaptivePreferencesByRecentLogs(logs, basePlan.date);
+            const appliedPreferences = mergePreferences(adaptivePreferences, byDatePreferences ?? []);
 
             if (appliedPreferences.length === 0) {
                 return {
                     plan: basePlan,
                     appliedPreferences,
-                    source: '' as '' | '당일 확정' | '이전 확정 참고',
+                    source: '' as '' | '당일 확정' | '기록 자동 반영' | '당일 확정 + 기록 자동 반영',
                 };
             }
+
+            const source =
+                byDatePreferences && byDatePreferences.length > 0
+                    ? adaptivePreferences.length > 0
+                        ? ('당일 확정 + 기록 자동 반영' as const)
+                        : ('당일 확정' as const)
+                    : ('기록 자동 반영' as const);
 
             return {
                 plan: optimizePlanByPreference(basePlan, appliedPreferences).plan,
                 appliedPreferences,
-                source: byDatePreferences ? ('당일 확정' as const) : ('이전 확정 참고' as const),
+                source,
             };
         });
-    }, [year, month, stageType, dailyPreferences]);
+    }, [year, month, stageType, dailyPreferences, logs]);
 
     return (
         <main className="space-y-4">
@@ -226,7 +336,7 @@ export default function DietCalendarPage() {
 
                 <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
                     <p>- 먹고 싶은 방향 선택은 당일에서만 확정할 수 있어요.</p>
-                    <p>- 확정한 방향은 해당 날짜 식단에만 기록돼요.</p>
+                    <p>- 기록한 식사 패턴은 다음/다다음 날짜 식단에도 자동 반영돼요.</p>
                 </div>
             </section>
 

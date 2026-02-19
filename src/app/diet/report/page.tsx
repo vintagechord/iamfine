@@ -9,6 +9,8 @@ import {
     optimizePlanByMedications,
     optimizePlanByPreference,
     optimizePlanByUserContext,
+    PREFERENCE_OPTIONS,
+    STAGE_TYPE_LABELS,
     type DayPlan,
     type MealSuggestion,
     type PreferenceType,
@@ -195,6 +197,10 @@ function changedFields(baseMeal: MealSuggestion, finalMeal: MealSuggestion) {
     return changes;
 }
 
+function preferenceLabel(value: PreferenceType) {
+    return PREFERENCE_OPTIONS.find((option) => option.key === value)?.label ?? value;
+}
+
 function StageLabel({ stage }: { stage: TreatmentStageRow | null }) {
     if (!stage) {
         return <span>미입력</span>;
@@ -202,7 +208,7 @@ function StageLabel({ stage }: { stage: TreatmentStageRow | null }) {
     const statusText = stage.status === 'active' ? '진행중' : stage.status === 'completed' ? '완료' : '예정';
     return (
         <span>
-            {stage.stage_type} / {stage.stage_label?.trim() || '미입력'} / {stage.stage_order}순서 / {statusText}
+            {STAGE_TYPE_LABELS[stage.stage_type]} / {stage.stage_label?.trim() || '미입력'} / {stage.stage_order}순서 / {statusText}
         </span>
     );
 }
@@ -436,7 +442,46 @@ export default function DietReportPage() {
                             ? medicationSchedules.map((item) => `${item.name}(${medicationTimingLabel(item.timing)})`).join(', ')
                             : '없음'}
                     </p>
-                    <p>- 오늘 선호 반영: {todayPreferences.length > 0 ? todayPreferences.join(', ') : '없음'}</p>
+                    <p>- 오늘 선호 반영: {todayPreferences.length > 0 ? todayPreferences.map((item) => preferenceLabel(item)).join(', ') : '없음'}</p>
+                </div>
+            </section>
+
+            <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-100">
+                <p className="font-semibold">식단 생성 데이터 출처</p>
+                <div className="mt-2 space-y-1">
+                    <p>- 생성 방식: 외부 식단 API를 조회하지 않고 내부 규칙 엔진으로 계산합니다.</p>
+                    <p>- 반영 데이터: 사용자 프로필, 암 정보, 치료 단계, 복용 약/복용 시기, 최근 식단 기록.</p>
+                    <p>- 영양비율: 암환자 일반 영양 원칙(단백질 유지, 정제 탄수화물 과다 억제)을 기준으로 보수적으로 배분합니다.</p>
+                    <p className="mt-1 text-xs text-indigo-800 dark:text-indigo-200">
+                        참고 근거:
+                        {' '}
+                        <a
+                            href="https://www.cancer.gov/about-cancer/treatment/side-effects/appetite-loss/nutrition-pdq"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold underline"
+                        >
+                            NCI 영양 가이드
+                        </a>
+                        {' · '}
+                        <a
+                            href="https://www.cancer.org/cancer/survivorship/coping/nutrition.html"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold underline"
+                        >
+                            ACS 영양 권고
+                        </a>
+                        {' · '}
+                        <a
+                            href="https://pubmed.ncbi.nlm.nih.gov/33946039/"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-semibold underline"
+                        >
+                            ESPEN 암 환자 영양 가이드라인
+                        </a>
+                    </p>
                 </div>
             </section>
 
@@ -444,20 +489,9 @@ export default function DietReportPage() {
                 <p className="font-semibold">암종 프로필 매칭 근거</p>
                 <div className="mt-2">
                     {profileMatch ? (
-                        <div className="grid gap-2 sm:grid-cols-2">
-                            <div className="rounded-lg border border-emerald-200 bg-white/70 p-3 dark:border-emerald-800 dark:bg-emerald-950/20">
-                                <p className="text-xs text-emerald-700 dark:text-emerald-300">매칭 프로필</p>
-                                <p className="mt-1 text-base font-bold text-emerald-900 dark:text-emerald-100">{profileMatch.profileLabel}</p>
-                            </div>
-                            <div className="rounded-lg border border-emerald-200 bg-white/70 p-3 dark:border-emerald-800 dark:bg-emerald-950/20">
-                                <p className="text-xs text-emerald-700 dark:text-emerald-300">매칭 키워드</p>
-                                <p className="mt-1 inline-flex items-center rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-sm font-bold text-emerald-900 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100">
-                                    {profileMatch.matchedKeyword}
-                                </p>
-                                <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">
-                                    입력된 암종명에서 인식된 단어예요.
-                                </p>
-                            </div>
+                        <div className="rounded-lg border border-emerald-200 bg-white/70 p-3 dark:border-emerald-800 dark:bg-emerald-950/20">
+                            <p className="text-xs text-emerald-700 dark:text-emerald-300">매칭 프로필</p>
+                            <p className="mt-1 text-base font-bold text-emerald-900 dark:text-emerald-100">{profileMatch.profileLabel}</p>
                         </div>
                     ) : (
                         <p>- 전용 암종 프로필 미매칭: 일반 안전식 + 치료 단계 규칙으로 계산</p>

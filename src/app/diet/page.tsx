@@ -16,6 +16,7 @@ import {
     optimizePlanByUserContext,
     optimizePlanByPreference,
     PREFERENCE_OPTIONS,
+    STAGE_TYPE_LABELS,
     type DayPlan,
     type MealNutrient,
     type MealSlot,
@@ -63,6 +64,8 @@ type TrackItem = {
     name: string;
     eaten: boolean;
     notEaten?: boolean;
+    isManual?: boolean;
+    servings?: number;
 };
 
 type DayLog = {
@@ -312,6 +315,8 @@ function makeTrackItems(dateKey: string, slot: MealSlot, names: string[]) {
         name,
         eaten: false,
         notEaten: false,
+        isManual: false,
+        servings: 1,
     }));
 }
 
@@ -330,6 +335,46 @@ function buildDefaultLog(dateKey: string, plan: DayPlan): DayLog {
 
 function normalizeText(input: string) {
     return input.trim().toLowerCase();
+}
+
+function normalizeManualMealName(input: string) {
+    const compact = input.replace(/\s+/g, ' ').trim();
+    if (!compact) {
+        return '';
+    }
+
+    const firstItem = compact
+        .split(/[,+/|]/)
+        .map((item) => item.trim())
+        .filter(Boolean)[0] ?? compact;
+
+    const withoutPortion = firstItem
+        .replace(/\b\d+(\.\d+)?\s*(인분|개|컵|그릇|조각|잔|스푼|숟갈|g|kg|mg|ml|l)\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+    return withoutPortion || firstItem;
+}
+
+function eatenTrackItems(log: DayLog) {
+    return SLOT_ORDER.flatMap((slot) => log.meals[slot].filter((item) => item.eaten));
+}
+
+function countKeywordsByItems(items: Array<Pick<TrackItem, 'name' | 'servings'>>, keywords: string[]) {
+    const normalizedKeywords = keywords.map((keyword) => normalizeText(keyword));
+    return items.reduce((count, item) => {
+        const normalizedName = normalizeText(item.name).replace(/\(1인분\)\s*$/, '');
+        const matched = normalizedKeywords.some((keyword) => normalizedName.includes(keyword));
+        if (!matched) {
+            return count;
+        }
+        const servingCount = Math.max(1, Math.round(item.servings ?? 1));
+        return count + servingCount;
+    }, 0);
+}
+
+function includesAnyKeywordByItems(items: Array<Pick<TrackItem, 'name' | 'servings'>>, keywords: string[]) {
+    return countKeywordsByItems(items, keywords) > 0;
 }
 
 function includesAnyKeyword(text: string, keywords: string[]) {
@@ -362,21 +407,29 @@ function uniqueRecipeSteps(steps: string[]) {
     return unique;
 }
 
+function mergePreferences(...lists: Array<PreferenceType[]>) {
+    const merged = new Set<PreferenceType>();
+    lists.forEach((list) => {
+        list.forEach((item) => merged.add(item));
+    });
+    return Array.from(merged);
+}
+
 function eatenNames(log: DayLog) {
     return SLOT_ORDER.flatMap((slot) => log.meals[slot].filter((item) => item.eaten).map((item) => item.name));
 }
 
 function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey: string) {
-    const mergedText = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => {
+    const eatenItems = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => {
         const dateKey = offsetDateKey(todayKey, -index);
         const log = logs[dateKey];
         if (!log) {
-            return '';
+            return [] as TrackItem[];
         }
-        return eatenNames(log).join(' ');
-    }).join(' ');
+        return eatenTrackItems(log);
+    }).flat();
 
-    if (!mergedText.trim()) {
+    if (eatenItems.length === 0) {
         return ['healthy', 'vegetable', 'high_protein'] as PreferenceType[];
     }
 
@@ -387,11 +440,11 @@ function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey
         }
     };
 
-    const proteinCount = countKeywords(mergedText, ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유']);
-    const fishCount = countKeywords(mergedText, ['생선', '연어', '고등어', '대구', '참치']);
-    const flourCount = countKeywords(mergedText, ['빵', '라면', '면', '파스타', '피자', '도넛']);
-    const sweetCount = countKeywords(mergedText, ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림']);
-    const spicyCount = countKeywords(mergedText, ['매운', '떡볶이', '불닭', '짬뽕']);
+    const proteinCount = countKeywordsByItems(eatenItems, ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유']);
+    const fishCount = countKeywordsByItems(eatenItems, ['생선', '연어', '고등어', '대구', '참치']);
+    const flourCount = countKeywordsByItems(eatenItems, ['빵', '라면', '면', '파스타', '피자', '도넛']);
+    const sweetCount = countKeywordsByItems(eatenItems, ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림']);
+    const spicyCount = countKeywordsByItems(eatenItems, ['매운', '떡볶이', '불닭', '짬뽕']);
 
     if (proteinCount < 6) {
         add('high_protein');
@@ -411,6 +464,71 @@ function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey
     }
     if (suggestions.length < 3) {
         add('warm_food');
+    }
+
+    return suggestions.slice(0, 4);
+}
+
+function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, referenceDateKey: string) {
+    const lookbackKeys = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => offsetDateKey(referenceDateKey, -(index + 1)));
+    const lookbackItems = lookbackKeys
+        .map((dateKey) => {
+            const log = logs[dateKey];
+            if (!log) {
+                return [] as TrackItem[];
+            }
+            return eatenTrackItems(log);
+        })
+        .flat();
+
+    if (lookbackItems.length === 0) {
+        return [] as PreferenceType[];
+    }
+
+    const suggestions: PreferenceType[] = [];
+    const add = (value: PreferenceType) => {
+        if (!suggestions.includes(value)) {
+            suggestions.push(value);
+        }
+    };
+
+    const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛'];
+    const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림'];
+    const proteinKeywords = ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유'];
+    const vegetableKeywords = ['브로콜리', '양배추', '시금치', '오이', '당근', '버섯', '샐러드', '채소'];
+    const spicyKeywords = ['매운', '불닭', '짬뽕', '떡볶이'];
+
+    const flourSugarCount = countKeywordsByItems(lookbackItems, flourKeywords) + countKeywordsByItems(lookbackItems, sugarKeywords);
+    const proteinCount = countKeywordsByItems(lookbackItems, proteinKeywords);
+    const vegetableCount = countKeywordsByItems(lookbackItems, vegetableKeywords);
+    const spicyCount = countKeywordsByItems(lookbackItems, spicyKeywords);
+
+    if (flourSugarCount >= 8) {
+        add('healthy');
+        add('digestive');
+    }
+    if (proteinCount < 6) {
+        add('high_protein');
+    }
+    if (vegetableCount < 6) {
+        add('vegetable');
+    }
+    if (spicyCount >= 4) {
+        add('bland');
+    }
+
+    const yesterdayLog = logs[offsetDateKey(referenceDateKey, -1)];
+    if (yesterdayLog) {
+        const yesterdayItems = eatenTrackItems(yesterdayLog);
+        const yesterdayFlourSugar =
+            countKeywordsByItems(yesterdayItems, flourKeywords) + countKeywordsByItems(yesterdayItems, sugarKeywords);
+        const heavyKeywords = ['튀김', '치킨', '야식', '술', '맥주', '소주', '족발', '보쌈'];
+        const heavyCount = countKeywordsByItems(yesterdayItems, heavyKeywords);
+        if (yesterdayFlourSugar + heavyCount >= 3) {
+            add('healthy');
+            add('digestive');
+            add('low_salt');
+        }
     }
 
     return suggestions.slice(0, 4);
@@ -451,10 +569,10 @@ function calcMatchScore(plan: DayPlan, log: DayLog) {
 }
 
 function analyzeDay(plan: DayPlan, log: DayLog, stageType: StageType): DayAnalysis {
-    const eaten = eatenNames(log).join(' ');
+    const eatenItems = eatenTrackItems(log);
     const matchScore = calcMatchScore(plan, log);
 
-    if (!eaten.trim()) {
+    if (eatenItems.length === 0) {
         return {
             matchScore,
             dailyScore: 0,
@@ -473,23 +591,26 @@ function analyzeDay(plan: DayPlan, log: DayLog, stageType: StageType): DayAnalys
     const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림'];
     const concernKeywords = ['생회', '육회', '날달걀', '술', '소주', '맥주', '튀김', '매운'];
 
-    if (includesAnyKeyword(eaten, concernKeywords)) {
+    if (includesAnyKeywordByItems(eatenItems, concernKeywords)) {
         concerns.push('치료 중에는 생식/술/자극적인 음식은 주의해 주세요.');
     }
 
-    if (!includesAnyKeyword(eaten, proteinKeywords)) {
+    if (!includesAnyKeywordByItems(eatenItems, proteinKeywords)) {
         부족.push('단백질 반찬이 부족해 보여요. 두부·생선·달걀 반찬을 추가해 보세요.');
     }
 
-    if (countKeywords(eaten, flourKeywords) >= 2) {
+    if (countKeywordsByItems(eatenItems, flourKeywords) >= 2) {
         과다.push('밀가루 음식이 많은 편이에요. 잡곡밥/감자로 일부 바꿔보세요.');
     }
 
-    if (countKeywords(eaten, sugarKeywords) >= 2) {
+    if (countKeywordsByItems(eatenItems, sugarKeywords) >= 2) {
         과다.push('단 간식이 많은 편이에요. 과일·견과류 중심으로 바꿔보세요.');
     }
 
-    if ((stageType === 'chemo' || stageType === 'chemo_2nd') && includesAnyKeyword(eaten, ['튀김', '매운'])) {
+    if (
+        (stageType === 'chemo' || stageType === 'chemo_2nd') &&
+        includesAnyKeywordByItems(eatenItems, ['튀김', '매운'])
+    ) {
         concerns.push('항암 치료 중에는 기름지거나 매운 음식이 속을 불편하게 할 수 있어요.');
     }
 
@@ -621,7 +742,7 @@ export default function DietPage() {
         const ethnicityText = userDietContext.ethnicity?.trim() ? userDietContext.ethnicity.trim() : '미입력';
         const cancerTypeText = userDietContext.cancerType?.trim() ? userDietContext.cancerType.trim() : '미입력';
         const stageLabel = activeStage?.stage_label?.trim() || '미입력';
-        const stageTypeLabel = activeStage ? activeStage.stage_type : '미입력';
+        const stageTypeLabel = activeStage ? STAGE_TYPE_LABELS[activeStage.stage_type] : '미입력';
         const stageOrderText = activeStage ? `${activeStage.stage_order}순서` : '미입력';
         const stageStatusText = activeStage
             ? activeStage.status === 'active'
@@ -680,9 +801,21 @@ export default function DietPage() {
         [todayKey, stageType, previousMonthScore]
     );
 
-    const confirmedTodayPreferences = useMemo(
+    const userSelectedTodayPreferences = useMemo(
         () => dailyPreferences[todayKey] ?? [],
         [dailyPreferences, todayKey]
+    );
+    const adaptiveTodayPreferences = useMemo(
+        () => recommendAdaptivePreferencesByRecentLogs(logs, todayKey),
+        [logs, todayKey]
+    );
+    const confirmedTodayPreferences = useMemo(
+        () => mergePreferences(adaptiveTodayPreferences, userSelectedTodayPreferences),
+        [adaptiveTodayPreferences, userSelectedTodayPreferences]
+    );
+    const todayDietModeChecked = useMemo(
+        () => userSelectedTodayPreferences.includes('weight_loss'),
+        [userSelectedTodayPreferences]
     );
     const recentRecordRecommendations = useMemo(
         () => recommendPreferencesByRecentLogs(logs, todayKey),
@@ -696,19 +829,19 @@ export default function DietPage() {
     const todayPlan = optimizedToday.plan;
 
     const proposedTodayOptimization = useMemo(() => {
-        return applyRecommendationAdjustments(baseTodayPlan, draftTodayPreferences);
-    }, [baseTodayPlan, draftTodayPreferences, applyRecommendationAdjustments]);
+        return applyRecommendationAdjustments(
+            baseTodayPlan,
+            mergePreferences(adaptiveTodayPreferences, userSelectedTodayPreferences, draftTodayPreferences)
+        );
+    }, [baseTodayPlan, adaptiveTodayPreferences, userSelectedTodayPreferences, draftTodayPreferences, applyRecommendationAdjustments]);
 
     const resolveAppliedPreferences = useCallback(
         (dateKey: string) => {
-            const byDate = dailyPreferences[dateKey];
-            if (byDate) {
-                return byDate;
-            }
-
-            return [] as PreferenceType[];
+            const byDate = dailyPreferences[dateKey] ?? [];
+            const adaptive = recommendAdaptivePreferencesByRecentLogs(logs, dateKey);
+            return mergePreferences(adaptive, byDate);
         },
-        [dailyPreferences]
+        [dailyPreferences, logs]
     );
 
     const getPlanForDate = useCallback(
@@ -776,15 +909,14 @@ export default function DietPage() {
             });
         });
 
-        const eatenText = pastDateKeys
-            .map((dateKey) => {
-                const log = logs[dateKey];
-                if (!log) {
-                    return '';
-                }
-                return eatenNames(log).join(' ');
-            })
-            .join(' ');
+        const eatenItems = pastDateKeys.flatMap((dateKey) => {
+            const log = logs[dateKey];
+            if (!log) {
+                return [] as TrackItem[];
+            }
+            return eatenTrackItems(log);
+        });
+        const eatenText = eatenItems.map((item) => item.name).join(' ');
 
         const combinedText = `${planTexts.join(' ')} ${eatenText}`;
         const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛'];
@@ -799,7 +931,7 @@ export default function DietPage() {
             addWarning('최근 2주 식단과 기록을 보면 밀가루·단 음식이 잦아요. 오늘은 밥과 단백질 반찬 중심으로 맞춰 보세요.');
         }
 
-        if (countKeywords(eatenText, proteinKeywords) < 6) {
+        if (countKeywordsByItems(eatenItems, proteinKeywords) < 6) {
             addWarning('최근 2주 기록에서 단백질 반찬 체크가 적어요. 생선·두부·달걀 반찬을 하루 1~2개는 넣어 주세요.');
         }
 
@@ -1152,11 +1284,30 @@ export default function DietPage() {
         });
     };
 
+    const setTodayDietMode = (checked: boolean) => {
+        setError('');
+        setProposalRequested(false);
+        setDailyPreferences((prev) => {
+            const current = prev[todayKey] ?? [];
+            const next = checked
+                ? mergePreferences(current, ['weight_loss'])
+                : current.filter((item) => item !== 'weight_loss');
+            return {
+                ...prev,
+                [todayKey]: next,
+            };
+        });
+        setDraftTodayPreferences((prev) =>
+            checked ? mergePreferences(prev, ['weight_loss']) : prev.filter((item) => item !== 'weight_loss')
+        );
+        setMessage(checked ? '다이어트 체크를 적용해 체중감량형 식단으로 조정했어요.' : '다이어트 체크를 해제해 기본 식단으로 복원했어요.');
+    };
+
     const applyRecentRecordRecommendation = () => {
         setError('');
         setMessage('');
         setProposalRequested(false);
-        setDraftTodayPreferences(recentRecordRecommendations);
+        setDraftTodayPreferences(mergePreferences(userSelectedTodayPreferences, recentRecordRecommendations));
         setMessage('최근 기록 기반 추천을 오늘 방향에 적용했어요.');
     };
 
@@ -1195,7 +1346,7 @@ export default function DietPage() {
             return;
         }
 
-        const confirmedPreferences = [...draftTodayPreferences];
+        const confirmedPreferences = mergePreferences(userSelectedTodayPreferences, draftTodayPreferences);
         setDailyPreferences((prev) => ({
             ...prev,
             [todayKey]: confirmedPreferences,
@@ -1276,6 +1427,10 @@ export default function DietPage() {
         if (!input) {
             return;
         }
+        const normalizedName = normalizeManualMealName(input);
+        if (!normalizedName) {
+            return;
+        }
 
         updateCurrentLog((current) => ({
             ...current,
@@ -1285,9 +1440,11 @@ export default function DietPage() {
                     ...current.meals[slot],
                     {
                         id: `${selectedDate}-${slot}-${Date.now()}`,
-                        name: input,
+                        name: normalizedName,
                         eaten: true,
                         notEaten: false,
+                        isManual: true,
+                        servings: 1,
                     },
                 ],
             },
@@ -1414,6 +1571,29 @@ export default function DietPage() {
                     </div>
                 </div>
 
+                <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/30">
+                    <label className="flex cursor-pointer items-center justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">다이어트 체크</p>
+                            <p className="mt-0.5 text-xs text-blue-800 dark:text-blue-200">
+                                체크 시 오늘 식단을 체중감량형(단백질 유지·탄수화물 조절)으로 바꿔요.
+                            </p>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={todayDietModeChecked}
+                            onChange={(event) => setTodayDietMode(event.target.checked)}
+                            className="h-5 w-5 accent-blue-600"
+                            aria-label="다이어트 체크"
+                        />
+                    </label>
+                    {adaptiveTodayPreferences.length > 0 && (
+                        <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">
+                            최근 기록 자동 반영: {adaptiveTodayPreferences.map((item) => preferenceLabel(item)).join(', ')}
+                        </p>
+                    )}
+                </div>
+
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {(['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).map((slot) => {
                         const meal =
@@ -1444,9 +1624,9 @@ export default function DietPage() {
                             slot === 'breakfast'
                                 ? '7시~9시'
                                 : slot === 'lunch'
-                                  ? '12시~1시30분'
+                                  ? '12시~1시'
                                   : slot === 'dinner'
-                                    ? '6시~7시30분'
+                                    ? '6시~7시'
                                     : null;
                         const mealTimeGuideText =
                             slot === 'snack' ? snackCoffeeRecommendedTime.snack : null;
@@ -2008,6 +2188,9 @@ export default function DietPage() {
                                                     추가
                                                 </button>
                                             </div>
+                                            <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                                                직접 입력한 음식은 1인분 기준으로 분석해요.
+                                            </p>
                                         </article>
                                     );
                                 })}
@@ -2114,7 +2297,7 @@ export default function DietPage() {
                     <h2 className="finderSection__title text-lg font-semibold text-gray-900 dark:text-gray-100">근처 건강식 찾기</h2>
                     <div className="finderSection__grid mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                         <a
-                            href="https://map.kakao.com/?q=%EB%82%B4%20%EC%A3%BC%EB%B3%80%20%EA%B1%B4%EA%B0%95%EC%8B%9D%20%EC%8B%9D%EB%8B%B9"
+                            href="https://map.kakao.com/?q=%EA%B1%B4%EA%B0%95%EC%8B%9D%20%EC%83%90%EB%9F%AC%EB%93%9C%20%EC%B1%84%EC%86%8C%20%EC%8B%9D%EB%8B%B9"
                             target="_blank"
                             rel="noreferrer"
                             className="finderSearch finderSearch--leaf flex h-12 items-center gap-3 rounded-full px-3"
@@ -2127,7 +2310,7 @@ export default function DietPage() {
                             <ChevronRight className="finderSearch__chev h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                         </a>
                         <a
-                            href="https://map.kakao.com/?q=%EB%82%B4%20%EC%A3%BC%EB%B3%80%20%EC%83%90%EB%9F%AC%EB%93%9C%20%EC%95%BC%EC%B1%84%20%EC%8B%9D%EB%8B%B9"
+                            href="https://map.kakao.com/?q=%EC%83%90%EB%9F%AC%EB%93%9C%20%EC%95%BC%EC%B1%84%20%ED%8F%AC%EC%BC%80%20%EC%8B%9D%EB%8B%B9"
                             target="_blank"
                             rel="noreferrer"
                             className="finderSearch finderSearch--salad flex h-12 items-center gap-3 rounded-full px-3"

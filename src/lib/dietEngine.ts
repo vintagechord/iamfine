@@ -29,7 +29,8 @@ export type PreferenceType =
     | 'appetite_boost'
     | 'digestive'
     | 'low_salt'
-    | 'noodle';
+    | 'noodle'
+    | 'weight_loss';
 
 export const PREFERENCE_OPTIONS: Array<{ key: PreferenceType; label: string; guide: string }> = [
     { key: 'spicy', label: '매운맛', guide: '자극은 낮추고 매콤한 느낌은 살려서 조정해요.' },
@@ -51,6 +52,7 @@ export const PREFERENCE_OPTIONS: Array<{ key: PreferenceType; label: string; gui
     { key: 'digestive', label: '소화 편한 음식', guide: '속이 편한 메뉴 위주로 조정해요.' },
     { key: 'low_salt', label: '저염식', guide: '염분이 높은 반찬을 줄이고 싱겁게 맞춰요.' },
     { key: 'noodle', label: '면 요리', guide: '자극이 적은 면 요리를 가끔 반영해요.' },
+    { key: 'weight_loss', label: '체중감량(다이어트)', guide: '단백질을 유지하고 정제 탄수화물을 줄인 감량형 식단으로 조정해요.' },
 ];
 
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -224,12 +226,12 @@ function createMealSuggestion(
 
     const nutrient: MealNutrient =
         mealType === '간식'
-            ? { carb: 40, protein: 30, fat: 30 }
+            ? { carb: 35, protein: 30, fat: 35 }
             : stageLowerCarb
-              ? { carb: 40, protein: 35, fat: 25 }
+              ? { carb: 35, protein: 35, fat: 30 }
               : stageSoft
-                ? { carb: 45, protein: 30, fat: 25 }
-                : { carb: 42, protein: 33, fat: 25 };
+                ? { carb: 40, protein: 33, fat: 27 }
+                : { carb: 38, protein: 34, fat: 28 };
 
     const flourGuide = easierMenu
         ? '밀가루 음식은 주 2회 이하로 줄여보세요.'
@@ -373,7 +375,7 @@ function applyCancerTypeProfile(
         syncSummary(plan.breakfast);
         syncSummary(plan.lunch);
         syncSummary(plan.dinner);
-        addNote(`암 종류(유방암, 매칭어: ${breastMatched})를 직접 반영해 저당·채소·생선/두부 중심으로 조정했어요.`);
+        addNote('암 종류(유방암)를 직접 반영해 저당·채소·생선/두부 중심으로 조정했어요.');
         return '유방암';
     }
 
@@ -402,7 +404,7 @@ function applyCancerTypeProfile(
         syncSummary(plan.lunch);
         syncSummary(plan.dinner);
         addNote(
-            `암 종류(소화기 계열, 매칭어: ${digestiveMatched})를 반영해 부드럽고 소화가 편한 저자극 메뉴 중심으로 조정했어요.`
+            '암 종류(소화기 계열)를 반영해 부드럽고 소화가 편한 저자극 메뉴 중심으로 조정했어요.'
         );
         return '소화기계 암';
     }
@@ -421,7 +423,7 @@ function applyCancerTypeProfile(
         syncSummary(plan.breakfast);
         syncSummary(plan.lunch);
         syncSummary(plan.dinner);
-        addNote(`암 종류(폐암, 매칭어: ${lungMatched})를 반영해 수분·단백질 보강과 저자극 조합을 우선 배치했어요.`);
+        addNote('암 종류(폐암)를 반영해 수분·단백질 보강과 저자극 조합을 우선 배치했어요.');
         return '폐암';
     }
 
@@ -443,7 +445,7 @@ function applyCancerTypeProfile(
         syncSummary(plan.lunch);
         syncSummary(plan.dinner);
         addNote(
-            `암 종류(간·담도 계열, 매칭어: ${hepatobiliaryMatched})를 반영해 저염·저지방 조리 기준으로 조정했어요.`
+            '암 종류(간·담도 계열)를 반영해 저염·저지방 조리 기준으로 조정했어요.'
         );
         return '간담도계 암';
     }
@@ -473,7 +475,7 @@ function applyCancerTypeProfile(
         syncSummary(plan.lunch);
         syncSummary(plan.dinner);
         addNote(
-            `암 종류(혈액암 계열, 매칭어: ${hematologicMatched})를 반영해 익힌 음식 중심의 저자극 구성으로 조정했어요.`
+            '암 종류(혈액암 계열)를 반영해 익힌 음식 중심의 저자극 구성으로 조정했어요.'
         );
         return '혈액암';
     }
@@ -492,7 +494,7 @@ function applyCancerTypeProfile(
         syncSummary(plan.breakfast);
         syncSummary(plan.lunch);
         syncSummary(plan.dinner);
-        addNote(`암 종류(갑상선암, 매칭어: ${thyroidMatched})를 반영해 담백한 조리 중심으로 조정했어요.`);
+        addNote('암 종류(갑상선암)를 반영해 담백한 조리 중심으로 조정했어요.');
         addNote('갑상선암은 치료 방식에 따라 요오드 제한 필요 여부가 달라질 수 있어, 해조류 제한은 의료진 지시를 우선해 주세요.');
         return '갑상선암';
     }
@@ -518,7 +520,7 @@ function applyCancerTypeProfile(
         syncSummary(plan.breakfast);
         syncSummary(plan.lunch);
         syncSummary(plan.dinner);
-        addNote(`암 종류(신장암, 매칭어: ${kidneyMatched})를 반영해 저염·저자극 구성으로 조정했어요.`);
+        addNote('암 종류(신장암)를 반영해 저염·저자극 구성으로 조정했어요.');
         addNote('신장암은 신기능 수치(eGFR/칼륨/인)에 따라 제한이 달라지므로, 검사 결과 기반 조정을 의료진과 확인해 주세요.');
         return '신장암';
     }
@@ -537,7 +539,7 @@ function applyCancerTypeProfile(
         syncSummary(plan.breakfast);
         syncSummary(plan.lunch);
         syncSummary(plan.dinner);
-        addNote(`암 종류(자궁경부암, 매칭어: ${cervicalMatched})을 반영해 단백질·채소 균형과 저자극 조합을 우선했어요.`);
+        addNote('암 종류(자궁경부암)을 반영해 단백질·채소 균형과 저자극 조합을 우선했어요.');
         return '자궁경부암';
     }
 
@@ -908,6 +910,36 @@ export function optimizePlanByPreference(plan: DayPlan, preferences: PreferenceT
         optimized.lunch.sides = ['데친채소', '달걀지단', '두부무침'];
         syncSummary(optimized.lunch);
         notes.push('면 요리는 자극을 줄인 저염 방식으로 반영했어요.');
+    }
+
+    if (has('weight_loss')) {
+        optimized.breakfast.riceType = '현미밥(소량)';
+        optimized.lunch.riceType = '잡곡밥(소량)';
+        optimized.dinner.riceType = '현미밥(소량)';
+        optimized.breakfast.main = '달걀두부찜';
+        optimized.lunch.main = '닭가슴살구이';
+        optimized.dinner.main = '흰살생선찜';
+        optimized.breakfast.sides = ['브로콜리찜', '버섯볶음', '당근볶음'];
+        optimized.lunch.sides = ['양배추볶음', '저염 나물', '구운채소'];
+        optimized.dinner.sides = ['애호박볶음', '버섯볶음', '오이무침'];
+        optimized.breakfast.nutrient = { carb: 35, protein: 40, fat: 25 };
+        optimized.lunch.nutrient = { carb: 35, protein: 40, fat: 25 };
+        optimized.dinner.nutrient = { carb: 35, protein: 40, fat: 25 };
+        optimized.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량';
+        optimized.snack.main = '그릭요거트';
+        optimized.snack.soup = '물';
+        optimized.snack.sides = ['베리류', '아몬드 소량'];
+        optimized.snack.nutrient = { carb: 30, protein: 40, fat: 30 };
+        optimized.snack.recipeName = '체중감량형 간식 조합';
+        optimized.snack.recipeSteps = [
+            '그릭요거트를 1회 분량으로 담아 주세요.',
+            '베리류를 한 줌 이내로 곁들여 주세요.',
+            '아몬드는 5~6알 이내로 추가해 주세요.',
+        ];
+        syncSummary(optimized.breakfast);
+        syncSummary(optimized.lunch);
+        syncSummary(optimized.dinner);
+        notes.push('체중감량 방향을 반영해 단백질 유지·탄수화물 조절형 식단으로 조정했어요.');
     }
 
     return {

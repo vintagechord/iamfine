@@ -28,6 +28,16 @@ type DietStore = {
     preferences?: PreferenceType[];
     dailyPreferences?: Record<string, PreferenceType[]>;
     carryPreferences?: PreferenceType[];
+    logs?: Record<string, DayLog>;
+};
+
+type TrackItem = {
+    name: string;
+    eaten: boolean;
+};
+
+type DayLog = {
+    meals: Partial<Record<'breakfast' | 'lunch' | 'dinner' | 'snack', TrackItem[]>>;
 };
 
 type CategoryKey =
@@ -65,6 +75,7 @@ const PREFERENCE_KEYS = new Set<PreferenceType>([
     'digestive',
     'low_salt',
     'noodle',
+    'weight_loss',
 ]);
 
 const CATEGORY_ORDER: CategoryKey[] = [
@@ -94,6 +105,7 @@ function parseDietStore(raw: string | null) {
         return {
             dailyPreferences: {} as Record<string, PreferenceType[]>,
             carryPreferences: [] as PreferenceType[],
+            logs: {} as Record<string, DayLog>,
         };
     }
 
@@ -115,11 +127,13 @@ function parseDietStore(raw: string | null) {
         return {
             dailyPreferences,
             carryPreferences: carryPreferences.length > 0 ? carryPreferences : legacyPreferences,
+            logs: parsed.logs && typeof parsed.logs === 'object' ? (parsed.logs as Record<string, DayLog>) : {},
         };
     } catch {
         return {
             dailyPreferences: {} as Record<string, PreferenceType[]>,
             carryPreferences: [] as PreferenceType[],
+            logs: {} as Record<string, DayLog>,
         };
     }
 }
@@ -133,6 +147,84 @@ function offsetDateKey(baseDateKey: string, offset: number) {
 
 function dateRangeKeys(startDateKey: string, days: number) {
     return Array.from({ length: days }, (_, index) => offsetDateKey(startDateKey, index));
+}
+
+function eatenNames(log: DayLog) {
+    const slots: Array<'breakfast' | 'lunch' | 'dinner' | 'snack'> = ['breakfast', 'lunch', 'dinner', 'snack'];
+    return slots.flatMap((slot) => (log.meals[slot] ?? []).filter((item) => item.eaten).map((item) => item.name));
+}
+
+function normalizeText(input: string) {
+    return input.trim().toLowerCase();
+}
+
+function countKeywords(text: string, keywords: string[]) {
+    const normalized = normalizeText(text);
+    return keywords.reduce((count, keyword) => count + (normalized.includes(keyword) ? 1 : 0), 0);
+}
+
+function mergePreferences(...lists: Array<PreferenceType[]>) {
+    const merged = new Set<PreferenceType>();
+    lists.forEach((list) => {
+        list.forEach((item) => merged.add(item));
+    });
+    return Array.from(merged);
+}
+
+function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, referenceDateKey: string) {
+    const lookbackText = Array.from({ length: 14 }, (_, index) => {
+        const dateKey = offsetDateKey(referenceDateKey, -(index + 1));
+        const log = logs[dateKey];
+        if (!log) {
+            return '';
+        }
+        return eatenNames(log).join(' ');
+    })
+        .join(' ')
+        .trim();
+
+    if (!lookbackText) {
+        return [] as PreferenceType[];
+    }
+
+    const suggestions: PreferenceType[] = [];
+    const add = (value: PreferenceType) => {
+        if (!suggestions.includes(value)) {
+            suggestions.push(value);
+        }
+    };
+
+    const flourSugarCount =
+        countKeywords(lookbackText, ['빵', '라면', '면', '파스타', '피자', '도넛']) +
+        countKeywords(lookbackText, ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림']);
+    const proteinCount = countKeywords(lookbackText, ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유']);
+    const vegetableCount = countKeywords(lookbackText, ['브로콜리', '양배추', '시금치', '오이', '당근', '버섯', '샐러드', '채소']);
+
+    if (flourSugarCount >= 8) {
+        add('healthy');
+        add('digestive');
+    }
+    if (proteinCount < 6) {
+        add('high_protein');
+    }
+    if (vegetableCount < 6) {
+        add('vegetable');
+    }
+
+    const yesterdayLog = logs[offsetDateKey(referenceDateKey, -1)];
+    if (yesterdayLog) {
+        const yesterdayText = eatenNames(yesterdayLog).join(' ');
+        const heavyCount =
+            countKeywords(yesterdayText, ['튀김', '치킨', '야식', '술', '맥주', '소주', '족발', '보쌈']) +
+            countKeywords(yesterdayText, ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림']);
+        if (heavyCount >= 3) {
+            add('healthy');
+            add('digestive');
+            add('low_salt');
+        }
+    }
+
+    return suggestions.slice(0, 4);
 }
 
 function classifyItem(item: string): CategoryKey {
@@ -239,6 +331,7 @@ export default function ShoppingPage() {
     const [userId, setUserId] = useState<string | null>(null);
     const [stageType, setStageType] = useState<StageType>('other');
     const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
+    const [logs, setLogs] = useState<Record<string, DayLog>>({});
 
     const [startDateKey, setStartDateKey] = useState(todayKey);
     const [rangeDays, setRangeDays] = useState(3);
@@ -281,6 +374,7 @@ export default function ShoppingPage() {
 
             const parsed = parseDietStore(localStorage.getItem(getStoreKey(uid)));
             setDailyPreferences(parsed.dailyPreferences);
+            setLogs(parsed.logs);
             setLoading(false);
         };
 
@@ -300,8 +394,8 @@ export default function ShoppingPage() {
         return dateKeys.map((dateKey) => {
             const basePlan = generatePlanForDate(dateKey, stageType, 70);
             const byDatePreferences = dailyPreferences[dateKey];
-            const influencedPreferences: PreferenceType[] = [];
-            const appliedPreferences = byDatePreferences ?? influencedPreferences;
+            const adaptivePreferences = recommendAdaptivePreferencesByRecentLogs(logs, dateKey);
+            const appliedPreferences = mergePreferences(adaptivePreferences, byDatePreferences ?? []);
 
             if (appliedPreferences.length === 0) {
                 return {
@@ -315,7 +409,7 @@ export default function ShoppingPage() {
                 plan: optimizePlanByPreference(basePlan, appliedPreferences).plan,
             };
         });
-    }, [dateKeys, stageType, dailyPreferences]);
+    }, [dateKeys, stageType, dailyPreferences, logs]);
 
     const plans = useMemo(
         () => planRows.map((row) => row.plan),
