@@ -2115,7 +2115,7 @@ export default function DietPage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setMealSlotStatus(slot, 'not_eaten')}
-                                                    className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-700 dark:bg-rose-950/30 dark:text-rose-200 dark:hover:bg-rose-900/40"
+                                                    className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
                                                 >
                                                     전체 안먹음
                                                 </button>
@@ -2158,7 +2158,7 @@ export default function DietPage() {
                                                             onClick={() => markMealAsNotEaten(slot, item.id)}
                                                             className={`cursor-pointer min-w-[64px] rounded-md border px-2 py-1 text-xs font-semibold ${
                                                                 item.notEaten
-                                                                    ? 'border-red-500 bg-red-500 text-white dark:border-red-500 dark:bg-red-500 dark:text-white'
+                                                                    ? 'border-amber-400 bg-amber-400 text-amber-950 dark:border-amber-400 dark:bg-amber-400 dark:text-amber-950'
                                                                     : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-200'
                                                             }`}
                                                         >
