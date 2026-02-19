@@ -985,6 +985,7 @@ export default function DietPage() {
         () => offsetDateKey(todayKey, todayPlanOffset),
         [todayKey, todayPlanOffset]
     );
+    const isViewingToday = todayPlanOffset === 0;
     const viewedTodayLabel = todayPlanOffset === -1 ? '어제' : todayPlanOffset === 1 ? '내일' : '오늘';
     const viewedTodayDateLabel = useMemo(
         () => formatDateLabel(viewedTodayDateKey),
@@ -1636,7 +1637,7 @@ export default function DietPage() {
                         <div>
                             <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">다이어트 체크</p>
                             <p className="mt-0.5 text-xs text-blue-800 dark:text-blue-200">
-                                체크 시 오늘 식단을 체중감량형(단백질 유지·탄수화물 조절)으로 바꿔요.
+                                체크 시 식단을 체중감량형(단백질 유지·탄수화물 조절)으로 바꿔요.
                             </p>
                         </div>
                         <input
@@ -1645,11 +1646,17 @@ export default function DietPage() {
                             onChange={(event) => setTodayDietMode(event.target.checked)}
                             className="h-5 w-5 accent-blue-600"
                             aria-label="다이어트 체크"
+                            disabled={!isViewingToday}
                         />
                     </label>
                     {adaptiveTodayPreferences.length > 0 && (
                         <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">
                             최근 기록 자동 반영: {adaptiveTodayPreferences.map((item) => preferenceLabel(item)).join(', ')}
+                        </p>
+                    )}
+                    {!isViewingToday && (
+                        <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">
+                            다이어트 체크 변경은 오늘 식단에서만 가능해요.
                         </p>
                     )}
                 </div>
