@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ChevronRight, Coffee, Leaf, MapPin, Moon, Sun, Sunrise } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Coffee, Leaf, MapPin, Moon, Sun, Sunrise } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
     formatDateKey,
@@ -656,6 +656,7 @@ export default function DietPage() {
     const [showTodayPreferencePanel, setShowTodayPreferencePanel] = useState(false);
 
     const [selectedDate, setSelectedDate] = useState(todayKey);
+    const [todayPlanOffset, setTodayPlanOffset] = useState(0);
     const [openRecipeSlot, setOpenRecipeSlot] = useState<RecipeTarget | null>(null);
     const [showRecordPlanModal, setShowRecordPlanModal] = useState(false);
     const [showNutrients, setShowNutrients] = useState(false);
@@ -980,6 +981,35 @@ export default function DietPage() {
         () => logs[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan),
         [logs, selectedDate, selectedPlan]
     );
+    const viewedTodayDateKey = useMemo(
+        () => offsetDateKey(todayKey, todayPlanOffset),
+        [todayKey, todayPlanOffset]
+    );
+    const viewedTodayLabel = todayPlanOffset === -1 ? '어제' : todayPlanOffset === 1 ? '내일' : '오늘';
+    const viewedTodayDateLabel = useMemo(
+        () => formatDateLabel(viewedTodayDateKey),
+        [viewedTodayDateKey]
+    );
+    const viewedTodayPlan = useMemo(
+        () => (viewedTodayDateKey === todayKey ? todayPlan : getPlanForDate(viewedTodayDateKey)),
+        [viewedTodayDateKey, todayKey, todayPlan, getPlanForDate]
+    );
+    const viewedTodayNotes = useMemo(() => {
+        if (viewedTodayDateKey === todayKey) {
+            return optimizedToday.notes;
+        }
+        const basePlan = generatePlanForDate(viewedTodayDateKey, stageType, previousMonthScore);
+        const appliedPreferences = resolveAppliedPreferences(viewedTodayDateKey);
+        return applyRecommendationAdjustments(basePlan, appliedPreferences).notes;
+    }, [
+        viewedTodayDateKey,
+        todayKey,
+        optimizedToday.notes,
+        stageType,
+        previousMonthScore,
+        resolveAppliedPreferences,
+        applyRecommendationAdjustments,
+    ]);
     const sortedMedicationSchedules = useMemo(
         () =>
             [...medicationSchedules].sort(
@@ -1009,9 +1039,9 @@ export default function DietPage() {
         () => new Set(selectedLog.medicationTakenIds ?? []),
         [selectedLog.medicationTakenIds]
     );
-    const todayMedicationTakenSet = useMemo(
-        () => new Set((logs[todayKey]?.medicationTakenIds ?? []) as string[]),
-        [logs, todayKey]
+    const viewedTodayMedicationTakenSet = useMemo(
+        () => new Set((logs[viewedTodayDateKey]?.medicationTakenIds ?? []) as string[]),
+        [logs, viewedTodayDateKey]
     );
 
     const selectedAnalysis = useMemo(
@@ -1066,31 +1096,31 @@ export default function DietPage() {
         if (openRecipeSlot === 'breakfast') {
             return {
                 title: `${mealTypeLabel(openRecipeSlot)} 조리법`,
-                recipeName: todayPlan.breakfast.recipeName,
-                recipeSteps: uniqueRecipeSteps(todayPlan.breakfast.recipeSteps),
+                recipeName: viewedTodayPlan.breakfast.recipeName,
+                recipeSteps: uniqueRecipeSteps(viewedTodayPlan.breakfast.recipeSteps),
             };
         }
         if (openRecipeSlot === 'lunch') {
             return {
                 title: `${mealTypeLabel(openRecipeSlot)} 조리법`,
-                recipeName: todayPlan.lunch.recipeName,
-                recipeSteps: uniqueRecipeSteps(todayPlan.lunch.recipeSteps),
+                recipeName: viewedTodayPlan.lunch.recipeName,
+                recipeSteps: uniqueRecipeSteps(viewedTodayPlan.lunch.recipeSteps),
             };
         }
         if (openRecipeSlot === 'dinner') {
             return {
                 title: `${mealTypeLabel(openRecipeSlot)} 조리법`,
-                recipeName: todayPlan.dinner.recipeName,
-                recipeSteps: uniqueRecipeSteps(todayPlan.dinner.recipeSteps),
+                recipeName: viewedTodayPlan.dinner.recipeName,
+                recipeSteps: uniqueRecipeSteps(viewedTodayPlan.dinner.recipeSteps),
             };
         }
 
         return {
             title: `${mealTypeLabel(openRecipeSlot)} 조리법`,
-            recipeName: todayPlan.snack.recipeName,
-            recipeSteps: uniqueRecipeSteps(todayPlan.snack.recipeSteps),
+            recipeName: viewedTodayPlan.snack.recipeName,
+            recipeSteps: uniqueRecipeSteps(viewedTodayPlan.snack.recipeSteps),
         };
-    }, [openRecipeSlot, timingGuide.coffee, todayPlan]);
+    }, [openRecipeSlot, timingGuide.coffee, viewedTodayPlan]);
 
     const weeklyScore = useMemo(() => {
         const base = new Date(todayKey);
@@ -1547,7 +1577,37 @@ export default function DietPage() {
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">오늘 식단</h1>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setTodayPlanOffset((prev) => Math.max(-1, prev - 1))}
+                                disabled={todayPlanOffset <= -1}
+                                className="rounded-full border border-gray-300 bg-white p-1.5 text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                aria-label="어제 식단 보기"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{viewedTodayLabel} 식단</h1>
+                            <button
+                                type="button"
+                                onClick={() => setTodayPlanOffset((prev) => Math.min(1, prev + 1))}
+                                disabled={todayPlanOffset >= 1}
+                                className="rounded-full border border-gray-300 bg-white p-1.5 text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                aria-label="내일 식단 보기"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                            {todayPlanOffset !== 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setTodayPlanOffset(0)}
+                                    className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                    오늘로
+                                </button>
+                            )}
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{viewedTodayDateLabel} 기준</p>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                         {profile?.nickname && (
                             <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -1598,12 +1658,12 @@ export default function DietPage() {
                     {(['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).map((slot) => {
                         const meal =
                             slot === 'breakfast'
-                                ? todayPlan.breakfast
+                                ? viewedTodayPlan.breakfast
                                 : slot === 'lunch'
-                                  ? todayPlan.lunch
+                                  ? viewedTodayPlan.lunch
                                   : slot === 'dinner'
-                                    ? todayPlan.dinner
-                                    : todayPlan.snack;
+                                    ? viewedTodayPlan.dinner
+                                    : viewedTodayPlan.snack;
                         const mealTileAccentClass =
                             slot === 'breakfast'
                                 ? 'mealTileMono--mint'
@@ -1671,7 +1731,7 @@ export default function DietPage() {
                                                 ) : (
                                                     <div className="mt-1 flex flex-wrap gap-1.5">
                                                         {mealMedicationList.map((medication) => {
-                                                            const taken = todayMedicationTakenSet.has(medication.id);
+                                                            const taken = viewedTodayMedicationTakenSet.has(medication.id);
                                                             return (
                                                                 <span
                                                                     key={medication.id}
@@ -1721,13 +1781,13 @@ export default function DietPage() {
                 </div>
 
                 <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100">
-                    <p className="font-semibold">오늘 식단 점검 로그</p>
+                    <p className="font-semibold">{viewedTodayLabel} 식단 점검 로그</p>
                     <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
                         암 종류/치료 단계/복용 정보를 기준으로 실제 반영된 항목이에요.
                     </p>
                     <div className="mt-2 space-y-1">
-                        {optimizedToday.notes.length > 0 ? (
-                            optimizedToday.notes.map((note) => <p key={note}>- {note}</p>)
+                        {viewedTodayNotes.length > 0 ? (
+                            viewedTodayNotes.map((note) => <p key={note}>- {note}</p>)
                         ) : (
                             <p>- 개인 조건이 없거나 매칭되지 않아 기본 안전식 기준으로 추천됐어요.</p>
                         )}
