@@ -922,14 +922,14 @@ export function optimizePlanByPreference(plan: DayPlan, preferences: PreferenceT
         optimized.breakfast.sides = ['브로콜리찜', '버섯볶음', '당근볶음'];
         optimized.lunch.sides = ['양배추볶음', '저염 나물', '구운채소'];
         optimized.dinner.sides = ['애호박볶음', '버섯볶음', '오이무침'];
-        optimized.breakfast.nutrient = { carb: 35, protein: 40, fat: 25 };
-        optimized.lunch.nutrient = { carb: 35, protein: 40, fat: 25 };
-        optimized.dinner.nutrient = { carb: 35, protein: 40, fat: 25 };
+        optimized.breakfast.nutrient = { carb: 28, protein: 47, fat: 25 };
+        optimized.lunch.nutrient = { carb: 28, protein: 47, fat: 25 };
+        optimized.dinner.nutrient = { carb: 28, protein: 47, fat: 25 };
         optimized.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량';
         optimized.snack.main = '그릭요거트';
         optimized.snack.soup = '물';
         optimized.snack.sides = ['베리류', '아몬드 소량'];
-        optimized.snack.nutrient = { carb: 30, protein: 40, fat: 30 };
+        optimized.snack.nutrient = { carb: 22, protein: 43, fat: 35 };
         optimized.snack.recipeName = '체중감량형 간식 조합';
         optimized.snack.recipeSteps = [
             '그릭요거트를 1회 분량으로 담아 주세요.',
@@ -939,7 +939,7 @@ export function optimizePlanByPreference(plan: DayPlan, preferences: PreferenceT
         syncSummary(optimized.breakfast);
         syncSummary(optimized.lunch);
         syncSummary(optimized.dinner);
-        notes.push('체중감량 방향을 반영해 단백질 유지·탄수화물 조절형 식단으로 조정했어요.');
+        notes.push('체중감량 방향을 반영해 탄수화물 비율을 더 낮추고 단백질 중심으로 조정했어요.');
     }
 
     return {
