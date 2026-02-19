@@ -113,10 +113,32 @@ const STAGE_STATUS_LABELS: Record<StageStatus, string> = {
     active: '진행중',
     completed: '완료',
 };
+const BACKGROUND_COUNTRY_OPTIONS = [
+    '한국',
+    '미국',
+    '일본',
+    '중국',
+    '대만',
+    '홍콩',
+    '싱가포르',
+    '태국',
+    '베트남',
+    '필리핀',
+    '인도',
+    '인도네시아',
+    '말레이시아',
+    '호주',
+    '캐나다',
+    '영국',
+    '프랑스',
+    '독일',
+    '스페인',
+    '브라질',
+] as const;
 
 function normalizeNickname(input: string) {
     const trimmed = input.trim();
-    return trimmed.replace(/[^a-zA-Z0-9_]/g, '');
+    return trimmed.replace(/[^a-zA-Z0-9_가-힣]/g, '');
 }
 
 function getTreatmentMetaKey(userId: string) {
@@ -324,6 +346,10 @@ export default function ProfilePage() {
     const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
 
     const normalized = useMemo(() => normalizeNickname(nickname), [nickname]);
+    const hasCustomEthnicityValue = useMemo(
+        () => Boolean(ethnicity.trim()) && !BACKGROUND_COUNTRY_OPTIONS.includes(ethnicity.trim() as (typeof BACKGROUND_COUNTRY_OPTIONS)[number]),
+        [ethnicity]
+    );
     const nextTreatmentStageOrder = useMemo(
         () =>
             Math.max(
@@ -509,7 +535,7 @@ export default function ProfilePage() {
             setNickname(normalized);
             setFeedback({
                 type: 'error',
-                text: '영문, 숫자, 밑줄(_)만 사용할 수 있어요. 입력값을 자동으로 정리했어요.',
+                text: '한글, 영문, 숫자, 밑줄(_)만 사용할 수 있어요. 입력값을 자동으로 정리했어요.',
             });
             return;
         }
@@ -564,7 +590,7 @@ export default function ProfilePage() {
             setNickname(normalized);
             setFeedback({
                 type: 'error',
-                text: '영문, 숫자, 밑줄(_)만 사용할 수 있어요. 입력값을 자동으로 정리했어요.',
+                text: '한글, 영문, 숫자, 밑줄(_)만 사용할 수 있어요. 입력값을 자동으로 정리했어요.',
             });
             return;
         }
@@ -1006,7 +1032,7 @@ export default function ProfilePage() {
                             className="mt-2 w-full max-w-md rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
                         />
                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            영문, 숫자, 밑줄(_)을 포함해 2자 이상 20자 이하로 입력해 주세요.
+                            한글, 영문, 숫자, 밑줄(_)을 포함해 2자 이상 20자 이하로 입력해 주세요.
                         </p>
                         <div className="mt-4 flex flex-wrap gap-2">
                             <button
@@ -1078,12 +1104,23 @@ export default function ProfilePage() {
                         </div>
                         <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-200">
                             인종/배경(선택)
-                            <input
+                            <select
                                 value={ethnicity}
                                 onChange={(event) => setEthnicity(event.target.value)}
-                                placeholder="예: 동아시아"
                                 className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                            />
+                            >
+                                <option value="">선택 안함</option>
+                                {BACKGROUND_COUNTRY_OPTIONS.map((country) => (
+                                    <option key={country} value={country}>
+                                        {country}
+                                    </option>
+                                ))}
+                                {hasCustomEthnicityValue && (
+                                    <option value={ethnicity}>
+                                        {ethnicity} (기존 저장값)
+                                    </option>
+                                )}
+                            </select>
                         </label>
                         <button
                             type="button"

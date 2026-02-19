@@ -620,7 +620,6 @@ export default function DietPage() {
         const weightText = userDietContext.weightKg ? `${userDietContext.weightKg}kg` : '미입력';
         const ethnicityText = userDietContext.ethnicity?.trim() ? userDietContext.ethnicity.trim() : '미입력';
         const cancerTypeText = userDietContext.cancerType?.trim() ? userDietContext.cancerType.trim() : '미입력';
-        const cancerStageText = userDietContext.cancerStage?.trim() ? userDietContext.cancerStage.trim() : '미입력';
         const stageLabel = activeStage?.stage_label?.trim() || '미입력';
         const stageTypeLabel = activeStage ? activeStage.stage_type : '미입력';
         const stageOrderText = activeStage ? `${activeStage.stage_order}순서` : '미입력';
@@ -639,7 +638,7 @@ export default function DietPage() {
 
         return [
             `기본 건강 정보: 나이 ${ageText} / 성별 ${sexText} / 키 ${heightText} / 몸무게 ${weightText} / 인종·배경 ${ethnicityText}`,
-            `치료 정보: 암 종류 ${cancerTypeText} / 기수 ${cancerStageText}`,
+            `치료 정보: 암 종류 ${cancerTypeText}`,
             `치료 단계: 유형 ${stageTypeLabel} / 단계명 ${stageLabel} / 상태 ${stageStatusText} / 순서 ${stageOrderText}`,
             `복용 약 정보: ${medicationCount}개 / 복용 시기 ${medicationTimingText}`,
         ];
@@ -1234,7 +1233,7 @@ export default function DietPage() {
                         ? {
                               ...item,
                               eaten: false,
-                              notEaten: true,
+                              notEaten: !item.notEaten,
                           }
                         : item
                 ),
@@ -1441,14 +1440,16 @@ export default function DietPage() {
                                   : slot === 'dinner'
                                     ? Moon
                                     : Coffee;
-                        const mealTimeText =
+                        const mealTimeBadgeText =
                             slot === 'breakfast'
-                                ? '07:00~09:00'
+                                ? '7시~9시'
                                 : slot === 'lunch'
-                                  ? '12:00~13:30'
+                                  ? '12시~1시30분'
                                   : slot === 'dinner'
-                                    ? '18:00~19:30'
-                                    : snackCoffeeRecommendedTime.snack;
+                                    ? '6시~7시30분'
+                                    : null;
+                        const mealTimeGuideText =
+                            slot === 'snack' ? snackCoffeeRecommendedTime.snack : null;
                         const coffeeTimeText =
                             slot === 'snack' ? snackCoffeeRecommendedTime.coffee : null;
                         const showMedicationArea = slot === 'breakfast' || slot === 'lunch' || slot === 'dinner';
@@ -1466,12 +1467,19 @@ export default function DietPage() {
                                     <span className="mealTileMono__iconWrap" aria-hidden="true">
                                         <MealIcon className="mealTileMono__icon" />
                                     </span>
-                                    <h2 className="mealTileMono__title text-base font-extrabold tracking-tight">{mealTypeLabel(slot)}</h2>
+                                    <div className="flex items-start gap-2">
+                                        <h2 className="mealTileMono__title text-base font-extrabold tracking-tight">{mealTypeLabel(slot)}</h2>
+                                        {mealTimeBadgeText && (
+                                            <span className="-mt-0.5 rounded-full border border-gray-300 bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200">
+                                                {mealTimeBadgeText}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="mealTileMono__body">
                                     <p className="text-base font-bold leading-snug">{meal.summary}</p>
                                     {slot !== 'snack' && <p className="mt-1 text-sm">반찬: {meal.sides.join(', ')}</p>}
-                                    <p className="mealTileMono__time mt-2 text-sm font-medium">- {mealTimeText}</p>
+                                    {mealTimeGuideText && <p className="mealTileMono__time mt-2 text-sm font-medium">- {mealTimeGuideText}</p>}
                                     {coffeeTimeText && <p className="mealTileMono__time mt-1 text-sm font-medium">- {coffeeTimeText}</p>}
                                     {slot !== 'snack' && <MealNutrientBalance nutrient={meal.nutrient} />}
                                     <div className="mt-auto space-y-2 pt-3">
@@ -1525,7 +1533,7 @@ export default function DietPage() {
                         <button
                             type="button"
                             onClick={() => setOpenRecipeSlot('coffee')}
-                            className="rounded-md border border-black bg-black px-2.5 py-1.5 text-sm font-semibold text-white transition hover:bg-gray-800"
+                            className="cursor-pointer rounded-md border border-black bg-black px-2.5 py-1.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-gray-800"
                         >
                             커피 가이드 보기
                         </button>
@@ -1535,7 +1543,7 @@ export default function DietPage() {
                 <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100">
                     <p className="font-semibold">오늘 식단 점검 로그</p>
                     <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
-                        암 종류/기수/치료 단계/복용 정보를 기준으로 실제 반영된 항목이에요.
+                        암 종류/치료 단계/복용 정보를 기준으로 실제 반영된 항목이에요.
                     </p>
                     <div className="mt-2 space-y-1">
                         {optimizedToday.notes.length > 0 ? (
@@ -1951,12 +1959,12 @@ export default function DietPage() {
                                                 {items.map((item) => (
                                                     <div
                                                         key={item.id}
-                                                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900"
+                                                        className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900"
                                                     >
                                                         <button
                                                             type="button"
                                                             onClick={() => toggleMealItem(slot, item.id)}
-                                                            className={`rounded-lg px-3 py-1 text-xs font-semibold ${
+                                                            className={`cursor-pointer min-w-[64px] rounded-lg px-2.5 py-1 text-xs font-semibold ${
                                                                 item.eaten
                                                                     ? 'bg-emerald-600 text-white'
                                                                     : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
@@ -1964,11 +1972,11 @@ export default function DietPage() {
                                                         >
                                                             먹었어요
                                                         </button>
-                                                        <p className="flex-1 text-sm text-gray-800 dark:text-gray-100">{item.name}</p>
+                                                        <p className="min-w-0 px-1 text-center text-sm leading-snug text-gray-800 dark:text-gray-100">{item.name}</p>
                                                         <button
                                                             type="button"
                                                             onClick={() => markMealAsNotEaten(slot, item.id)}
-                                                            className={`rounded-md border px-2 py-1 text-xs font-semibold ${
+                                                            className={`cursor-pointer min-w-[64px] rounded-md border px-2 py-1 text-xs font-semibold ${
                                                                 item.notEaten
                                                                     ? 'border-red-500 bg-red-500 text-white dark:border-red-500 dark:bg-red-500 dark:text-white'
                                                                     : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-200'
@@ -2106,7 +2114,7 @@ export default function DietPage() {
                     <h2 className="finderSection__title text-lg font-semibold text-gray-900 dark:text-gray-100">근처 건강식 찾기</h2>
                     <div className="finderSection__grid mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                         <a
-                            href="https://www.google.com/maps/search/건강식+식당+near+me"
+                            href="https://map.kakao.com/?q=%EB%82%B4%20%EC%A3%BC%EB%B3%80%20%EA%B1%B4%EA%B0%95%EC%8B%9D%20%EC%8B%9D%EB%8B%B9"
                             target="_blank"
                             rel="noreferrer"
                             className="finderSearch finderSearch--leaf flex h-12 items-center gap-3 rounded-full px-3"
@@ -2119,7 +2127,7 @@ export default function DietPage() {
                             <ChevronRight className="finderSearch__chev h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                         </a>
                         <a
-                            href="https://www.google.com/maps/search/샐러드+식당+near+me"
+                            href="https://map.kakao.com/?q=%EB%82%B4%20%EC%A3%BC%EB%B3%80%20%EC%83%90%EB%9F%AC%EB%93%9C%20%EC%95%BC%EC%B1%84%20%EC%8B%9D%EB%8B%B9"
                             target="_blank"
                             rel="noreferrer"
                             className="finderSearch finderSearch--salad flex h-12 items-center gap-3 rounded-full px-3"
