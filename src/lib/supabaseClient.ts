@@ -7,5 +7,11 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 export const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey);
 
 export const supabase: SupabaseClient | null = hasSupabaseEnv
-    ? createBrowserClient(supabaseUrl!, supabaseAnonKey!)
+    ? createBrowserClient(supabaseUrl!, supabaseAnonKey!, {
+          auth: {
+              persistSession: true,
+              autoRefreshToken: true,
+              detectSessionInUrl: true,
+          },
+      })
     : null;
