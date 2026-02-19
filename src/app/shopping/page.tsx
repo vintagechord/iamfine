@@ -1,0 +1,514 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import {
+    formatDateKey,
+    formatDateLabel,
+    generatePlanForDate,
+    optimizePlanByPreference,
+    STAGE_TYPE_LABELS,
+    type DayPlan,
+    type PreferenceType,
+    type StageType,
+} from '@/lib/dietEngine';
+import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+
+type StageStatus = 'planned' | 'active' | 'completed';
+
+type TreatmentStageRow = {
+    id: string;
+    stage_type: StageType;
+    stage_order: number;
+    status: StageStatus;
+    created_at: string;
+};
+
+type DietStore = {
+    preferences?: PreferenceType[];
+    dailyPreferences?: Record<string, PreferenceType[]>;
+    carryPreferences?: PreferenceType[];
+};
+
+type CategoryKey =
+    | '곡물/밥'
+    | '단백질 식품'
+    | '채소/과일'
+    | '국/수프 재료'
+    | '단 음식/간식'
+    | '면·간편식'
+    | '기타';
+
+type GroceryCategory = {
+    category: CategoryKey;
+    items: Array<{ name: string; count: number }>;
+};
+
+const STORAGE_PREFIX = 'diet-store-v2';
+const PREFERENCE_KEYS = new Set<PreferenceType>([
+    'spicy',
+    'sweet',
+    'meat',
+    'pizza',
+    'healthy',
+    'fish',
+    'sashimi',
+    'sushi',
+    'cool_food',
+    'warm_food',
+    'soft_food',
+    'soupy',
+    'high_protein',
+    'vegetable',
+    'bland',
+    'appetite_boost',
+    'digestive',
+    'low_salt',
+    'noodle',
+]);
+
+const CATEGORY_ORDER: CategoryKey[] = [
+    '곡물/밥',
+    '단백질 식품',
+    '채소/과일',
+    '국/수프 재료',
+    '단 음식/간식',
+    '면·간편식',
+    '기타',
+];
+
+function getStoreKey(userId: string) {
+    return `${STORAGE_PREFIX}:${userId}`;
+}
+
+function normalizePreferences(value: unknown): PreferenceType[] {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value.filter((item): item is PreferenceType => PREFERENCE_KEYS.has(item as PreferenceType));
+}
+
+function parseDietStore(raw: string | null) {
+    if (!raw) {
+        return {
+            dailyPreferences: {} as Record<string, PreferenceType[]>,
+            carryPreferences: [] as PreferenceType[],
+        };
+    }
+
+    try {
+        const parsed = JSON.parse(raw) as DietStore;
+        const dailyPreferences =
+            parsed.dailyPreferences && typeof parsed.dailyPreferences === 'object'
+                ? Object.fromEntries(
+                      Object.entries(parsed.dailyPreferences).map(([dateKey, values]) => [
+                          dateKey,
+                          normalizePreferences(values),
+                      ])
+                  )
+                : {};
+
+        const legacyPreferences = normalizePreferences(parsed.preferences);
+        const carryPreferences = normalizePreferences(parsed.carryPreferences);
+
+        return {
+            dailyPreferences,
+            carryPreferences: carryPreferences.length > 0 ? carryPreferences : legacyPreferences,
+        };
+    } catch {
+        return {
+            dailyPreferences: {} as Record<string, PreferenceType[]>,
+            carryPreferences: [] as PreferenceType[],
+        };
+    }
+}
+
+function offsetDateKey(baseDateKey: string, offset: number) {
+    const [year, month, day] = baseDateKey.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + offset);
+    return formatDateKey(date);
+}
+
+function dateRangeKeys(startDateKey: string, days: number) {
+    return Array.from({ length: days }, (_, index) => offsetDateKey(startDateKey, index));
+}
+
+function classifyItem(item: string): CategoryKey {
+    if (/케이크|쿠키|과자|초콜릿|아이스크림|요거트|두유|견과|바나나|사과|고구마/.test(item)) {
+        return '단 음식/간식';
+    }
+    if (/현미|잡곡|귀리|보리|흑미|기장|밥/.test(item)) {
+        return '곡물/밥';
+    }
+    if (/닭|연어|생선|두부|달걀|콩|소고기|돼지|요거트|두유/.test(item)) {
+        return '단백질 식품';
+    }
+    if (/브로콜리|버섯|시금치|오이|당근|애호박|양배추|미나리|채소|샐러드|해초|토마토|가지|상추|과일/.test(item)) {
+        return '채소/과일';
+    }
+    if (/국|수프|된장국|미역국|냉국/.test(item)) {
+        return '국/수프 재료';
+    }
+    if (/피자|면|국수|라면|파스타|또띠아/.test(item)) {
+        return '면·간편식';
+    }
+    return '기타';
+}
+
+function collectPlanItems(plan: DayPlan) {
+    return [
+        plan.breakfast.riceType,
+        plan.breakfast.main,
+        plan.breakfast.soup,
+        ...plan.breakfast.sides,
+        plan.lunch.riceType,
+        plan.lunch.main,
+        plan.lunch.soup,
+        ...plan.lunch.sides,
+        plan.dinner.riceType,
+        plan.dinner.main,
+        plan.dinner.soup,
+        ...plan.dinner.sides,
+        plan.snack.main,
+        ...plan.snack.sides,
+    ]
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+}
+
+function buildGroceryCategories(plans: DayPlan[]): GroceryCategory[] {
+    const buckets = new Map<CategoryKey, Map<string, number>>();
+
+    CATEGORY_ORDER.forEach((category) => {
+        buckets.set(category, new Map<string, number>());
+    });
+
+    plans.forEach((plan) => {
+        const items = collectPlanItems(plan);
+        items.forEach((item) => {
+            const category = classifyItem(item);
+            const categoryMap = buckets.get(category);
+            if (!categoryMap) {
+                return;
+            }
+            categoryMap.set(item, (categoryMap.get(item) ?? 0) + 1);
+        });
+    });
+
+    return CATEGORY_ORDER.map((category) => ({
+        category,
+        items: Array.from(buckets.get(category)?.entries() ?? [])
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'))
+            .map(([name, count]) => ({ name, count })),
+    })).filter((row) => row.items.length > 0);
+}
+
+function buildPerishableWarnings(plans: DayPlan[], days: number) {
+    const mergedText = plans
+        .flatMap((plan) => collectPlanItems(plan))
+        .join(' ');
+
+    const warnings: string[] = [];
+
+    if (/연어|생선|고등어|대구|참치|해산물/.test(mergedText)) {
+        warnings.push('생선류는 상하기 쉬워요. 1~2일 안에 먹을 분량만 먼저 사거나 냉동 보관해 주세요.');
+    }
+    if (/두부|요거트|두유|우유/.test(mergedText)) {
+        warnings.push('두부·유제품은 유통기한을 꼭 확인하고 앞쪽(먼저 먹을 칸)에 보관해 주세요.');
+    }
+    if (/시금치|상추|미나리|오이|브로콜리|버섯/.test(mergedText)) {
+        warnings.push('잎채소/신선채소는 쉽게 시들 수 있어요. 손질 후 밀폐 보관하고 2~3일 내 사용해 주세요.');
+    }
+    if (days >= 7) {
+        warnings.push('1주 이상 장보기라면 신선 재료는 한 번에 다 사지 말고 2~3번으로 나눠 사면 더 좋아요.');
+    }
+
+    if (warnings.length === 0) {
+        warnings.push('상하기 쉬운 재료는 소량으로 자주 구매하고, 먼저 산 재료부터 사용하는 순서를 지켜 주세요.');
+    }
+
+    return warnings;
+}
+
+export default function ShoppingPage() {
+    const todayKey = formatDateKey(new Date());
+
+    const [loading, setLoading] = useState(true);
+    const [userId, setUserId] = useState<string | null>(null);
+    const [stageType, setStageType] = useState<StageType>('other');
+    const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
+
+    const [startDateKey, setStartDateKey] = useState(todayKey);
+    const [rangeDays, setRangeDays] = useState(3);
+    const [memo, setMemo] = useState('');
+    const [showPlanSummary, setShowPlanSummary] = useState(false);
+
+    useEffect(() => {
+        const loadContext = async () => {
+            setLoading(true);
+
+            if (!hasSupabaseEnv || !supabase) {
+                setLoading(false);
+                return;
+            }
+
+            const { data: authData, error: authError } = await supabase.auth.getUser();
+            if (authError || !authData.user) {
+                setUserId(null);
+                setStageType('other');
+                setDailyPreferences({});
+                setLoading(false);
+                return;
+            }
+
+            const uid = authData.user.id;
+            setUserId(uid);
+
+            const { data: stageData } = await supabase
+                .from('treatment_stages')
+                .select('id, stage_type, stage_order, status, created_at')
+                .eq('user_id', uid)
+                .order('stage_order', { ascending: true })
+                .order('created_at', { ascending: true });
+
+            const rows = (stageData ?? []) as TreatmentStageRow[];
+            const activeStage = rows.find((row) => row.status === 'active') ?? rows[0];
+            if (activeStage) {
+                setStageType(activeStage.stage_type);
+            }
+
+            const parsed = parseDietStore(localStorage.getItem(getStoreKey(uid)));
+            setDailyPreferences(parsed.dailyPreferences);
+            setLoading(false);
+        };
+
+        const timer = window.setTimeout(() => {
+            void loadContext();
+        }, 0);
+
+        return () => window.clearTimeout(timer);
+    }, []);
+
+    const dateKeys = useMemo(
+        () => dateRangeKeys(startDateKey, rangeDays),
+        [startDateKey, rangeDays]
+    );
+
+    const planRows = useMemo(() => {
+        return dateKeys.map((dateKey) => {
+            const basePlan = generatePlanForDate(dateKey, stageType, 70);
+            const byDatePreferences = dailyPreferences[dateKey];
+            const influencedPreferences: PreferenceType[] = [];
+            const appliedPreferences = byDatePreferences ?? influencedPreferences;
+
+            if (appliedPreferences.length === 0) {
+                return {
+                    dateKey,
+                    plan: basePlan,
+                };
+            }
+
+            return {
+                dateKey,
+                plan: optimizePlanByPreference(basePlan, appliedPreferences).plan,
+            };
+        });
+    }, [dateKeys, stageType, dailyPreferences]);
+
+    const plans = useMemo(
+        () => planRows.map((row) => row.plan),
+        [planRows]
+    );
+
+    const groceryCategories = useMemo(
+        () => buildGroceryCategories(plans),
+        [plans]
+    );
+
+    const perishableWarnings = useMemo(
+        () => buildPerishableWarnings(plans, rangeDays),
+        [plans, rangeDays]
+    );
+
+    const endDateKey = dateKeys[dateKeys.length - 1] ?? startDateKey;
+
+    return (
+        <main className="space-y-4">
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
+            </section>
+
+            {!hasSupabaseEnv && (
+                <section
+                    role="alert"
+                    className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                >
+                    <p className="text-sm font-semibold">설정이 필요해요</p>
+                    <p className="mt-1 text-sm">`.env.local` 파일에서 연결 설정을 확인해 주세요.</p>
+                </section>
+            )}
+
+            {hasSupabaseEnv && !loading && !userId && (
+                <section
+                    role="alert"
+                    className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-800 shadow-sm dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+                >
+                    <p className="text-sm">
+                        로그인하면 오늘 확정한 방향까지 포함한 맞춤 장보기를 볼 수 있어요.{' '}
+                        <Link href="/auth" className="font-semibold underline">
+                            로그인/회원가입
+                        </Link>
+                    </p>
+                </section>
+            )}
+
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">날짜 설정</h2>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        시작 날짜
+                        <input
+                            type="date"
+                            value={startDateKey}
+                            onChange={(event) => setStartDateKey(event.target.value)}
+                            className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                        />
+                    </label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        기간(일)
+                        <input
+                            type="number"
+                            min={1}
+                            max={30}
+                            value={rangeDays}
+                            onChange={(event) => {
+                                const next = Number(event.target.value);
+                                if (!Number.isFinite(next)) {
+                                    return;
+                                }
+                                setRangeDays(Math.max(1, Math.min(30, next)));
+                            }}
+                            className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                        />
+                    </label>
+                </div>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                    적용 기간: {formatDateLabel(startDateKey)} ~ {formatDateLabel(endDateKey)} ({rangeDays}일)
+                </p>
+            </section>
+
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">분야별 장볼 목록</h2>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    식단에 나온 음식 기준으로 정리했어요. 괄호 숫자는 사용되는 횟수예요.
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {groceryCategories.map((category) => (
+                        <article
+                            key={category.category}
+                            className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/40"
+                        >
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{category.category}</h3>
+                            <div className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-200">
+                                {category.items.map((item) => (
+                                    <p key={`${category.category}-${item.name}`}>
+                                        - {item.name} ({item.count}회)
+                                    </p>
+                                ))}
+                            </div>
+                        </article>
+                    ))}
+                </div>
+            </section>
+
+            <section className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm dark:border-red-800 dark:bg-red-950/30">
+                <h2 className="text-lg font-semibold text-red-800 dark:text-red-200">상하기 쉬운 재료 주의사항</h2>
+                <div className="mt-2 space-y-1 text-sm text-red-700 dark:text-red-300">
+                    {perishableWarnings.map((warning) => (
+                        <p key={warning}>- {warning}</p>
+                    ))}
+                </div>
+            </section>
+
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">장보기 개인 메모</h2>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    마트/시장 방문 전에 필요한 내용을 간단히 적어두세요.
+                </p>
+                <textarea
+                    value={memo}
+                    onChange={(event) => setMemo(event.target.value)}
+                    placeholder="예: 채소는 2~3일치만 먼저 사기, 생선은 냉동으로 구입"
+                    className="mt-3 min-h-28 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                />
+            </section>
+
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">기간 식단표 요약</h2>
+                    <button
+                        type="button"
+                        onClick={() => setShowPlanSummary((prev) => !prev)}
+                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                        {showPlanSummary ? '닫기' : '펼치기'}
+                    </button>
+                </div>
+
+                {showPlanSummary && (
+                    <>
+                        {loading ? (
+                            <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">불러오는 중이에요…</p>
+                        ) : (
+                            <div className="mt-3 grid gap-3">
+                                {planRows.map((row) => (
+                                    <article
+                                        key={row.dateKey}
+                                        className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/40"
+                                    >
+                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                            {formatDateLabel(row.dateKey)}
+                                        </p>
+                                        <div className="mt-2 grid gap-2 text-sm text-gray-700 dark:text-gray-200 sm:grid-cols-3">
+                                            <p>
+                                                <span className="font-semibold">아침</span>: {row.plan.breakfast.summary}
+                                            </p>
+                                            <p>
+                                                <span className="font-semibold">점심</span>: {row.plan.lunch.summary}
+                                            </p>
+                                            <p>
+                                                <span className="font-semibold">저녁</span>: {row.plan.dinner.summary}
+                                            </p>
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+            </section>
+
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">장보기 메모</h2>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                            날짜를 정하면 해당 기간 식단표를 기준으로 장볼 목록을 분야별로 추천해 드려요.
+                        </p>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                            현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}
+                        </p>
+                    </div>
+                    <Link
+                        href="/"
+                        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                        홈으로
+                    </Link>
+                </div>
+            </section>
+        </main>
+    );
+}
