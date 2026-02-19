@@ -55,6 +55,7 @@ type GroceryCategory = {
 };
 
 const STORAGE_PREFIX = 'diet-store-v2';
+const SHOPPING_MEMO_PREFIX = 'shopping-memo-v1';
 const PREFERENCE_KEYS = new Set<PreferenceType>([
     'spicy',
     'sweet',
@@ -90,6 +91,10 @@ const CATEGORY_ORDER: CategoryKey[] = [
 
 function getStoreKey(userId: string) {
     return `${STORAGE_PREFIX}:${userId}`;
+}
+
+function getShoppingMemoKey(userId: string | null) {
+    return userId ? `${SHOPPING_MEMO_PREFIX}:${userId}` : `${SHOPPING_MEMO_PREFIX}:guest`;
 }
 
 function normalizePreferences(value: unknown): PreferenceType[] {
@@ -336,6 +341,7 @@ export default function ShoppingPage() {
     const [startDateKey, setStartDateKey] = useState(todayKey);
     const [rangeDays, setRangeDays] = useState(3);
     const [memo, setMemo] = useState('');
+    const [memoSavedAt, setMemoSavedAt] = useState('');
     const [showPlanSummary, setShowPlanSummary] = useState(false);
 
     useEffect(() => {
@@ -352,6 +358,7 @@ export default function ShoppingPage() {
                 setUserId(null);
                 setStageType('other');
                 setDailyPreferences({});
+                setMemo(localStorage.getItem(getShoppingMemoKey(null)) ?? '');
                 setLoading(false);
                 return;
             }
@@ -375,6 +382,7 @@ export default function ShoppingPage() {
             const parsed = parseDietStore(localStorage.getItem(getStoreKey(uid)));
             setDailyPreferences(parsed.dailyPreferences);
             setLogs(parsed.logs);
+            setMemo(localStorage.getItem(getShoppingMemoKey(uid)) ?? '');
             setLoading(false);
         };
 
@@ -427,6 +435,20 @@ export default function ShoppingPage() {
     );
 
     const endDateKey = dateKeys[dateKeys.length - 1] ?? startDateKey;
+
+    const saveMemo = () => {
+        const key = getShoppingMemoKey(userId);
+        const value = memo.trim();
+        if (value.length === 0) {
+            localStorage.removeItem(key);
+            setMemoSavedAt('메모를 비웠어요.');
+            return;
+        }
+
+        localStorage.setItem(key, memo);
+        const now = new Date();
+        setMemoSavedAt(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')} 저장 완료`);
+    };
 
     return (
         <main className="space-y-4">
@@ -537,6 +559,18 @@ export default function ShoppingPage() {
                     placeholder="예: 채소는 2~3일치만 먼저 사기, 생선은 냉동으로 구입"
                     className="mt-3 min-h-28 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                 />
+                <div className="mt-3 flex items-center justify-between gap-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {memoSavedAt || '작성 후 저장 버튼을 눌러 보관하세요.'}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={saveMemo}
+                        className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                    >
+                        메모 저장
+                    </button>
+                </div>
             </section>
 
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
