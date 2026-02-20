@@ -2367,11 +2367,14 @@ export default function DietPage() {
     };
 
     const setMealSlotStatus = (slot: MealSlot, status: 'eaten' | 'not_eaten' | 'reset') => {
+        const resetItems = buildDefaultLog(selectedDate, selectedPlan).meals[slot];
         updateCurrentLog((current) => ({
             ...current,
             meals: {
                 ...current.meals,
-                [slot]: current.meals[slot].map((item) => {
+                [slot]: status === 'reset'
+                    ? resetItems
+                    : current.meals[slot].map((item) => {
                     if (status === 'eaten') {
                         return {
                             ...item,
