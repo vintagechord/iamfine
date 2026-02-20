@@ -1614,7 +1614,7 @@ export default function DietPage() {
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                         {profile?.nickname && (
                             <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                                {profile.nickname} 님 기준 추천이에요.
+                                {profile.nickname} 님 맞춤 추천이에요.
                             </p>
                         )}
                     </div>
