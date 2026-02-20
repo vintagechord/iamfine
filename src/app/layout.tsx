@@ -61,13 +61,7 @@ export default function RootLayout({
                                 </span>
                             </Link>
                             <div className="flex items-center gap-2">
-                                <Link
-                                    href="/profile"
-                                    className="rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                                >
-                                    내 정보
-                                </Link>
-                                <AuthActionButton showSignUpWhenLoggedOut />
+                                <AuthActionButton showSignUpWhenLoggedOut showProfileWhenLoggedIn />
                                 <ThemeToggle />
                             </div>
                         </div>

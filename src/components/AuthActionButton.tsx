@@ -6,9 +6,13 @@ import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type AuthActionButtonProps = {
     showSignUpWhenLoggedOut?: boolean;
+    showProfileWhenLoggedIn?: boolean;
 };
 
-export default function AuthActionButton({ showSignUpWhenLoggedOut = false }: AuthActionButtonProps) {
+export default function AuthActionButton({
+    showSignUpWhenLoggedOut = false,
+    showProfileWhenLoggedIn = false,
+}: AuthActionButtonProps) {
     const [loggedIn, setLoggedIn] = useState(false);
     const [loading, setLoading] = useState(false);
 
@@ -65,15 +69,22 @@ export default function AuthActionButton({ showSignUpWhenLoggedOut = false }: Au
 
     if (loggedIn) {
         return (
-            <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={loading}
-                className={baseClassName}
-                aria-label="로그아웃"
-            >
-                {loading ? '처리 중...' : '로그아웃'}
-            </button>
+            <div className="flex items-center gap-2">
+                {showProfileWhenLoggedIn && (
+                    <Link href="/profile" className={baseClassName} aria-label="내 정보">
+                        내 정보
+                    </Link>
+                )}
+                <button
+                    type="button"
+                    onClick={handleSignOut}
+                    disabled={loading}
+                    className={baseClassName}
+                    aria-label="로그아웃"
+                >
+                    {loading ? '처리 중...' : '로그아웃'}
+                </button>
+            </div>
         );
     }
 
