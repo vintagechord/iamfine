@@ -1552,6 +1552,8 @@ export default function DietPage() {
         name: string;
         at: number;
     } | null>(null);
+    const recordDateScrollerRef = useRef<HTMLDivElement | null>(null);
+    const recordDateButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
     const openRecordView = searchParams.get('view') === 'record';
 
@@ -2387,6 +2389,24 @@ export default function DietPage() {
 
         return () => window.clearTimeout(timer);
     }, [loading, openRecordView]);
+    useEffect(() => {
+        if (!openRecordView) {
+            return;
+        }
+
+        const scroller = recordDateScrollerRef.current;
+        const targetButton = recordDateButtonRefs.current[selectedDate];
+        if (!scroller || !targetButton) {
+            return;
+        }
+
+        const centeredLeft = targetButton.offsetLeft - (scroller.clientWidth - targetButton.clientWidth) / 2;
+        const nextLeft = Math.max(0, centeredLeft);
+        scroller.scrollTo({
+            left: nextLeft,
+            behavior: 'smooth',
+        });
+    }, [openRecordView, selectedDate, recentDateKeys]);
     const updateCurrentLog = (updater: (current: DayLog) => DayLog) => {
         setLogs((prev) => {
             const current = prev[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
@@ -3255,7 +3275,7 @@ export default function DietPage() {
                                 식단 보기
                             </button>
                         </div>
-                        <div className="mt-3 overflow-x-auto pb-1">
+                        <div ref={recordDateScrollerRef} className="mt-3 overflow-x-auto pb-1">
                             <div className="inline-flex min-w-full gap-2">
                                 {recentDateKeys.map((key) => {
                                     const isSelected = key === selectedDate;
@@ -3263,6 +3283,9 @@ export default function DietPage() {
                                     return (
                                         <button
                                             key={key}
+                                            ref={(node) => {
+                                                recordDateButtonRefs.current[key] = node;
+                                            }}
                                             type="button"
                                             onClick={() => {
                                                 setSelectedDate(key);
