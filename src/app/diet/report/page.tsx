@@ -88,6 +88,7 @@ type DietStore = {
 
 const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
+const USER_METADATA_NAMESPACE = 'iamfine';
 const NO_REPEAT_DAYS = 7;
 const TWO_WEEK_DAYS = 14;
 const REPORT_SLOT_ORDER: ReportMealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -121,6 +122,87 @@ function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
     } catch {
         return null;
     }
+}
+
+function parseTreatmentMetaFromUnknown(raw: unknown): TreatmentMeta | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
+
+    const parsed = raw as Partial<TreatmentMeta>;
+    if (typeof parsed.cancerType !== 'string' || !parsed.cancerType.trim()) {
+        return null;
+    }
+
+    return {
+        cancerType: parsed.cancerType.trim(),
+        cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage.trim() : '',
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
+    };
+}
+
+function parseMedicationNamesFromUnknown(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+
+    return raw
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+
+function parseMedicationSchedulesFromUnknown(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+
+    return raw
+        .filter((item): item is MedicationSchedule => {
+            if (!item || typeof item !== 'object') {
+                return false;
+            }
+            if (typeof item.name !== 'string' || !item.name.trim()) {
+                return false;
+            }
+            if (typeof item.category !== 'string' || !item.category.trim()) {
+                return false;
+            }
+            return item.timing === 'breakfast' || item.timing === 'lunch' || item.timing === 'dinner';
+        })
+        .map((item, index) => ({
+            id: typeof item.id === 'string' && item.id.trim() ? item.id : `med-metadata-${index}-${item.name}`,
+            name: item.name.trim(),
+            category: item.category.trim(),
+            timing: item.timing,
+        }));
+}
+
+function readIamfineMetadata(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {
+            treatmentMeta: null as TreatmentMeta | null,
+            medications: [] as string[],
+            medicationSchedules: [] as MedicationSchedule[],
+        };
+    }
+
+    const root = raw as Record<string, unknown>;
+    const namespaced = root[USER_METADATA_NAMESPACE];
+    if (!namespaced || typeof namespaced !== 'object' || Array.isArray(namespaced)) {
+        return {
+            treatmentMeta: null as TreatmentMeta | null,
+            medications: [] as string[],
+            medicationSchedules: [] as MedicationSchedule[],
+        };
+    }
+
+    const scoped = namespaced as Record<string, unknown>;
+    return {
+        treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
+        medications: parseMedicationNamesFromUnknown(scoped.medications),
+        medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
+    };
 }
 
 function parseStore(raw: string | null): DietStore {
@@ -760,7 +842,10 @@ export default function DietReportPage() {
 
         const uid = userData.user.id;
         setUserId(uid);
-        setTreatmentMeta(parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid))));
+        const metadata = readIamfineMetadata(userData.user.user_metadata);
+        const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
+        const resolvedTreatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
+        setTreatmentMeta(resolvedTreatmentMeta);
 
         const [{ data: profileData }, { data: stageData }] = await Promise.all([
             supabase
@@ -782,8 +867,29 @@ export default function DietReportPage() {
         setStages((stageData as TreatmentStageRow[] | null) ?? []);
 
         const store = parseStore(localStorage.getItem(getStoreKey(uid)));
-        setMedications(store.medications);
-        setMedicationSchedules(store.medicationSchedules);
+        const resolvedMedications = store.medications.length > 0 ? store.medications : metadata.medications;
+        const resolvedMedicationSchedules =
+            store.medicationSchedules.length > 0 ? store.medicationSchedules : metadata.medicationSchedules;
+
+        if (!localTreatmentMeta && resolvedTreatmentMeta) {
+            localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(resolvedTreatmentMeta));
+        }
+        if (
+            (store.medications.length === 0 && resolvedMedications.length > 0) ||
+            (store.medicationSchedules.length === 0 && resolvedMedicationSchedules.length > 0)
+        ) {
+            localStorage.setItem(
+                getStoreKey(uid),
+                JSON.stringify({
+                    ...store,
+                    medications: resolvedMedications,
+                    medicationSchedules: resolvedMedicationSchedules,
+                } satisfies DietStore)
+            );
+        }
+
+        setMedications(resolvedMedications);
+        setMedicationSchedules(resolvedMedicationSchedules);
         setDailyPreferences(store.dailyPreferences);
         setLogs(store.logs);
         setLoading(false);

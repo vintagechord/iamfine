@@ -49,6 +49,7 @@ const ALERT_PAGE_SIZE = 5;
 const ALERT_AUTO_SLIDE_MS = 6000;
 
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
+const USER_METADATA_NAMESPACE = 'iamfine';
 
 function getTreatmentMetaKey(userId: string) {
     return `${TREATMENT_META_PREFIX}:${userId}`;
@@ -72,6 +73,38 @@ function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
     } catch {
         return null;
     }
+}
+
+function parseTreatmentMetaFromUnknown(raw: unknown): TreatmentMeta | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
+
+    const parsed = raw as Partial<TreatmentMeta>;
+    if (typeof parsed.cancerType !== 'string' || !parsed.cancerType.trim()) {
+        return null;
+    }
+
+    return {
+        cancerType: parsed.cancerType.trim(),
+        cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage.trim() : '',
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
+    };
+}
+
+function readIamfineTreatmentMeta(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
+
+    const root = raw as Record<string, unknown>;
+    const namespaced = root[USER_METADATA_NAMESPACE];
+    if (!namespaced || typeof namespaced !== 'object' || Array.isArray(namespaced)) {
+        return null;
+    }
+
+    const scoped = namespaced as Record<string, unknown>;
+    return parseTreatmentMetaFromUnknown(scoped.treatmentMeta);
 }
 
 function formatAlertDate(raw: string) {
@@ -224,9 +257,14 @@ export default function Home() {
 
             const uid = userData.user.id;
             setIsLoggedIn(true);
-            const meta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
+            const metadataMeta = readIamfineTreatmentMeta(userData.user.user_metadata);
+            const localMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
+            const meta = metadataMeta ?? localMeta;
             if (!cancelled) {
                 setTreatmentMeta(meta);
+            }
+            if (!localMeta && meta) {
+                localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(meta));
             }
 
             const { data: stageData } = await supabase

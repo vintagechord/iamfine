@@ -71,6 +71,7 @@ type Feedback = {
 
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const DIET_STORE_PREFIX = 'diet-store-v2';
+const USER_METADATA_NAMESPACE = 'iamfine';
 const EMPTY_STAGE_LABEL = '미입력';
 const MEDICATION_TIMING_OPTIONS: Array<{ value: MedicationTiming; label: string }> = [
     { value: 'breakfast', label: '아침 식후' },
@@ -169,6 +170,23 @@ function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
     }
 }
 
+function parseTreatmentMetaFromUnknown(raw: unknown): TreatmentMeta | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
+
+    const parsed = raw as Partial<TreatmentMeta>;
+    if (typeof parsed.cancerType !== 'string' || !parsed.cancerType.trim()) {
+        return null;
+    }
+
+    return {
+        cancerType: parsed.cancerType.trim(),
+        cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage.trim() : '',
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
+    };
+}
+
 function parseStoredMedications(raw: string | null) {
     if (!raw) {
         return [];
@@ -189,6 +207,17 @@ function parseStoredMedications(raw: string | null) {
     } catch {
         return [];
     }
+}
+
+function parseMedicationNamesFromUnknown(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+
+    return raw
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean);
 }
 
 function mergeUniqueMedications(existing: string[], incoming: string[]) {
@@ -250,6 +279,90 @@ function parseStoredMedicationSchedules(raw: string | null) {
     } catch {
         return [];
     }
+}
+
+function parseMedicationSchedulesFromUnknown(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return [];
+    }
+
+    const isTiming = (value: string): value is MedicationTiming =>
+        value === 'breakfast' || value === 'lunch' || value === 'dinner';
+
+    return raw
+        .filter((item): item is MedicationSchedule => {
+            if (!item || typeof item !== 'object') {
+                return false;
+            }
+
+            const candidate = item as Partial<MedicationSchedule>;
+            if (typeof candidate.name !== 'string' || !candidate.name.trim()) {
+                return false;
+            }
+            if (typeof candidate.category !== 'string' || !candidate.category.trim()) {
+                return false;
+            }
+            if (typeof candidate.timing !== 'string' || !isTiming(candidate.timing)) {
+                return false;
+            }
+
+            return true;
+        })
+        .map((item) => ({
+            id: typeof item.id === 'string' && item.id.trim() ? item.id : `med-${item.name}-${item.timing}`,
+            name: item.name.trim(),
+            category: item.category.trim(),
+            timing: item.timing,
+        }));
+}
+
+function readIamfineMetadata(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {
+            root: {} as Record<string, unknown>,
+            treatmentMeta: null as TreatmentMeta | null,
+            medications: [] as string[],
+            medicationSchedules: [] as MedicationSchedule[],
+        };
+    }
+
+    const root = raw as Record<string, unknown>;
+    const namespaced = root[USER_METADATA_NAMESPACE];
+    const scoped =
+        namespaced && typeof namespaced === 'object' && !Array.isArray(namespaced)
+            ? (namespaced as Record<string, unknown>)
+            : ({} as Record<string, unknown>);
+
+    return {
+        root,
+        treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
+        medications: parseMedicationNamesFromUnknown(scoped.medications),
+        medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
+    };
+}
+
+function buildUpdatedUserMetadata(
+    raw: unknown,
+    patch: Partial<{
+        treatmentMeta: TreatmentMeta;
+        medications: string[];
+        medicationSchedules: MedicationSchedule[];
+    }>
+) {
+    const { root } = readIamfineMetadata(raw);
+    const existingNamespacedRaw = root[USER_METADATA_NAMESPACE];
+    const existingNamespaced =
+        existingNamespacedRaw && typeof existingNamespacedRaw === 'object' && !Array.isArray(existingNamespacedRaw)
+            ? (existingNamespacedRaw as Record<string, unknown>)
+            : {};
+
+    return {
+        ...root,
+        [USER_METADATA_NAMESPACE]: {
+            ...existingNamespaced,
+            ...patch,
+        },
+    };
 }
 
 function medicationNamesFromSchedules(schedules: MedicationSchedule[]) {
@@ -434,12 +547,20 @@ export default function ProfilePage() {
             const uid = authData.user.id;
             setUserId(uid);
 
-            const treatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
+            const metadata = readIamfineMetadata(authData.user.user_metadata);
+            const treatmentMeta =
+                metadata.treatmentMeta ?? parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             setCancerType(treatmentMeta?.cancerType ?? '');
             setCancerStage(treatmentMeta?.cancerStage === EMPTY_STAGE_LABEL ? '' : (treatmentMeta?.cancerStage ?? ''));
             const rawDietStore = localStorage.getItem(getDietStoreKey(uid));
-            const storedSchedules = parseStoredMedicationSchedules(rawDietStore);
-            const storedMeds = parseStoredMedications(localStorage.getItem(getDietStoreKey(uid)));
+            const storedSchedules =
+                metadata.medicationSchedules.length > 0
+                    ? metadata.medicationSchedules
+                    : parseStoredMedicationSchedules(rawDietStore);
+            const storedMeds =
+                metadata.medications.length > 0
+                    ? metadata.medications
+                    : parseStoredMedications(localStorage.getItem(getDietStoreKey(uid)));
             setMedicationSchedules(
                 storedSchedules.length > 0
                     ? storedSchedules
@@ -705,6 +826,11 @@ export default function ProfilePage() {
     const saveMedicationInfo = () => {
         setFeedback(null);
 
+        if (!hasSupabaseEnv || !supabase) {
+            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            return;
+        }
+
         if (!userId) {
             setFeedback({ type: 'error', text: '로그인이 필요해요.' });
             return;
@@ -720,7 +846,7 @@ export default function ProfilePage() {
 
         setSavingMedicationInfo(true);
 
-        try {
+        void (async () => {
             const rawDietStore = localStorage.getItem(getDietStoreKey(userId));
             let currentDietStore: Record<string, unknown> = {};
 
@@ -744,19 +870,43 @@ export default function ProfilePage() {
                 })
             );
 
+            const { data: authData, error: authError } = await supabase.auth.getUser();
+            if (authError || !authData.user) {
+                setFeedback({ type: 'error', text: '로그인이 만료되었어요. 다시 로그인해 주세요.' });
+                setSavingMedicationInfo(false);
+                return;
+            }
+
+            const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, {
+                medications: nextMedications,
+                medicationSchedules: nextSchedules,
+            });
+            const { error: updateError } = await supabase.auth.updateUser({
+                data: updatedMetadata,
+            });
+            if (updateError) {
+                setFeedback({ type: 'error', text: '복용 약 정보를 서버에 저장하지 못했어요. 다시 시도해 주세요.' });
+                setSavingMedicationInfo(false);
+                return;
+            }
+
             setMedicationSchedules(nextSchedules);
             setMedicationNameDraft('');
             setMedicationCategoryDraft('미분류');
             setMedicationTimingDraft('breakfast');
             setFeedback({ type: 'success', text: '복용 약 정보를 저장했어요.' });
             showSaveCompletePopup();
-        } finally {
             setSavingMedicationInfo(false);
-        }
+        })();
     };
 
-    const saveTreatmentInfo = () => {
+    const saveTreatmentInfo = async () => {
         setFeedback(null);
+
+        if (!hasSupabaseEnv || !supabase) {
+            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            return;
+        }
 
         if (!userId) {
             setFeedback({ type: 'error', text: '로그인이 필요해요.' });
@@ -780,6 +930,23 @@ export default function ProfilePage() {
             };
 
             localStorage.setItem(getTreatmentMetaKey(userId), JSON.stringify(treatmentPayload));
+            const { data: authData, error: authError } = await supabase.auth.getUser();
+            if (authError || !authData.user) {
+                setFeedback({ type: 'error', text: '로그인이 만료되었어요. 다시 로그인해 주세요.' });
+                return;
+            }
+
+            const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, {
+                treatmentMeta: treatmentPayload,
+            });
+            const { error: updateError } = await supabase.auth.updateUser({
+                data: updatedMetadata,
+            });
+            if (updateError) {
+                setFeedback({ type: 'error', text: '치료 정보를 서버에 저장하지 못했어요. 다시 시도해 주세요.' });
+                return;
+            }
+
             setCancerType(nextCancerType);
             setCancerStage(cancerStage.trim());
             setFeedback({ type: 'success', text: '치료 정보를 저장했어요.' });

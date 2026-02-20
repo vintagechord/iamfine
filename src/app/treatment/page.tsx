@@ -84,6 +84,7 @@ const STATUS_LABELS: Record<StageStatus, string> = {
 const DISCLAIMER_TEXT =
     '이 서비스는 참고용 식단/기록 도구이며, 치료·약물 관련 결정은 의료진과 상의하세요.';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
+const USER_METADATA_NAMESPACE = 'iamfine';
 
 const ORDER_INVALID_MESSAGE = '순서는 1 이상의 숫자로 입력해 주세요.';
 const ORDER_DUPLICATE_MESSAGE = '이미 같은 순서의 단계가 있어요. 다른 숫자를 입력해 주세요.';
@@ -149,6 +150,64 @@ function parseTreatmentMeta(raw: string | null) {
     } catch {
         return null;
     }
+}
+
+function parseTreatmentMetaFromUnknown(raw: unknown): TreatmentMeta | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
+
+    const parsed = raw as Partial<TreatmentMeta>;
+    if (typeof parsed.cancerType !== 'string' || !parsed.cancerType.trim()) {
+        return null;
+    }
+
+    return {
+        cancerType: parsed.cancerType.trim(),
+        cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage.trim() : '',
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
+    };
+}
+
+function readIamfineMetadata(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {
+            root: {} as Record<string, unknown>,
+            treatmentMeta: null as TreatmentMeta | null,
+        };
+    }
+
+    const root = raw as Record<string, unknown>;
+    const namespaced = root[USER_METADATA_NAMESPACE];
+    if (!namespaced || typeof namespaced !== 'object' || Array.isArray(namespaced)) {
+        return {
+            root,
+            treatmentMeta: null as TreatmentMeta | null,
+        };
+    }
+
+    const scoped = namespaced as Record<string, unknown>;
+    return {
+        root,
+        treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
+    };
+}
+
+function buildUpdatedUserMetadata(raw: unknown, treatmentMeta: TreatmentMeta) {
+    const { root } = readIamfineMetadata(raw);
+    const existingNamespacedRaw = root[USER_METADATA_NAMESPACE];
+    const existingNamespaced =
+        existingNamespacedRaw && typeof existingNamespacedRaw === 'object' && !Array.isArray(existingNamespacedRaw)
+            ? (existingNamespacedRaw as Record<string, unknown>)
+            : {};
+
+    return {
+        ...root,
+        [USER_METADATA_NAMESPACE]: {
+            ...existingNamespaced,
+            treatmentMeta,
+        },
+    };
 }
 
 export default function TreatmentPage() {
@@ -249,7 +308,8 @@ export default function TreatmentPage() {
         setUser({ id: authData.user.id });
         await loadStages(authData.user.id);
 
-        const meta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(authData.user.id)));
+        const metadata = readIamfineMetadata(authData.user.user_metadata);
+        const meta = metadata.treatmentMeta ?? parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(authData.user.id)));
         setCancerType(meta?.cancerType ?? '');
         setCancerStage(meta?.cancerStage ?? '');
         setMetaUpdatedAt(meta?.updatedAt ?? '');
@@ -618,9 +678,14 @@ export default function TreatmentPage() {
         setDeletingId(null);
     };
 
-    const saveTreatmentMeta = () => {
+    const saveTreatmentMeta = async () => {
         setMessage('');
         setError('');
+
+        if (!supabase) {
+            setError(ENV_REQUIRED_MESSAGE);
+            return;
+        }
 
         if (!user) {
             setError(LOGIN_REQUIRED_MESSAGE);
@@ -639,6 +704,21 @@ export default function TreatmentPage() {
         };
 
         localStorage.setItem(getTreatmentMetaKey(user.id), JSON.stringify(payload));
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+        if (authError || !authData.user) {
+            setError(LOGIN_REQUIRED_MESSAGE);
+            return;
+        }
+
+        const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, payload);
+        const { error: updateError } = await supabase.auth.updateUser({
+            data: updatedMetadata,
+        });
+        if (updateError) {
+            setError('암 정보를 서버에 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+            return;
+        }
+
         setMetaUpdatedAt(payload.updatedAt);
         setMessage('암 정보 저장을 완료했어요.');
     };
