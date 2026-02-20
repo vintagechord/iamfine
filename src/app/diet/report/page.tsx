@@ -62,15 +62,35 @@ type MedicationSchedule = {
     timing: MedicationTiming;
 };
 
+type ReportMealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+type TrackItem = {
+    id: string;
+    name: string;
+    eaten: boolean;
+    notEaten?: boolean;
+    isManual?: boolean;
+    servings?: number;
+};
+
+type DayLog = {
+    meals: Partial<Record<ReportMealSlot, TrackItem[]>>;
+    memo?: string;
+    medicationTakenIds?: string[];
+};
+
 type DietStore = {
     medications: string[];
     medicationSchedules: MedicationSchedule[];
     dailyPreferences: Record<string, PreferenceType[]>;
+    logs: Record<string, DayLog>;
 };
 
 const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const NO_REPEAT_DAYS = 7;
+const TWO_WEEK_DAYS = 14;
+const REPORT_SLOT_ORDER: ReportMealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const DISCLAIMER_TEXT =
     '이 리포트는 규칙 기반 참고 자료입니다. 진단/처방/투약 변경은 반드시 담당 의료진 판단을 우선하세요.';
 
@@ -109,6 +129,7 @@ function parseStore(raw: string | null): DietStore {
             medications: [],
             medicationSchedules: [],
             dailyPreferences: {},
+            logs: {},
         };
     }
 
@@ -143,12 +164,17 @@ function parseStore(raw: string | null): DietStore {
                 parsed.dailyPreferences && typeof parsed.dailyPreferences === 'object'
                     ? (parsed.dailyPreferences as Record<string, PreferenceType[]>)
                     : {},
+            logs:
+                parsed.logs && typeof parsed.logs === 'object'
+                    ? (parsed.logs as Record<string, DayLog>)
+                    : {},
         };
     } catch {
         return {
             medications: [],
             medicationSchedules: [],
             dailyPreferences: {},
+            logs: {},
         };
     }
 }
@@ -187,6 +213,340 @@ function offsetDateKey(baseDateKey: string, offset: number) {
     const date = new Date(year, month - 1, day);
     date.setDate(date.getDate() + offset);
     return formatDateKey(date);
+}
+
+function clamp(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function mergePreferences(...lists: Array<PreferenceType[]>) {
+    const merged = new Set<PreferenceType>();
+    lists.forEach((list) => {
+        list.forEach((item) => merged.add(item));
+    });
+    return Array.from(merged);
+}
+
+function slotItems(log: DayLog, slot: ReportMealSlot) {
+    const items = log.meals?.[slot];
+    return Array.isArray(items) ? items : [];
+}
+
+function stripPortionLabel(rawName: string) {
+    const [name] = rawName.split(' · ');
+    return name.trim();
+}
+
+function normalizeText(input: string) {
+    return input.trim().toLowerCase();
+}
+
+function countKeywords(text: string, keywords: string[]) {
+    const normalized = normalizeText(text);
+    return keywords.reduce((count, keyword) => count + (normalized.includes(keyword) ? 1 : 0), 0);
+}
+
+function countKeywordsByItems(items: Array<Pick<TrackItem, 'name' | 'servings'>>, keywords: string[]) {
+    const normalizedKeywords = keywords.map((keyword) => normalizeText(keyword));
+    return items.reduce((count, item) => {
+        const normalizedName = normalizeText(stripPortionLabel(item.name));
+        const matched = normalizedKeywords.some((keyword) => normalizedName.includes(keyword));
+        if (!matched) {
+            return count;
+        }
+        const servingCount = Math.max(1, Math.round(item.servings ?? 1));
+        return count + servingCount;
+    }, 0);
+}
+
+function eatenTrackItems(log: DayLog) {
+    return REPORT_SLOT_ORDER.flatMap((slot) => slotItems(log, slot).filter((item) => item.eaten));
+}
+
+function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, referenceDateKey: string) {
+    const lookbackKeys = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => offsetDateKey(referenceDateKey, -(index + 1)));
+    const lookbackItems = lookbackKeys
+        .map((dateKey) => {
+            const log = logs[dateKey];
+            if (!log) {
+                return [] as TrackItem[];
+            }
+            return eatenTrackItems(log);
+        })
+        .flat();
+
+    if (lookbackItems.length === 0) {
+        return [] as PreferenceType[];
+    }
+
+    const suggestions: PreferenceType[] = [];
+    const add = (value: PreferenceType) => {
+        if (!suggestions.includes(value)) {
+            suggestions.push(value);
+        }
+    };
+
+    const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛'];
+    const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림'];
+    const proteinKeywords = ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유'];
+    const vegetableKeywords = ['브로콜리', '양배추', '시금치', '오이', '당근', '버섯', '샐러드', '채소'];
+    const spicyKeywords = ['매운', '불닭', '짬뽕', '떡볶이'];
+
+    const flourSugarCount = countKeywordsByItems(lookbackItems, flourKeywords) + countKeywordsByItems(lookbackItems, sugarKeywords);
+    const proteinCount = countKeywordsByItems(lookbackItems, proteinKeywords);
+    const vegetableCount = countKeywordsByItems(lookbackItems, vegetableKeywords);
+    const spicyCount = countKeywordsByItems(lookbackItems, spicyKeywords);
+
+    if (flourSugarCount >= 8) {
+        add('healthy');
+        add('digestive');
+    }
+    if (proteinCount < 6) {
+        add('high_protein');
+    }
+    if (vegetableCount < 6) {
+        add('vegetable');
+    }
+    if (spicyCount >= 4) {
+        add('bland');
+    }
+
+    const yesterdayLog = logs[offsetDateKey(referenceDateKey, -1)];
+    if (yesterdayLog) {
+        const yesterdayItems = eatenTrackItems(yesterdayLog);
+        const yesterdayFlourSugar =
+            countKeywordsByItems(yesterdayItems, flourKeywords) + countKeywordsByItems(yesterdayItems, sugarKeywords);
+        const heavyKeywords = ['튀김', '치킨', '야식', '술', '맥주', '소주', '족발', '보쌈'];
+        const heavyCount = countKeywordsByItems(yesterdayItems, heavyKeywords);
+        if (yesterdayFlourSugar + heavyCount >= 3) {
+            add('healthy');
+            add('digestive');
+            add('low_salt');
+        }
+    }
+
+    return suggestions.slice(0, 4);
+}
+
+function cloneDayPlan(plan: DayPlan): DayPlan {
+    return {
+        date: plan.date,
+        breakfast: { ...plan.breakfast, sides: [...plan.breakfast.sides], recipeSteps: [...plan.breakfast.recipeSteps] },
+        lunch: { ...plan.lunch, sides: [...plan.lunch.sides], recipeSteps: [...plan.lunch.recipeSteps] },
+        dinner: { ...plan.dinner, sides: [...plan.dinner.sides], recipeSteps: [...plan.dinner.recipeSteps] },
+        snack: { ...plan.snack, sides: [...plan.snack.sides], recipeSteps: [...plan.snack.recipeSteps] },
+    };
+}
+
+function rebalanceMealNutrient(nutrient: MealSuggestion['nutrient'], carbDelta: number, proteinDelta: number) {
+    let carb = clamp(Math.round(nutrient.carb + carbDelta), 20, 60);
+    let protein = clamp(Math.round(nutrient.protein + proteinDelta), 20, 60);
+    let fat = 100 - carb - protein;
+
+    if (fat < 20) {
+        const need = 20 - fat;
+        const proteinReducible = Math.max(0, protein - 20);
+        const proteinCut = Math.min(need, proteinReducible);
+        protein -= proteinCut;
+        const remain = need - proteinCut;
+        if (remain > 0) {
+            carb = Math.max(20, carb - remain);
+        }
+        fat = 100 - carb - protein;
+    }
+
+    if (fat > 35) {
+        const excess = fat - 35;
+        carb = clamp(carb + excess, 20, 60);
+        fat = 100 - carb - protein;
+    }
+
+    return { carb, protein, fat };
+}
+
+type IntakeCorrectionContext = {
+    stageType: StageType;
+    bmi: number | null;
+};
+
+function computeIntakeRecordReliability(log: DayLog) {
+    const allItems = REPORT_SLOT_ORDER.flatMap((slot) => slotItems(log, slot));
+    if (allItems.length === 0) {
+        return 0;
+    }
+    const checkedCount = allItems.filter((item) => item.eaten || item.notEaten).length;
+    return checkedCount / allItems.length;
+}
+
+function stageRiskWeight(stageType: StageType) {
+    if (stageType === 'chemo' || stageType === 'chemo_2nd' || stageType === 'radiation') {
+        return 1.15;
+    }
+    if (stageType === 'surgery') {
+        return 1.1;
+    }
+    if (
+        stageType === 'hormone_therapy' ||
+        stageType === 'medication' ||
+        stageType === 'targeted' ||
+        stageType === 'immunotherapy'
+    ) {
+        return 1.05;
+    }
+    return 1;
+}
+
+function getOvereatCorrectionStrength(context: IntakeCorrectionContext, reliability: number) {
+    let bmiWeight = 1;
+    if (context.bmi !== null) {
+        if (context.bmi >= 30) {
+            bmiWeight = 1.3;
+        } else if (context.bmi >= 25) {
+            bmiWeight = 1.18;
+        } else if (context.bmi < 18.5) {
+            bmiWeight = 0.85;
+        }
+    }
+    const reliabilityWeight = clamp(0.65 + reliability * 0.45, 0.65, 1.1);
+    return clamp(stageRiskWeight(context.stageType) * bmiWeight * reliabilityWeight, 0.65, 1.5);
+}
+
+function getUndereatCorrectionStrength(context: IntakeCorrectionContext, reliability: number) {
+    let bmiWeight = 1;
+    if (context.bmi !== null) {
+        if (context.bmi < 18.5) {
+            bmiWeight = 1.25;
+        } else if (context.bmi >= 25) {
+            bmiWeight = 0.9;
+        }
+    }
+    let stageWeight = 1;
+    if (context.stageType === 'surgery') {
+        stageWeight = 1.15;
+    } else if (context.stageType === 'chemo' || context.stageType === 'chemo_2nd' || context.stageType === 'radiation') {
+        stageWeight = 1.1;
+    }
+    const reliabilityWeight = clamp(0.6 + reliability * 0.5, 0.6, 1.1);
+    return clamp(stageWeight * bmiWeight * reliabilityWeight, 0.7, 1.6);
+}
+
+function applyYesterdayIntakeCorrection(
+    dateKey: string,
+    plan: DayPlan,
+    logs: Record<string, DayLog>,
+    context: IntakeCorrectionContext
+) {
+    const yesterdayKey = offsetDateKey(dateKey, -1);
+    const yesterdayLog = logs[yesterdayKey];
+
+    if (!yesterdayLog) {
+        return {
+            plan,
+            notes: [] as string[],
+        };
+    }
+
+    const eatenItems = eatenTrackItems(yesterdayLog);
+    if (eatenItems.length === 0) {
+        return {
+            plan,
+            notes: [] as string[],
+        };
+    }
+
+    const eatenText = eatenItems.map((item) => stripPortionLabel(item.name)).join(' ');
+    const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛'];
+    const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림', '시럽', '주스'];
+    const heavyKeywords = ['튀김', '치킨', '야식', '족발', '보쌈', '술', '맥주', '소주', '곱창'];
+    const proteinKeywords = ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유'];
+
+    const flourSugarCount = countKeywords(eatenText, flourKeywords) + countKeywords(eatenText, sugarKeywords);
+    const heavyCount = countKeywords(eatenText, heavyKeywords);
+    const proteinCount = countKeywords(eatenText, proteinKeywords);
+    const skippedMeals = (['breakfast', 'lunch', 'dinner'] as const).reduce((count, slot) => {
+        const hasEaten = slotItems(yesterdayLog, slot).some((item) => item.eaten);
+        return hasEaten ? count : count + 1;
+    }, 0);
+
+    const adjusted = cloneDayPlan(plan);
+    const notes: string[] = [];
+    const reliability = computeIntakeRecordReliability(yesterdayLog);
+    const heavySignalThreshold = reliability >= 0.7 ? 3 : 4;
+
+    if (flourSugarCount + heavyCount >= heavySignalThreshold) {
+        const strength = getOvereatCorrectionStrength(context, reliability);
+        const mealCarbDelta = Math.round(-6 * strength);
+        const mealProteinDelta = Math.round(+4 * strength);
+        const snackCarbDelta = Math.round(-8 * strength);
+        const snackProteinDelta = Math.round(+5 * strength);
+
+        (['breakfast', 'lunch', 'dinner'] as const).forEach((slot) => {
+            const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
+            meal.nutrient = rebalanceMealNutrient(meal.nutrient, mealCarbDelta, mealProteinDelta);
+            if (
+                (meal.riceType.includes('밥') || meal.riceType.includes('죽') || meal.riceType.includes('덮밥')) &&
+                !meal.riceType.includes('소량')
+            ) {
+                meal.riceType = `${meal.riceType}(소량)`;
+                meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
+            }
+        });
+
+        adjusted.snack.main = '그릭요거트';
+        adjusted.snack.sides = ['베리류', '아몬드 소량'];
+        adjusted.snack.soup = '물';
+        adjusted.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량 + 물';
+        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, snackCarbDelta, snackProteinDelta);
+        adjusted.snack.recipeName = '전날 과식 보정 간식';
+        adjusted.snack.recipeSteps = [
+            '그릭요거트를 1회 분량(90g)으로 준비해 주세요.',
+            '베리류는 한 줌(50~60g)만 곁들여 주세요.',
+            '아몬드는 5~6알 이내로 제한해 주세요.',
+            '당류가 많은 음료는 피하고 물과 함께 드세요.',
+        ];
+
+        notes.push('전날 기록을 반영해 오늘은 탄수화물·당류를 낮추고 단백질 중심으로 자동 조정했어요.');
+        notes.push(
+            `보정 강도: ${strength.toFixed(2)}배 (치료 단계 ${STAGE_TYPE_LABELS[context.stageType]}, BMI ${
+                context.bmi ? context.bmi.toFixed(1) : '미입력'
+            }, 기록 신뢰도 ${Math.round(reliability * 100)}%)`
+        );
+    } else if (skippedMeals >= 2 || proteinCount === 0) {
+        const strength = getUndereatCorrectionStrength(context, reliability);
+        const mealCarbDelta = Math.round(+2 * strength);
+        const mealProteinDelta = Math.round(+3 * strength);
+        const snackCarbDelta = Math.round(+2 * strength);
+        const snackProteinDelta = Math.round(+4 * strength);
+
+        (['breakfast', 'lunch', 'dinner'] as const).forEach((slot) => {
+            const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
+            meal.nutrient = rebalanceMealNutrient(meal.nutrient, mealCarbDelta, mealProteinDelta);
+        });
+
+        adjusted.snack.main = '무가당 요거트';
+        adjusted.snack.sides = ['바나나 반 개'];
+        adjusted.snack.soup = '따뜻한 물';
+        adjusted.snack.summary = '무가당 요거트 + 바나나 반 개 + 따뜻한 물';
+        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, snackCarbDelta, snackProteinDelta);
+        adjusted.snack.recipeName = '전날 결식 보정 간식';
+        adjusted.snack.recipeSteps = [
+            '무가당 요거트를 1회 분량으로 준비해 주세요.',
+            '바나나 반 개를 추가해 부족한 에너지를 보충해 주세요.',
+            '따뜻한 물과 함께 천천히 드세요.',
+        ];
+
+        notes.push('전날 섭취 부족 기록을 반영해 오늘은 결식을 막는 회복형 구성을 보강했어요.');
+        notes.push(
+            `보정 강도: ${strength.toFixed(2)}배 (치료 단계 ${STAGE_TYPE_LABELS[context.stageType]}, BMI ${
+                context.bmi ? context.bmi.toFixed(1) : '미입력'
+            }, 기록 신뢰도 ${Math.round(reliability * 100)}%)`
+        );
+    }
+
+    return {
+        plan: adjusted,
+        notes,
+    };
 }
 
 function changedFields(baseMeal: MealSuggestion, finalMeal: MealSuggestion) {
@@ -234,6 +594,7 @@ export default function DietReportPage() {
     const [medications, setMedications] = useState<string[]>([]);
     const [medicationSchedules, setMedicationSchedules] = useState<MedicationSchedule[]>([]);
     const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
+    const [logs, setLogs] = useState<Record<string, DayLog>>({});
 
     const activeStage = useMemo(() => {
         const active = stages.find((item) => item.status === 'active');
@@ -269,7 +630,24 @@ export default function DietReportPage() {
         };
     }, [profile, treatmentMeta, activeStage, medicationSchedules]);
 
-    const todayPreferences = useMemo(() => dailyPreferences[todayKey] ?? [], [dailyPreferences, todayKey]);
+    const userSelectedTodayPreferences = useMemo(() => dailyPreferences[todayKey] ?? [], [dailyPreferences, todayKey]);
+    const adaptiveTodayPreferences = useMemo(
+        () => recommendAdaptivePreferencesByRecentLogs(logs, todayKey),
+        [logs, todayKey]
+    );
+    const confirmedTodayPreferences = useMemo(
+        () => mergePreferences(adaptiveTodayPreferences, userSelectedTodayPreferences),
+        [adaptiveTodayPreferences, userSelectedTodayPreferences]
+    );
+    const bmi = useMemo(() => {
+        const validHeight = userDietContext.heightCm && userDietContext.heightCm > 0 ? userDietContext.heightCm : null;
+        const validWeight = userDietContext.weightKg && userDietContext.weightKg > 0 ? userDietContext.weightKg : null;
+        if (!validHeight || !validWeight) {
+            return null;
+        }
+        return Number((validWeight / Math.pow(validHeight / 100, 2)).toFixed(1));
+    }, [userDietContext.heightCm, userDietContext.weightKg]);
+
     const basePlan = useMemo(() => generatePlanForDate(todayKey, stageType, 70), [todayKey, stageType]);
     const contextAdjusted = useMemo(() => optimizePlanByUserContext(basePlan, userDietContext), [basePlan, userDietContext]);
     const medicationAdjusted = useMemo(
@@ -277,14 +655,18 @@ export default function DietReportPage() {
         [contextAdjusted.plan, medications]
     );
     const preferenceAdjusted = useMemo(() => {
-        if (todayPreferences.length === 0) {
+        if (confirmedTodayPreferences.length === 0) {
             return {
                 plan: medicationAdjusted.plan,
                 notes: [] as string[],
             };
         }
-        return optimizePlanByPreference(medicationAdjusted.plan, todayPreferences);
-    }, [medicationAdjusted.plan, todayPreferences]);
+        return optimizePlanByPreference(medicationAdjusted.plan, confirmedTodayPreferences);
+    }, [medicationAdjusted.plan, confirmedTodayPreferences]);
+    const yesterdayAdjusted = useMemo(
+        () => applyYesterdayIntakeCorrection(todayKey, preferenceAdjusted.plan, logs, { stageType, bmi }),
+        [todayKey, preferenceAdjusted.plan, logs, stageType, bmi]
+    );
 
     const getPlanBeforeNoRepeatForDate = useCallback(
         (dateKey: string) => {
@@ -292,12 +674,21 @@ export default function DietReportPage() {
             const dateContextAdjusted = optimizePlanByUserContext(dateBasePlan, userDietContext);
             const dateMedicationAdjusted = optimizePlanByMedications(dateContextAdjusted.plan, medications);
             const datePreferences = dailyPreferences[dateKey] ?? [];
-            if (datePreferences.length === 0) {
-                return dateMedicationAdjusted.plan;
-            }
-            return optimizePlanByPreference(dateMedicationAdjusted.plan, datePreferences).plan;
+            const adaptivePreferences = recommendAdaptivePreferencesByRecentLogs(logs, dateKey);
+            const appliedPreferences = mergePreferences(adaptivePreferences, datePreferences);
+            const datePreferenceAdjusted =
+                appliedPreferences.length === 0
+                    ? {
+                          plan: dateMedicationAdjusted.plan,
+                      }
+                    : optimizePlanByPreference(dateMedicationAdjusted.plan, appliedPreferences);
+
+            return applyYesterdayIntakeCorrection(dateKey, datePreferenceAdjusted.plan, logs, {
+                stageType,
+                bmi,
+            }).plan;
         },
-        [stageType, userDietContext, medications, dailyPreferences]
+        [stageType, userDietContext, medications, dailyPreferences, logs, bmi]
     );
 
     const recentHistoryPlans = useMemo(
@@ -310,15 +701,21 @@ export default function DietReportPage() {
     );
 
     const noRepeatAdjusted = useMemo(
-        () => applySevenDayNoRepeatRule(preferenceAdjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS),
-        [preferenceAdjusted.plan, recentHistoryPlans]
+        () => applySevenDayNoRepeatRule(yesterdayAdjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS),
+        [yesterdayAdjusted.plan, recentHistoryPlans]
     );
 
     const finalPlan: DayPlan = noRepeatAdjusted.plan;
     const profileMatch = useMemo(() => detectCancerProfileMatch(userDietContext.cancerType), [userDietContext.cancerType]);
     const mergedNotes = useMemo(
-        () => [...contextAdjusted.notes, ...medicationAdjusted.notes, ...preferenceAdjusted.notes, ...noRepeatAdjusted.notes],
-        [contextAdjusted.notes, medicationAdjusted.notes, preferenceAdjusted.notes, noRepeatAdjusted.notes]
+        () => [
+            ...contextAdjusted.notes,
+            ...medicationAdjusted.notes,
+            ...preferenceAdjusted.notes,
+            ...yesterdayAdjusted.notes,
+            ...noRepeatAdjusted.notes,
+        ],
+        [contextAdjusted.notes, medicationAdjusted.notes, preferenceAdjusted.notes, yesterdayAdjusted.notes, noRepeatAdjusted.notes]
     );
 
     const reviewWarnings = useMemo(() => {
@@ -338,11 +735,14 @@ export default function DietReportPage() {
         if (medicationSchedules.length === 0) {
             warnings.push('복용 시기 데이터가 없어 식후 복용 맞춤 조정이 제외되었습니다.');
         }
-        if (todayPreferences.length === 0) {
+        if (confirmedTodayPreferences.length === 0) {
             warnings.push('당일 선호 방향이 없어 기본 균형형이 유지되었습니다.');
         }
+        if (Object.keys(logs).length === 0) {
+            warnings.push('식단 기록이 없어 전날 섭취 보정 강도는 기본값으로 계산되었습니다.');
+        }
         return warnings;
-    }, [userDietContext.cancerType, userDietContext.cancerStage, profileMatch, activeStage, medicationSchedules.length, todayPreferences.length]);
+    }, [userDietContext.cancerType, userDietContext.cancerStage, profileMatch, activeStage, medicationSchedules.length, confirmedTodayPreferences.length, logs]);
 
     const loadInitial = useCallback(async () => {
         setLoading(true);
@@ -385,6 +785,7 @@ export default function DietReportPage() {
         setMedications(store.medications);
         setMedicationSchedules(store.medicationSchedules);
         setDailyPreferences(store.dailyPreferences);
+        setLogs(store.logs);
         setLoading(false);
     }, []);
 
@@ -479,7 +880,21 @@ export default function DietReportPage() {
                             ? medicationSchedules.map((item) => `${item.name}(${medicationTimingLabel(item.timing)})`).join(', ')
                             : '없음'}
                     </p>
-                    <p>- 오늘 선호 반영: {todayPreferences.length > 0 ? todayPreferences.map((item) => preferenceLabel(item)).join(', ') : '없음'}</p>
+                    <p>
+                        - 사용자 선택 선호: {userSelectedTodayPreferences.length > 0
+                            ? userSelectedTodayPreferences.map((item) => preferenceLabel(item)).join(', ')
+                            : '없음'}
+                    </p>
+                    <p>
+                        - 기록 자동 반영 선호: {adaptiveTodayPreferences.length > 0
+                            ? adaptiveTodayPreferences.map((item) => preferenceLabel(item)).join(', ')
+                            : '없음'}
+                    </p>
+                    <p>
+                        - 최종 선호 반영: {confirmedTodayPreferences.length > 0
+                            ? confirmedTodayPreferences.map((item) => preferenceLabel(item)).join(', ')
+                            : '없음'}
+                    </p>
                 </div>
             </section>
 
@@ -538,7 +953,7 @@ export default function DietReportPage() {
 
             <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <p className="text-base font-semibold text-gray-900 dark:text-gray-100">규칙 적용 로그</p>
-                <div className="mt-3 grid gap-3 lg:grid-cols-3">
+                <div className="mt-3 grid gap-3 lg:grid-cols-4">
                     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">1) 개인 정보/암 정보 반영</p>
                         <div className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-200">
@@ -560,10 +975,20 @@ export default function DietReportPage() {
                         </div>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">3) 당일 선호 반영</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">3) 당일/자동 선호 반영</p>
                         <div className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-200">
                             {preferenceAdjusted.notes.length > 0 ? (
                                 preferenceAdjusted.notes.map((note) => <p key={note}>- {note}</p>)
+                            ) : (
+                                <p>- 적용 없음</p>
+                            )}
+                        </div>
+                    </div>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">4) 전날 기록 보정 반영</p>
+                        <div className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-200">
+                            {yesterdayAdjusted.notes.length > 0 ? (
+                                yesterdayAdjusted.notes.map((note) => <p key={note}>- {note}</p>)
                             ) : (
                                 <p>- 적용 없음</p>
                             )}
