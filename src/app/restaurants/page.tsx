@@ -55,22 +55,86 @@ const FINDER_OPTIONS: Record<FinderCategory, FinderOption> = {
     healthy: {
         label: '건강식 일반',
         hint: '저염·담백한 한식 중심으로 찾기 좋아요.',
-        keywords: ['건강식 식당', '저염식 한식', '한식 백반', '쌈밥', '두부요리', '죽 전문점'],
+        keywords: [
+            '건강식 식당',
+            '저염식 한식',
+            '한식 백반',
+            '쌈밥',
+            '두부요리',
+            '죽 전문점',
+            '가정식 백반',
+            '생선구이 백반',
+            '나물 반찬',
+            '현미밥 식당',
+            '국물 적은 한식',
+            '담백한 식당',
+            '웰빙 한식',
+            '저자극 식당',
+            '집밥 스타일 식당',
+        ],
     },
     veggie: {
         label: '샐러드/채식',
         hint: '샐러드, 포케, 채식·비건 식당 중심으로 탐색해요.',
-        keywords: ['샐러드 전문점', '포케', '채식 식당', '비건 식당', '야채 샤브샤브', '샤브샤브'],
+        keywords: [
+            '샐러드 전문점',
+            '포케',
+            '채식 식당',
+            '비건 식당',
+            '야채 샤브샤브',
+            '샤브샤브',
+            '그린볼',
+            '비건 브런치',
+            '채소 덮밥',
+            '두부 샐러드',
+            '곡물볼',
+            '렌틸콩 샐러드',
+            '채식 도시락',
+            '버섯 요리',
+            '비건 카페',
+        ],
     },
     protein: {
         label: '단백질 중심',
         hint: '생선·닭가슴살 등 단백질 위주 식당을 우선해요.',
-        keywords: ['생선구이', '닭가슴살 식당', '두부요리', '오븐구이', '포케', '연어 샐러드'],
+        keywords: [
+            '생선구이',
+            '닭가슴살 식당',
+            '두부요리',
+            '오븐구이',
+            '포케',
+            '연어 샐러드',
+            '훈제오리 샐러드',
+            '참치 포케',
+            '소고기 안심',
+            '계란 요리',
+            '단백질 도시락',
+            '닭안심 샐러드',
+            '해산물 샐러드',
+            '그릭요거트 볼',
+            '두유 스무디',
+        ],
     },
     soft: {
         label: '부드러운 식사',
         hint: '치료 중 부담이 적은 죽/국/담백식 위주로 찾아요.',
-        keywords: ['죽 전문점', '맑은 국', '순두부', '된장찌개', '들깨수프', '연두부'],
+        keywords: [
+            '죽 전문점',
+            '맑은 국',
+            '순두부',
+            '된장찌개',
+            '들깨수프',
+            '연두부',
+            '계란찜',
+            '야채죽',
+            '소고기죽',
+            '미음',
+            '북어국',
+            '콩나물국',
+            '부드러운 한식',
+            '연식 가능 식당',
+            '소화 편한 식사',
+        ],
     },
 };
 
@@ -111,7 +175,10 @@ export default function RestaurantsPage() {
     const [recommendationError, setRecommendationError] = useState('');
 
     const selected = FINDER_OPTIONS[selectedCategory];
-    const quickKeywords = useMemo(() => selected.keywords.slice(0, 6), [selected]);
+    const quickKeywords = useMemo(
+        () => Array.from(new Set(selected.keywords.map((keyword) => keyword.trim()).filter(Boolean))),
+        [selected]
+    );
     const deliveryKeywords = useMemo(() => {
         const recommendationKeywords = recommendations.map((item) => item.name.trim()).filter(Boolean);
         const merged = [...recommendationKeywords, ...quickKeywords];
