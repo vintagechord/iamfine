@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { NotebookPen, ShoppingCart, Utensils } from 'lucide-react';
+import { MapPinned, NotebookPen, ShoppingCart, Utensils } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { formatDateKey, STAGE_TYPE_LABELS, type StageType } from '@/lib/dietEngine';
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
@@ -293,10 +293,10 @@ export default function Home() {
 
     return (
         <main className="mx-auto max-w-3xl space-y-4 py-6">
-            <section className="flex flex-wrap justify-center gap-4">
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Link
                     href="/diet"
-                    className="quickTileMono quickTileMono--emerald w-full sm:w-[220px]"
+                    className="quickTileMono quickTileMono--emerald w-full"
                 >
                     <span className="quickTileMono__iconWrap" aria-hidden="true">
                         <Utensils className="quickTileMono__icon" />
@@ -305,7 +305,7 @@ export default function Home() {
                 </Link>
                 <Link
                     href="/diet?view=record#today-record-section"
-                    className="quickTileMono quickTileMono--amber w-full sm:w-[220px]"
+                    className="quickTileMono quickTileMono--amber w-full"
                 >
                     <span className="quickTileMono__iconWrap" aria-hidden="true">
                         <NotebookPen className="quickTileMono__icon" />
@@ -314,12 +314,21 @@ export default function Home() {
                 </Link>
                 <Link
                     href="/shopping"
-                    className="quickTileMono quickTileMono--sky w-full sm:w-[220px]"
+                    className="quickTileMono quickTileMono--sky w-full"
                 >
                     <span className="quickTileMono__iconWrap" aria-hidden="true">
                         <ShoppingCart className="quickTileMono__icon" />
                     </span>
                     <span className="quickTileMono__label text-xl">장보기</span>
+                </Link>
+                <Link
+                    href="/restaurants"
+                    className="quickTileMono quickTileMono--emerald w-full"
+                >
+                    <span className="quickTileMono__iconWrap" aria-hidden="true">
+                        <MapPinned className="quickTileMono__icon" />
+                    </span>
+                    <span className="quickTileMono__label text-xl">건강식당 찾기</span>
                 </Link>
             </section>
 
