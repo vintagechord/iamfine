@@ -131,6 +131,23 @@ const DEFAULT_STORE: DietStore = {
     carryPreferences: [],
 };
 
+const KAKAO_MAP_SEARCH_BASE_URL = 'https://map.kakao.com/?q=';
+const HEALTH_FINDER_KEYWORDS = [
+    '건강식 식당',
+    '샐러드 전문점',
+    '포케',
+    '비건 식당',
+    '한식 백반',
+    '죽 전문점',
+    '생선구이',
+    '쌈밥',
+    '두부요리',
+];
+
+function buildKakaoMapSearchUrl(keyword: string) {
+    return `${KAKAO_MAP_SEARCH_BASE_URL}${encodeURIComponent(keyword)}`;
+}
+
 const PREFERENCE_KEYS = new Set<PreferenceType>(PREFERENCE_OPTIONS.map((option) => option.key));
 
 const SLOT_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
@@ -2366,7 +2383,7 @@ export default function DietPage() {
                     <h2 className="finderSection__title text-lg font-semibold text-gray-900 dark:text-gray-100">근처 건강식 찾기</h2>
                     <div className="finderSection__grid mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                         <a
-                            href="https://map.kakao.com/?q=%EA%B1%B4%EA%B0%95%EC%8B%9D%20%EC%83%90%EB%9F%AC%EB%93%9C%20%EC%B1%84%EC%86%8C%20%EC%8B%9D%EB%8B%B9"
+                            href={buildKakaoMapSearchUrl('건강식 식당')}
                             target="_blank"
                             rel="noreferrer"
                             className="finderSearch finderSearch--leaf flex h-12 items-center gap-3 rounded-full px-3"
@@ -2379,7 +2396,7 @@ export default function DietPage() {
                             <ChevronRight className="finderSearch__chev h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                         </a>
                         <a
-                            href="https://map.kakao.com/?q=%EC%83%90%EB%9F%AC%EB%93%9C%20%EC%95%BC%EC%B1%84%20%ED%8F%AC%EC%BC%80%20%EC%8B%9D%EB%8B%B9"
+                            href={buildKakaoMapSearchUrl('샐러드 전문점')}
                             target="_blank"
                             rel="noreferrer"
                             className="finderSearch finderSearch--salad flex h-12 items-center gap-3 rounded-full px-3"
@@ -2391,6 +2408,25 @@ export default function DietPage() {
                             <span className="finderSearch__text flex-1 truncate text-sm">내 주변 샐러드/야채 식당 찾기</span>
                             <ChevronRight className="finderSearch__chev h-[18px] w-[18px] shrink-0" aria-hidden="true" />
                         </a>
+                    </div>
+                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950/30">
+                        <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">추천 검색 키워드</p>
+                        <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
+                            아래 키워드를 누르면 카카오맵에서 바로 검색돼요.
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                            {HEALTH_FINDER_KEYWORDS.map((keyword) => (
+                                <a
+                                    key={keyword}
+                                    href={buildKakaoMapSearchUrl(keyword)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
+                                >
+                                    {keyword}
+                                </a>
+                            ))}
+                        </div>
                     </div>
                 </section>
             )}
