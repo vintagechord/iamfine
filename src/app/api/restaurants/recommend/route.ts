@@ -403,9 +403,15 @@ async function resolveRegionByCoordinates(lat: number | null, lng: number | null
     }
 }
 
-function buildSearchQueries(region: string, category: FinderCategory) {
+function buildSearchQueries(region: string, category: FinderCategory, keyword: string) {
     const terms = CATEGORY_SEARCH_TERMS[category] ?? CATEGORY_SEARCH_TERMS.healthy;
     const set = new Set<string>();
+    const normalizedKeyword = cleanText(keyword);
+    if (normalizedKeyword) {
+        set.add(`${region} ${normalizedKeyword}`);
+        set.add(`${region} ${normalizedKeyword} 맛집`);
+        set.add(`${region} ${normalizedKeyword} 식당`);
+    }
     terms.forEach((term) => {
         set.add(`${region} ${term}`);
     });
@@ -422,10 +428,11 @@ export async function GET(request: NextRequest) {
             : 'healthy';
     const lat = safeCoordinate(searchParams.get('lat'), -90, 90);
     const lng = safeCoordinate(searchParams.get('lng'), -180, 180);
+    const keyword = cleanText(searchParams.get('keyword') || '').slice(0, 32);
 
     const manualRegion = cleanText(searchParams.get('region') || '');
     const resolvedRegion = manualRegion || (await resolveRegionByCoordinates(lat, lng)) || '내 주변';
-    const queries = buildSearchQueries(resolvedRegion, category);
+    const queries = buildSearchQueries(resolvedRegion, category, keyword);
 
     const searchTasks = queries.map((query) =>
         fetchText(`https://search.naver.com/search.naver?where=nexearch&query=${encodeURIComponent(query)}`)
@@ -446,6 +453,7 @@ export async function GET(request: NextRequest) {
         region: resolvedRegion,
         category,
         categoryLabel: CATEGORY_LABELS[category],
+        keyword,
         queries,
         items: recommendations,
         generatedAt: new Date().toISOString(),

@@ -32,6 +32,7 @@ type RecommendationResponse = {
     region: string;
     category: FinderCategory;
     categoryLabel: string;
+    keyword?: string;
     queries: string[];
     items: RecommendationItem[];
     generatedAt: string;
@@ -94,6 +95,7 @@ const DELIVERY_PROVIDERS: DeliveryProvider[] = [
 
 export default function RestaurantsPage() {
     const [selectedCategory, setSelectedCategory] = useState<FinderCategory>('healthy');
+    const [selectedKeyword, setSelectedKeyword] = useState<string>('');
     const [regionInput, setRegionInput] = useState('서울');
     const [searchContext, setSearchContext] = useState<SearchContext>({
         region: '서울',
@@ -150,6 +152,9 @@ export default function RestaurantsPage() {
                     params.set('lat', String(context.lat));
                     params.set('lng', String(context.lng));
                 }
+                if (selectedKeyword.trim()) {
+                    params.set('keyword', selectedKeyword.trim());
+                }
 
                 const response = await fetch(`/api/restaurants/recommend?${params.toString()}`, {
                     cache: 'no-store',
@@ -172,12 +177,40 @@ export default function RestaurantsPage() {
                 setLoadingRecommendations(false);
             }
         },
-        [selectedCategory]
+        [selectedCategory, selectedKeyword]
     );
 
     useEffect(() => {
         void fetchRecommendations(searchContext);
     }, [fetchRecommendations, searchContext]);
+
+    useEffect(() => {
+        setSelectedKeyword('');
+    }, [selectedCategory]);
+
+    useEffect(() => {
+        if (!navigator.geolocation) {
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setSearchContext({
+                    region: '',
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                });
+            },
+            () => {
+                // 권한 거부/실패 시 기존 지역 입력 기반 검색을 유지.
+            },
+            {
+                enableHighAccuracy: false,
+                timeout: 10000,
+                maximumAge: 5 * 60 * 1000,
+            }
+        );
+    }, []);
 
     const updateContextByRegion = () => {
         const nextRegion = regionInput.trim() || '서울';
@@ -199,7 +232,7 @@ export default function RestaurantsPage() {
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 setSearchContext({
-                    region: regionInput.trim(),
+                    region: '',
                     lat: position.coords.latitude,
                     lng: position.coords.longitude,
                 });
@@ -263,15 +296,27 @@ export default function RestaurantsPage() {
                 <p className="mt-3 text-xs text-emerald-800 dark:text-emerald-200">{selected.hint}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                     {quickKeywords.map((keyword) => (
-                        <span
+                        <button
                             key={`${selectedCategory}-${keyword}`}
-                            className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
+                            type="button"
+                            onClick={() => setSelectedKeyword((prev) => (prev === keyword ? '' : keyword))}
+                            className={`inline-flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                                selectedKeyword === keyword
+                                    ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm'
+                                    : 'border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40'
+                            }`}
+                            aria-pressed={selectedKeyword === keyword}
                         >
                             <Search className="h-3.5 w-3.5" />
                             {keyword}
-                        </span>
+                        </button>
                     ))}
                 </div>
+                {selectedKeyword && (
+                    <p className="mt-2 text-xs font-semibold text-emerald-900 dark:text-emerald-100">
+                        적용 중 키워드: {selectedKeyword}
+                    </p>
+                )}
                 <p className="mt-2 text-xs text-emerald-800 dark:text-emerald-200">
                     선택한 카테고리 키워드 + 위치(또는 지역명)로 웹 문서를 수집하고, 언급 식당을 점수화해 추천해요.
                 </p>
