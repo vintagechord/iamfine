@@ -89,6 +89,12 @@ export type UserMedicationSchedule = {
     timing: 'breakfast' | 'lunch' | 'dinner';
 };
 
+export type UserAdditionalCondition = {
+    name: string;
+    code?: string;
+    category?: string;
+};
+
 export type UserDietContext = {
     age?: number;
     sex?: 'unknown' | 'female' | 'male' | 'other';
@@ -102,6 +108,7 @@ export type UserDietContext = {
     activeStageOrder?: number;
     activeStageStatus?: 'planned' | 'active' | 'completed';
     medicationSchedules?: UserMedicationSchedule[];
+    additionalConditions?: UserAdditionalCondition[];
 };
 
 export type DinnerCarbSafetyContext = {
@@ -1336,6 +1343,92 @@ export function optimizePlanByUserContext(plan: DayPlan, context: UserDietContex
         addNote('현재 치료 단계 상태(진행중)를 반영해 속이 편한 저자극 메뉴로 보정했어요.');
     }
 
+    const additionalConditions = (context.additionalConditions ?? []).filter(
+        (item) => typeof item.name === 'string' && item.name.trim().length > 0
+    );
+    const additionalConditionText = normalizeForMatch(
+        additionalConditions.map((item) => `${item.name} ${item.code ?? ''} ${item.category ?? ''}`).join(' ')
+    );
+    const hasAdditionalCondition = (keywords: string[]) =>
+        keywords.some((keyword) => additionalConditionText.includes(normalizeForMatch(keyword)));
+
+    if (additionalConditions.length > 0) {
+        const conditionNames = Array.from(new Set(additionalConditions.map((item) => item.name.trim())));
+        addNote(
+            `추가 질병(${conditionNames.join(', ')}) 정보를 반영해 암환자 기본 식단 원칙 안에서 보수적으로 조정했어요.`
+        );
+    }
+
+    if (hasAdditionalCondition(['감기', '독감', '인플루엔자', 'J00', 'J10'])) {
+        optimized.breakfast.soup = '두부맑은국';
+        optimized.lunch.soup = '맑은채소국';
+        optimized.dinner.soup = '단호박수프';
+        optimized.snack.main = '무가당 요거트';
+        optimized.snack.sides = ['바나나 반 개'];
+        optimized.snack.soup = '따뜻한 물';
+        optimized.snack.summary = '무가당 요거트 + 바나나 반 개 + 따뜻한 물';
+        optimized.snack.recipeName = '감기/호흡기 불편 고려 간식';
+        optimized.snack.recipeSteps = [
+            '무가당 요거트를 소량으로 준비해 주세요.',
+            '바나나 반 개를 곁들여 에너지를 보충해 주세요.',
+            '따뜻한 물을 천천히 마셔 수분을 보충해 주세요.',
+        ];
+        syncSummary(optimized.breakfast);
+        syncSummary(optimized.lunch);
+        syncSummary(optimized.dinner);
+        addNote('감기/호흡기 증상을 고려해 따뜻하고 자극이 적은 조합으로 조정했어요.');
+    }
+
+    if (hasAdditionalCondition(['고혈압', 'I10'])) {
+        optimized.breakfast.sides = ['브로콜리찜', '저염 나물', '당근볶음'];
+        optimized.lunch.sides = ['양배추볶음', '저염 채소무침', '버섯볶음'];
+        optimized.dinner.sides = ['구운채소', '저염 나물', '저염 버섯볶음'];
+        optimized.breakfast.soup = '두부맑은국';
+        optimized.lunch.soup = '맑은채소국';
+        optimized.dinner.soup = '미역국(저염)';
+        syncSummary(optimized.breakfast);
+        syncSummary(optimized.lunch);
+        syncSummary(optimized.dinner);
+        addNote('고혈압 정보를 반영해 저염 반찬·국물 중심으로 조정했어요.');
+    }
+
+    if (hasAdditionalCondition(['고지혈증', '고콜레스테롤혈증', '콜레스테롤', 'E78.0', 'E78.5'])) {
+        optimized.breakfast.main = '달걀두부찜';
+        optimized.lunch.main = '흰살생선찜';
+        optimized.dinner.main = '닭안심찜';
+        optimized.snack.main = '무가당 요거트';
+        optimized.snack.sides = ['베리류', '아몬드 소량'];
+        optimized.snack.soup = '물';
+        optimized.snack.summary = '무가당 요거트 + 베리류 + 아몬드 소량 + 물';
+        optimized.snack.recipeName = '지질 관리형 간식';
+        optimized.snack.recipeSteps = [
+            '무가당 요거트를 작은 그릇에 준비해 주세요.',
+            '베리류는 한 줌(50~60g)만 곁들여 주세요.',
+            '견과류는 소량(5~6알)으로 제한해 주세요.',
+        ];
+        syncSummary(optimized.breakfast);
+        syncSummary(optimized.lunch);
+        syncSummary(optimized.dinner);
+        addNote('고지혈증/콜레스테롤 정보를 반영해 포화지방이 낮은 단백질 조합으로 조정했어요.');
+    }
+
+    if (hasAdditionalCondition(['간 질환', '간질환', '지방간', '간염', 'K76.9', 'K76.0', 'K75.9'])) {
+        optimized.breakfast.main = '두부조림';
+        optimized.lunch.main = '연두부덮밥';
+        optimized.dinner.main = '흰살생선찜';
+        optimized.breakfast.soup = '맑은채소국';
+        optimized.lunch.soup = '두부맑은국';
+        optimized.dinner.soup = '단호박수프';
+        optimized.snack.summary = '사과 조각 + 무가당 두유 + 물';
+        optimized.snack.main = '사과 조각';
+        optimized.snack.sides = ['무가당 두유'];
+        optimized.snack.soup = '물';
+        syncSummary(optimized.breakfast);
+        syncSummary(optimized.lunch);
+        syncSummary(optimized.dinner);
+        addNote('간 관련 질환 정보를 반영해 기름진 조리와 자극을 낮춘 담백한 구성으로 조정했어요.');
+    }
+
     const stageLabelNormalized = normalizeForMatch(context.activeStageLabel ?? '');
     if (
         context.activeStageOrder &&
@@ -1750,20 +1843,23 @@ export function getSnackCoffeeTimingGuide(stageType: StageType) {
     if (stageType === 'chemo' || stageType === 'chemo_2nd') {
         return {
             snack: '간식은 점심 2~3시간 후(14시~16시)에 소량으로 드세요.',
-            coffee: '커피는 식후 1시간 뒤, 하루 1잔 이내로 줄여보세요.',
+            coffee: '커피는 필수가 아니며, 필요하면 식후 1시간 뒤 연한 커피로 하루 1잔 이내만 권장해요.',
+            tea: '차는 카페인 없는 종류(카모마일, 루이보스, 보리차)를 우선으로 소량씩 나눠 드세요.',
         };
     }
 
     if (stageType === 'radiation') {
         return {
             snack: '간식은 15시 전후에 수분이 있는 음식으로 드세요.',
-            coffee: '카페인은 탈수를 줄이기 위해 물과 함께 드세요.',
+            coffee: '커피는 탈수 위험을 고려해 필요 시 소량만 드시고 물을 함께 보충해 주세요.',
+            tea: '차는 보리차·캐모마일처럼 무카페인 차를 자주 나눠 마셔 수분을 보충해 주세요.',
         };
     }
 
     return {
         snack: '간식은 오후 3시 전후, 저당 간식 위주로 드세요.',
-        coffee: '커피는 오전/점심 식후에 마시고 저녁에는 피하세요.',
+        coffee: '커피는 오전/점심 식후에 필요 시 1잔 이내로 마시고 저녁에는 피하세요.',
+        tea: '차는 카페인 없는 종류를 우선하고, 진하지 않게 따뜻한 온도로 드세요.',
     };
 }
 
@@ -1822,7 +1918,7 @@ export function mealTypeLabel(slot: MealSlot) {
     if (slot === 'dinner') {
         return '저녁';
     }
-    return '간식/커피';
+    return '간식/커피/차';
 }
 
 export function scoreToPercentile(score: number) {

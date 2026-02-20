@@ -42,6 +42,7 @@ type VisitScheduleItem = {
     id: string;
     visitDate: string;
     visitTime: string;
+    hospitalName: string;
     treatmentNote: string;
     preparationNote: string;
     createdAt: string;
@@ -79,12 +80,12 @@ function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
 
     try {
         const parsed = JSON.parse(raw) as Partial<TreatmentMeta>;
-        if (!parsed.cancerType || !parsed.cancerStage) {
+        if (!parsed.cancerType) {
             return null;
         }
         return {
             cancerType: parsed.cancerType,
-            cancerStage: parsed.cancerStage,
+            cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage : '',
             updatedAt: parsed.updatedAt ?? '',
         };
     } catch {
@@ -247,11 +248,16 @@ function parseVisitScheduleList(raw: string | null) {
                     typeof candidate.id === 'string' &&
                     typeof candidate.visitDate === 'string' &&
                     typeof candidate.visitTime === 'string' &&
+                    (typeof candidate.hospitalName === 'string' || candidate.hospitalName === undefined) &&
                     typeof candidate.treatmentNote === 'string' &&
                     typeof candidate.preparationNote === 'string' &&
                     typeof candidate.createdAt === 'string'
                 );
             })
+            .map((item) => ({
+                ...item,
+                hospitalName: item.hospitalName?.trim() ?? '',
+            }))
             .sort((a, b) => {
                 const aKey = `${a.visitDate} ${a.visitTime}`;
                 const bKey = `${b.visitDate} ${b.visitTime}`;
@@ -309,6 +315,7 @@ export default function Home() {
     const [showVisitScheduleModal, setShowVisitScheduleModal] = useState(false);
     const [visitDateInput, setVisitDateInput] = useState('');
     const [visitTimeInput, setVisitTimeInput] = useState('');
+    const [visitHospitalInput, setVisitHospitalInput] = useState('');
     const [visitTreatmentInput, setVisitTreatmentInput] = useState('');
     const [visitPreparationInput, setVisitPreparationInput] = useState('');
     const [visitFormMessage, setVisitFormMessage] = useState('');
@@ -584,6 +591,7 @@ export default function Home() {
     const resetVisitForm = () => {
         setVisitDateInput('');
         setVisitTimeInput('');
+        setVisitHospitalInput('');
         setVisitTreatmentInput('');
         setVisitPreparationInput('');
     };
@@ -603,6 +611,7 @@ export default function Home() {
             id: `visit-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
             visitDate: visitDateInput,
             visitTime: visitTimeInput,
+            hospitalName: visitHospitalInput.trim(),
             treatmentNote: trimmedTreatment,
             preparationNote: trimmedPreparation,
             createdAt: new Date().toISOString(),
@@ -676,7 +685,9 @@ export default function Home() {
                         </div>
                         <p className="mt-1 truncate pl-10 text-sm text-gray-600 dark:text-gray-300">
                             {upcomingVisit
-                                ? `${formatVisitScheduleDate(upcomingVisit.visitDate)} ${formatVisitScheduleTime(upcomingVisit.visitTime)} · ${upcomingVisit.treatmentNote}`
+                                ? `${formatVisitScheduleDate(upcomingVisit.visitDate)} ${formatVisitScheduleTime(upcomingVisit.visitTime)} · ${
+                                      upcomingVisit.hospitalName ? `${upcomingVisit.hospitalName} · ` : ''
+                                  }${upcomingVisit.treatmentNote}`
                                 : '다음 병원 방문 일정을 등록해 주세요.'}
                         </p>
                     </div>
@@ -853,6 +864,16 @@ export default function Home() {
                                 />
                             </label>
                             <label className="space-y-1 sm:col-span-2">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">병원 이름(선택)</span>
+                                <input
+                                    type="text"
+                                    value={visitHospitalInput}
+                                    onChange={(event) => setVisitHospitalInput(event.target.value)}
+                                    placeholder="예: 서울아산병원"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
+                                />
+                            </label>
+                            <label className="space-y-1 sm:col-span-2">
                                 <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">진료 내용</span>
                                 <input
                                     type="text"
@@ -921,6 +942,9 @@ export default function Home() {
                                                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                                                         {formatVisitScheduleDate(item.visitDate)} ·{' '}
                                                         {formatVisitScheduleTime(item.visitTime)}
+                                                    </p>
+                                                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                                        병원: {item.hospitalName || '미입력'}
                                                     </p>
                                                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{item.treatmentNote}</p>
                                                     <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">

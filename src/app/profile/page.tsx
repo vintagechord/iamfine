@@ -2,6 +2,13 @@
 
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+    matchConditionByName,
+    parseAdditionalConditionsFromUnknown,
+    searchConditionCatalog,
+    type AdditionalCondition,
+    type ConditionCatalogItem,
+} from '@/lib/additionalConditions';
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type ProfileRow = {
@@ -62,7 +69,7 @@ type TreatmentStageRow = {
     updated_at: string;
 };
 
-type ProfileTab = 'health' | 'medication' | 'treatment';
+type ProfileTab = 'health' | 'medication' | 'treatment' | 'additional_disease';
 
 type Feedback = {
     type: 'success' | 'error';
@@ -83,6 +90,7 @@ const PROFILE_TABS: Array<{ key: ProfileTab; label: string }> = [
     { key: 'health', label: '기본 건강 정보' },
     { key: 'medication', label: '약 복용 정보' },
     { key: 'treatment', label: '치료 정보' },
+    { key: 'additional_disease', label: '추가 질병' },
 ];
 const STAGE_TYPE_OPTIONS: StageType[] = [
     'diagnosis',
@@ -323,6 +331,7 @@ function readIamfineMetadata(raw: unknown) {
             treatmentMeta: null as TreatmentMeta | null,
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
+            additionalConditions: [] as AdditionalCondition[],
         };
     }
 
@@ -338,6 +347,7 @@ function readIamfineMetadata(raw: unknown) {
         treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
         medications: parseMedicationNamesFromUnknown(scoped.medications),
         medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
+        additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
     };
 }
 
@@ -347,6 +357,7 @@ function buildUpdatedUserMetadata(
         treatmentMeta: TreatmentMeta;
         medications: string[];
         medicationSchedules: MedicationSchedule[];
+        additionalConditions: AdditionalCondition[];
     }>
 ) {
     const { root } = readIamfineMetadata(raw);
@@ -448,12 +459,16 @@ export default function ProfilePage() {
     const [addStageLabel, setAddStageLabel] = useState('');
     const [addStageOrder, setAddStageOrder] = useState('');
     const [addStageStatus, setAddStageStatus] = useState<StageStatus>('planned');
+    const [additionalConditions, setAdditionalConditions] = useState<AdditionalCondition[]>([]);
+    const [additionalConditionDraft, setAdditionalConditionDraft] = useState('');
+    const [isConditionComposing, setIsConditionComposing] = useState(false);
     const [feedback, setFeedback] = useState<Feedback>(null);
 
     const [checking, setChecking] = useState(false);
     const [saving, setSaving] = useState(false);
     const [savingMedicationInfo, setSavingMedicationInfo] = useState(false);
     const [savingTreatmentInfo, setSavingTreatmentInfo] = useState(false);
+    const [savingAdditionalConditions, setSavingAdditionalConditions] = useState(false);
     const [addingTreatmentStage, setAddingTreatmentStage] = useState(false);
     const [deletingTreatmentStageId, setDeletingTreatmentStageId] = useState<string | null>(null);
     const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
@@ -494,6 +509,10 @@ export default function ProfilePage() {
             return a.created_at.localeCompare(b.created_at);
         });
     }, [treatmentStages]);
+    const conditionSuggestions = useMemo(
+        () => searchConditionCatalog(additionalConditionDraft.trim(), 8),
+        [additionalConditionDraft]
+    );
 
     const loadTreatmentStages = useCallback(async (uid: string) => {
         if (!supabase) {
@@ -552,6 +571,7 @@ export default function ProfilePage() {
             const treatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
             setCancerType(treatmentMeta?.cancerType ?? '');
             setCancerStage(treatmentMeta?.cancerStage === EMPTY_STAGE_LABEL ? '' : (treatmentMeta?.cancerStage ?? ''));
+            setAdditionalConditions(metadata.additionalConditions);
             const rawDietStore = localStorage.getItem(getDietStoreKey(uid));
             const localStoredSchedules = parseStoredMedicationSchedules(rawDietStore);
             const localStoredMeds = parseStoredMedications(rawDietStore);
@@ -1135,11 +1155,100 @@ export default function ProfilePage() {
         setMedicationSchedules((prev) => prev.filter((item) => item.id !== targetId));
     };
 
+    const addAdditionalConditionByCatalog = (item: ConditionCatalogItem) => {
+        setFeedback(null);
+        const duplicated = additionalConditions.some((condition) => condition.code === item.code);
+        if (duplicated) {
+            setFeedback({ type: 'error', text: '이미 추가된 질병이에요.' });
+            return;
+        }
+
+        const nextCondition: AdditionalCondition = {
+            id: `condition-${item.code}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name: item.name,
+            code: item.code,
+            category: item.category,
+            addedAt: new Date().toISOString(),
+        };
+
+        setAdditionalConditions((prev) => [...prev, nextCondition]);
+        setAdditionalConditionDraft('');
+        setFeedback({
+            type: 'success',
+            text: `${item.name} (코드 ${item.code})을(를) 추가했어요. 저장 버튼으로 최종 반영해 주세요.`,
+        });
+    };
+
+    const addAdditionalConditionFromDraft = () => {
+        setFeedback(null);
+        const input = additionalConditionDraft.trim();
+        if (!input) {
+            setFeedback({ type: 'error', text: '추가 질병 이름을 입력해 주세요.' });
+            return;
+        }
+
+        const matched = matchConditionByName(input);
+        if (!matched) {
+            setFeedback({
+                type: 'error',
+                text: '정확한 질병명을 찾지 못했어요. 아래 추천 목록에서 선택해 주세요.',
+            });
+            return;
+        }
+
+        addAdditionalConditionByCatalog(matched);
+    };
+
+    const removeAdditionalConditionDraft = (targetId: string) => {
+        setAdditionalConditions((prev) => prev.filter((item) => item.id !== targetId));
+        setFeedback({ type: 'success', text: '추가 질병 목록에서 제거했어요. 저장 버튼으로 최종 반영해 주세요.' });
+    };
+
+    const saveAdditionalConditionInfo = async () => {
+        setFeedback(null);
+
+        if (!hasSupabaseEnv || !supabase) {
+            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            return;
+        }
+
+        if (!userId) {
+            setFeedback({ type: 'error', text: '로그인이 필요해요.' });
+            return;
+        }
+
+        setSavingAdditionalConditions(true);
+        try {
+            const { data: authData, error: authError } = await supabase.auth.getUser();
+            if (authError || !authData.user) {
+                setFeedback({ type: 'error', text: '로그인이 만료되었어요. 다시 로그인해 주세요.' });
+                return;
+            }
+
+            const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, {
+                additionalConditions,
+            });
+            const { error: updateError } = await supabase.auth.updateUser({
+                data: updatedMetadata,
+            });
+            if (updateError) {
+                setFeedback({ type: 'error', text: '추가 질병 정보를 서버에 저장하지 못했어요. 다시 시도해 주세요.' });
+                return;
+            }
+
+            setFeedback({ type: 'success', text: '추가 질병 정보를 저장했어요.' });
+            showSaveCompletePopup();
+        } finally {
+            setSavingAdditionalConditions(false);
+        }
+    };
+
     const isAnyProfileActionBusy =
         checking ||
         saving ||
         savingMedicationInfo ||
         savingTreatmentInfo ||
+        savingAdditionalConditions ||
         addingTreatmentStage ||
         deletingTreatmentStageId !== null;
 
@@ -1451,6 +1560,105 @@ export default function ProfilePage() {
                         className="mt-3 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                     >
                         {savingMedicationInfo ? '저장 중…' : '약 복용 정보 저장'}
+                    </button>
+                </section>
+            )}
+
+            {activeTab === 'additional_disease' && (
+                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">추가 질병</h2>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        암환자 식단 기준을 우선으로 유지하면서, 추가 질병도 일부 반영해 식단을 더 보수적으로 조정해요.
+                    </p>
+
+                    <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-200">
+                        질병명 입력/선택
+                        <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                            <input
+                                value={additionalConditionDraft}
+                                onChange={(event) => setAdditionalConditionDraft(event.target.value)}
+                                onCompositionStart={() => setIsConditionComposing(true)}
+                                onCompositionEnd={() => setIsConditionComposing(false)}
+                                onKeyDown={(event) => {
+                                    if (event.key !== 'Enter') {
+                                        return;
+                                    }
+                                    if (isConditionComposing || event.nativeEvent.isComposing) {
+                                        return;
+                                    }
+                                    event.preventDefault();
+                                    addAdditionalConditionFromDraft();
+                                }}
+                                placeholder="예: 감기, 고혈압, 고지혈증"
+                                className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                            />
+                            <button
+                                type="button"
+                                onClick={addAdditionalConditionFromDraft}
+                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                                질병 추가
+                            </button>
+                        </div>
+                    </label>
+
+                    <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">추천 질병명(정확 매칭용)</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            {conditionSuggestions.map((item) => (
+                                <button
+                                    key={`${item.code}-${item.name}`}
+                                    type="button"
+                                    onClick={() => addAdditionalConditionByCatalog(item)}
+                                    className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                    {item.name} ({item.code})
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-2">
+                        {additionalConditions.length === 0 ? (
+                            <p className="text-sm text-gray-600 dark:text-gray-300">
+                                아직 등록된 추가 질병이 없어요. 회복된 질병은 카드의 삭제 버튼으로 제거할 수 있어요.
+                            </p>
+                        ) : (
+                            additionalConditions.map((condition) => (
+                                <article
+                                    key={condition.id}
+                                    className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40"
+                                >
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div>
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{condition.name}</p>
+                                            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                                코드: {condition.code} · 분류: {condition.category}
+                                            </p>
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                추가일: {new Date(condition.addedAt).toLocaleDateString('ko-KR')}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeAdditionalConditionDraft(condition.id)}
+                                            className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-900/50"
+                                        >
+                                            회복/삭제
+                                        </button>
+                                    </div>
+                                </article>
+                            ))
+                        )}
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={saveAdditionalConditionInfo}
+                        disabled={isAnyProfileActionBusy}
+                        className="mt-3 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                    >
+                        {savingAdditionalConditions ? '저장 중…' : '추가 질병 저장'}
                     </button>
                 </section>
             )}

@@ -65,11 +65,11 @@ export default function AuthActionButton({
     };
 
     const baseClassName =
-        'rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800';
+        'whitespace-nowrap rounded-full border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 sm:px-3 sm:text-sm';
 
     if (loggedIn) {
         return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
                 {showProfileWhenLoggedIn && (
                     <Link href="/profile" className={baseClassName} aria-label="내 정보">
                         내 정보
@@ -89,7 +89,7 @@ export default function AuthActionButton({
     }
 
     return (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
             {showSignUpWhenLoggedOut && (
                 <Link href="/auth" className={baseClassName} aria-label="회원가입">
                     회원가입

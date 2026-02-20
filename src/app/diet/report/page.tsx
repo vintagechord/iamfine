@@ -19,6 +19,7 @@ import {
     type UserDietContext,
     type UserMedicationSchedule,
 } from '@/lib/dietEngine';
+import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type StageStatus = 'planned' | 'active' | 'completed';
@@ -184,6 +185,7 @@ function readIamfineMetadata(raw: unknown) {
             treatmentMeta: null as TreatmentMeta | null,
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
+            additionalConditions: [] as AdditionalCondition[],
         };
     }
 
@@ -194,6 +196,7 @@ function readIamfineMetadata(raw: unknown) {
             treatmentMeta: null as TreatmentMeta | null,
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
+            additionalConditions: [] as AdditionalCondition[],
         };
     }
 
@@ -202,6 +205,7 @@ function readIamfineMetadata(raw: unknown) {
         treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
         medications: parseMedicationNamesFromUnknown(scoped.medications),
         medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
+        additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
     };
 }
 
@@ -675,6 +679,7 @@ export default function DietReportPage() {
     const [treatmentMeta, setTreatmentMeta] = useState<TreatmentMeta | null>(null);
     const [medications, setMedications] = useState<string[]>([]);
     const [medicationSchedules, setMedicationSchedules] = useState<MedicationSchedule[]>([]);
+    const [additionalConditions, setAdditionalConditions] = useState<AdditionalCondition[]>([]);
     const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
     const [logs, setLogs] = useState<Record<string, DayLog>>({});
 
@@ -695,6 +700,11 @@ export default function DietReportPage() {
             category: item.category,
             timing: item.timing,
         }));
+        const contextAdditionalConditions = additionalConditions.map((item) => ({
+            name: item.name,
+            code: item.code,
+            category: item.category,
+        }));
 
         return {
             age,
@@ -709,8 +719,9 @@ export default function DietReportPage() {
             activeStageOrder: activeStage?.stage_order ?? undefined,
             activeStageStatus: activeStage?.status ?? undefined,
             medicationSchedules: contextMedicationSchedules,
+            additionalConditions: contextAdditionalConditions,
         };
-    }, [profile, treatmentMeta, activeStage, medicationSchedules]);
+    }, [profile, treatmentMeta, activeStage, medicationSchedules, additionalConditions]);
 
     const userSelectedTodayPreferences = useMemo(() => dailyPreferences[todayKey] ?? [], [dailyPreferences, todayKey]);
     const adaptiveTodayPreferences = useMemo(
@@ -808,9 +819,6 @@ export default function DietReportPage() {
         if (!profileMatch && userDietContext.cancerType?.trim()) {
             warnings.push('현재 암종은 전용 프로필이 없어 일반 안전식 규칙을 적용했습니다.');
         }
-        if (!userDietContext.cancerStage?.trim()) {
-            warnings.push('암 기수가 비어 있어 기수 기반 강도 조절이 제한됩니다.');
-        }
         if (!activeStage) {
             warnings.push('활성 치료 단계 정보가 없어 보수적인 기본 단계로 계산되었습니다.');
         }
@@ -824,7 +832,7 @@ export default function DietReportPage() {
             warnings.push('식단 기록이 없어 전날 섭취 보정 강도는 기본값으로 계산되었습니다.');
         }
         return warnings;
-    }, [userDietContext.cancerType, userDietContext.cancerStage, profileMatch, activeStage, medicationSchedules.length, confirmedTodayPreferences.length, logs]);
+    }, [userDietContext.cancerType, profileMatch, activeStage, medicationSchedules.length, confirmedTodayPreferences.length, logs]);
 
     const loadInitial = useCallback(async () => {
         setLoading(true);
@@ -846,6 +854,7 @@ export default function DietReportPage() {
         const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
         const resolvedTreatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
         setTreatmentMeta(resolvedTreatmentMeta);
+        setAdditionalConditions(metadata.additionalConditions);
 
         const [{ data: profileData }, { data: stageData }] = await Promise.all([
             supabase
@@ -975,7 +984,12 @@ export default function DietReportPage() {
                         - 신체: 나이 {userDietContext.age ?? '미입력'} / 키 {userDietContext.heightCm ?? '미입력'}cm / 몸무게{' '}
                         {userDietContext.weightKg ?? '미입력'}kg
                     </p>
-                    <p>- 암 정보: {userDietContext.cancerType?.trim() || '미입력'} / {userDietContext.cancerStage?.trim() || '미입력'}</p>
+                    <p>- 암 정보: {userDietContext.cancerType?.trim() || '미입력'}</p>
+                    <p>
+                        - 추가 질병: {additionalConditions.length > 0
+                            ? additionalConditions.map((item) => `${item.name}(${item.code})`).join(', ')
+                            : '없음'}
+                    </p>
                     <p>
                         - 치료 단계: <StageLabel stage={activeStage} />
                     </p>

@@ -27,6 +27,7 @@ import {
     type UserDietContext,
     type UserMedicationSchedule,
 } from '@/lib/dietEngine';
+import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type StageStatus = 'planned' | 'active' | 'completed';
@@ -115,6 +116,11 @@ type RecipeModalContent = {
     title: string;
     recipeName: string;
     recipeSteps: string[];
+};
+
+type TeaRecommendation = {
+    name: string;
+    reason: string;
 };
 
 type CustomAlertApiItem = {
@@ -248,6 +254,12 @@ const COMMON_MANUAL_FOOD_CANDIDATES = [
     '라떼',
     '카페라떼',
     '아메리카노',
+    '보리차',
+    '카모마일차',
+    '루이보스차',
+    '페퍼민트차',
+    '생강차',
+    '레몬밤차',
     '주스',
     '맥주',
     '소주',
@@ -298,6 +310,57 @@ function medicationTimingLabel(timing: MedicationTiming) {
         return '점심 식후';
     }
     return '저녁 식후';
+}
+
+function buildDailyTeaRecommendations(stageType: StageType, plan: DayPlan): TeaRecommendation[] {
+    const combinedText = [
+        plan.breakfast.summary,
+        plan.breakfast.soup,
+        plan.lunch.summary,
+        plan.lunch.soup,
+        plan.dinner.summary,
+        plan.dinner.soup,
+        plan.snack.summary,
+    ].join(' ');
+    const recommendations: TeaRecommendation[] = [];
+    const addRecommendation = (name: string, reason: string) => {
+        if (recommendations.some((item) => item.name === name)) {
+            return;
+        }
+        recommendations.push({ name, reason });
+    };
+
+    addRecommendation('보리차', '기본 수분 보충에 좋고 카페인이 없어요.');
+
+    if (stageType === 'chemo' || stageType === 'chemo_2nd') {
+        addRecommendation('카모마일차', '속이 예민한 날에 비교적 부담이 적은 무카페인 차예요.');
+        addRecommendation('루이보스차', '저녁에도 마시기 쉬운 무카페인 차예요.');
+    }
+
+    if (stageType === 'radiation') {
+        addRecommendation('배도라지차(무가당)', '목 건조감이 있는 날에 수분 보충용으로 좋아요.');
+    }
+
+    if (combinedText.includes('죽') || combinedText.includes('국') || combinedText.includes('수프')) {
+        addRecommendation('생강차(연하게)', '따뜻한 온도로 소량 마시면 속이 편안한 데 도움이 돼요.');
+    }
+
+    if (combinedText.includes('요거트') || combinedText.includes('두유')) {
+        addRecommendation('레몬밤차', '카페인 없이 가볍게 마시기 좋아요.');
+    }
+
+    if (combinedText.includes('튀김') || combinedText.includes('볶음') || combinedText.includes('매콤')) {
+        addRecommendation('페퍼민트차(연하게)', '식후 더부룩함이 있을 때 부담을 줄이는 데 도움이 돼요.');
+    }
+
+    return recommendations.slice(0, 3);
+}
+
+function coffeeGuidanceByStage(stageType: StageType) {
+    if (stageType === 'chemo' || stageType === 'chemo_2nd' || stageType === 'radiation') {
+        return '치료 중에는 커피를 필수로 마실 필요가 없고, 몸이 예민한 날은 무카페인 차를 우선해 주세요.';
+    }
+    return '커피를 마신다면 식후 1잔 이내로 제한하고, 늦은 오후·저녁에는 피하는 편이 좋아요.';
 }
 
 function parseDateKey(dateKey: string) {
@@ -888,6 +951,7 @@ function readIamfineMetadata(raw: unknown) {
             treatmentMeta: null as TreatmentMeta | null,
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
+            additionalConditions: [] as AdditionalCondition[],
         };
     }
 
@@ -898,6 +962,7 @@ function readIamfineMetadata(raw: unknown) {
             treatmentMeta: null as TreatmentMeta | null,
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
+            additionalConditions: [] as AdditionalCondition[],
         };
     }
 
@@ -906,6 +971,7 @@ function readIamfineMetadata(raw: unknown) {
         treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
         medications: parseMedicationNamesFromUnknown(scoped.medications),
         medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
+        additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
     };
 }
 
@@ -915,6 +981,7 @@ function buildUpdatedUserMetadata(
         treatmentMeta: TreatmentMeta;
         medications: string[];
         medicationSchedules: MedicationSchedule[];
+        additionalConditions: AdditionalCondition[];
     }>
 ) {
     const root =
@@ -1528,6 +1595,7 @@ export default function DietPage() {
     const [logs, setLogs] = useState<Record<string, DayLog>>({});
     const [medications, setMedications] = useState<string[]>([]);
     const [medicationSchedules, setMedicationSchedules] = useState<MedicationSchedule[]>([]);
+    const [additionalConditions, setAdditionalConditions] = useState<AdditionalCondition[]>([]);
     const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
     const [carryPreferences, setCarryPreferences] = useState<PreferenceType[]>([]);
     const [draftTodayPreferences, setDraftTodayPreferences] = useState<PreferenceType[]>([]);
@@ -1630,6 +1698,11 @@ export default function DietPage() {
             category: item.category,
             timing: item.timing,
         }));
+        const contextAdditionalConditions = additionalConditions.map((item) => ({
+            name: item.name,
+            code: item.code,
+            category: item.category,
+        }));
 
         return {
             age,
@@ -1644,8 +1717,9 @@ export default function DietPage() {
             activeStageOrder: activeStage?.stage_order ?? undefined,
             activeStageStatus: activeStage?.status ?? undefined,
             medicationSchedules: contextMedicationSchedules,
+            additionalConditions: contextAdditionalConditions,
         };
-    }, [profile, treatmentMeta, activeStage, medicationSchedules]);
+    }, [profile, treatmentMeta, activeStage, medicationSchedules, additionalConditions]);
 
     const applyRecommendationAdjustments = useCallback(
         (basePlan: DayPlan, targetPreferences: PreferenceType[], dateKey: string) => {
@@ -1729,14 +1803,19 @@ export default function DietPage() {
             medicationCount === 0
                 ? '미입력'
                 : Array.from(new Set(medicationSchedules.map((item) => medicationTimingLabel(item.timing)))).join(', ');
+        const additionalConditionText =
+            additionalConditions.length === 0
+                ? '없음'
+                : Array.from(new Set(additionalConditions.map((item) => `${item.name}(${item.code})`))).join(', ');
 
         return [
             `기본 건강 정보: ${ageText} / ${sexText} / ${heightText} / ${weightText} / ${ethnicityText}`,
             `치료 정보: ${cancerTypeText}`,
             `치료 단계: ${stageLabel}`,
             `복용 약 정보: ${medicationCount}개 / 복용 시기 ${medicationTimingText}`,
+            `추가 질병 정보: ${additionalConditionText}`,
         ];
-    }, [userDietContext, activeStage, medicationSchedules]);
+    }, [userDietContext, activeStage, medicationSchedules, additionalConditions]);
 
     const previousMonthScore = useMemo(() => {
         const now = new Date();
@@ -2113,24 +2192,32 @@ export default function DietPage() {
     }, [logs, todayKey, todayPlan, stageType]);
 
     const timingGuide = useMemo(() => getSnackCoffeeTimingGuide(stageType), [stageType]);
+    const beverageCaution = useMemo(() => coffeeGuidanceByStage(stageType), [stageType]);
+    const dailyTeaRecommendations = useMemo(
+        () => buildDailyTeaRecommendations(stageType, viewedTodayPlan),
+        [stageType, viewedTodayPlan]
+    );
     const snackCoffeeRecommendedTime = useMemo(() => {
         if (stageType === 'chemo' || stageType === 'chemo_2nd') {
             return {
                 snack: '14시~16시',
-                coffee: '10시~11시',
+                coffee: '10시~11시(선택)',
+                tea: '9시~18시(무카페인)',
             };
         }
 
         if (stageType === 'radiation') {
             return {
                 snack: '14시~15시',
-                coffee: '10시~11시',
+                coffee: '10시~11시(선택)',
+                tea: '9시~18시(무카페인)',
             };
         }
 
         return {
             snack: '14시~16시',
             coffee: '9시~11시',
+            tea: '9시~18시(무카페인)',
         };
     }, [stageType]);
     const foodGuides = useMemo(() => getStageFoodGuides(stageType), [stageType]);
@@ -2141,10 +2228,15 @@ export default function DietPage() {
 
         if (openRecipeSlot === 'coffee') {
             return {
-                title: '커피 가이드',
-                recipeName: '치료 중 커피 섭취 방법',
+                title: '커피/차 가이드',
+                recipeName: '치료 중 커피·차 섭취 방법',
                 recipeSteps: uniqueRecipeSteps([
                     timingGuide.coffee,
+                    timingGuide.tea,
+                    beverageCaution,
+                    dailyTeaRecommendations.length > 0
+                        ? `오늘 추천 차: ${dailyTeaRecommendations.map((item) => item.name).join(', ')}`
+                        : '차는 카페인 없는 종류를 우선해 주세요.',
                     '식사 직후보다 1시간 뒤에 드세요.',
                     '가능하면 무가당/저당으로 연하게 드세요.',
                     '물 한 컵을 함께 마셔 수분을 보충해 주세요.',
@@ -2179,7 +2271,7 @@ export default function DietPage() {
             recipeName: viewedTodayPlan.snack.recipeName,
             recipeSteps: uniqueRecipeSteps(viewedTodayPlan.snack.recipeSteps),
         };
-    }, [openRecipeSlot, timingGuide.coffee, viewedTodayPlan]);
+    }, [openRecipeSlot, timingGuide.coffee, timingGuide.tea, beverageCaution, dailyTeaRecommendations, viewedTodayPlan]);
 
     const weeklyScore = useMemo(() => {
         const base = new Date(todayKey);
@@ -2314,6 +2406,7 @@ export default function DietPage() {
         const resolvedMedications = store.medications.length > 0 ? store.medications : metadata.medications;
         const resolvedMedicationSchedules =
             store.medicationSchedules.length > 0 ? store.medicationSchedules : metadata.medicationSchedules;
+        const resolvedAdditionalConditions = metadata.additionalConditions;
         const syncPatch: Partial<{
             treatmentMeta: TreatmentMeta;
             medications: string[];
@@ -2355,6 +2448,7 @@ export default function DietPage() {
         setLogs(store.logs);
         setMedications(resolvedMedications);
         setMedicationSchedules(resolvedMedicationSchedules);
+        setAdditionalConditions(resolvedAdditionalConditions);
         setDailyPreferences(store.dailyPreferences);
         setCarryPreferences([]);
         setDraftTodayPreferences([]);
@@ -2422,7 +2516,21 @@ export default function DietPage() {
             left: nextLeft,
             behavior: 'smooth',
         });
-    }, [openRecordView, selectedDate, recentDateKeys]);
+        const retryTimer = window.setTimeout(() => {
+            const retryScroller = recordDateScrollerRef.current;
+            const retryTarget = recordDateButtonRefs.current[selectedDate];
+            if (!retryScroller || !retryTarget) {
+                return;
+            }
+            const retryCenteredLeft = retryTarget.offsetLeft - (retryScroller.clientWidth - retryTarget.clientWidth) / 2;
+            retryScroller.scrollTo({
+                left: Math.max(0, retryCenteredLeft),
+                behavior: 'auto',
+            });
+        }, 120);
+
+        return () => window.clearTimeout(retryTimer);
+    }, [openRecordView, selectedDate, recentDateKeys, loading]);
     const updateCurrentLog = (updater: (current: DayLog) => DayLog) => {
         setLogs((prev) => {
             const current = prev[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
@@ -2489,12 +2597,16 @@ export default function DietPage() {
         setMessage('');
 
         if (!proposalRequested) {
-            setError('먼저 수정 제안을 요청해 주세요.');
+            const alertMessage = '먼저 수정 제안을 요청해 주세요.';
+            setError(alertMessage);
+            window.alert(alertMessage);
             return;
         }
 
         if (draftTodayPreferences.length === 0) {
-            setError('원하는 방향을 하나 이상 선택해 주세요.');
+            const alertMessage = '원하는 방향을 하나 이상 선택해 주세요.';
+            setError(alertMessage);
+            window.alert(alertMessage);
             return;
         }
 
@@ -2848,7 +2960,7 @@ export default function DietPage() {
                             </p>
                         </div>
                         {profile?.nickname && (
-                            <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+                            <p className="mt-1 pl-16 text-sm font-medium text-gray-700 dark:text-gray-200 sm:pl-20">
                                 {profile.nickname} 님 맞춤 추천이에요.
                             </p>
                         )}
@@ -2931,7 +3043,11 @@ export default function DietPage() {
                                   ? ['12시~1시']
                                   : slot === 'dinner'
                                     ? ['6시~7시']
-                                    : [`간식 ${snackCoffeeRecommendedTime.snack}`, `커피 ${snackCoffeeRecommendedTime.coffee}`];
+                                    : [
+                                          `간식 ${snackCoffeeRecommendedTime.snack}`,
+                                          `커피 ${snackCoffeeRecommendedTime.coffee}`,
+                                          `차 ${snackCoffeeRecommendedTime.tea}`,
+                                      ];
                         const showMedicationArea = slot === 'breakfast' || slot === 'lunch' || slot === 'dinner';
                         const mealMedicationList =
                             showMedicationArea
@@ -3034,18 +3150,31 @@ export default function DietPage() {
                 </div>
 
                 <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">오늘 간식/커피 타이밍</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {snackCoffeeRecommendedTime.snack}</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {snackCoffeeRecommendedTime.coffee}</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">오늘 간식/커피/차 타이밍</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 간식 권장 시간: {snackCoffeeRecommendedTime.snack}</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 커피 권장 시간: {snackCoffeeRecommendedTime.coffee}</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 차 권장 시간: {snackCoffeeRecommendedTime.tea}</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.snack}</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.coffee}</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.tea}</p>
+                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {beverageCaution}</p>
+                    {dailyTeaRecommendations.length > 0 && (
+                        <div className="mt-2 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                            <p className="font-semibold text-gray-900 dark:text-gray-100">오늘 추천 무카페인 차</p>
+                            {dailyTeaRecommendations.map((item) => (
+                                <p key={`tea-${item.name}`} className="mt-1">
+                                    - <span className="font-semibold">{item.name}</span>: {item.reason}
+                                </p>
+                            ))}
+                        </div>
+                    )}
                     <div className="mt-3 flex flex-wrap gap-2">
                         <button
                             type="button"
                             onClick={() => setOpenRecipeSlot('coffee')}
                             className="cursor-pointer rounded-md border border-black bg-black px-2.5 py-1.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-gray-800"
                         >
-                            커피 가이드 보기
+                            커피/차 가이드 보기
                         </button>
                     </div>
                 </div>
@@ -3118,7 +3247,9 @@ export default function DietPage() {
                                         key={`portion-modal-${item.name}-${index}`}
                                         className="rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-950/40"
                                     >
-                                        <p>- {item.name}: {item.amount}</p>
+                                        <p>
+                                            - <span className="font-semibold">{item.name}</span>: {item.amount}
+                                        </p>
                                         {substitute && substitute.options.length > 0 && (
                                             <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                                                 대체 가능한 음식({substitute.hint}): {substitute.options.join(', ')}

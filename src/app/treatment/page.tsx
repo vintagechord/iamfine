@@ -138,7 +138,7 @@ function parseTreatmentMeta(raw: string | null) {
 
     try {
         const parsed = JSON.parse(raw) as Partial<TreatmentMeta>;
-        if (!parsed.cancerType || !parsed.cancerStage) {
+        if (!parsed.cancerType) {
             return null;
         }
 
@@ -692,8 +692,8 @@ export default function TreatmentPage() {
             return;
         }
 
-        if (!cancerType.trim() || !cancerStage.trim()) {
-            setError('암 종류와 진행 정도를 모두 입력해 주세요.');
+        if (!cancerType.trim()) {
+            setError('암 종류를 입력해 주세요.');
             return;
         }
 
@@ -807,7 +807,7 @@ export default function TreatmentPage() {
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">암 정보 입력</h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    맞춤 식단 알림 정확도를 높이기 위해 암 종류와 진행 정도를 입력해 주세요.
+                    맞춤 식단 알림 정확도를 높이기 위해 암 종류를 입력해 주세요. 기수 입력/수정은 내 정보에서만 할 수 있어요.
                 </p>
 
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -819,17 +819,6 @@ export default function TreatmentPage() {
                             value={cancerType}
                             onChange={(event) => setCancerType(event.target.value)}
                             placeholder="예: 유방암"
-                        />
-                    </label>
-
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                        진행 정도
-                        <input
-                            aria-label="진행 정도 입력"
-                            className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
-                            value={cancerStage}
-                            onChange={(event) => setCancerStage(event.target.value)}
-                            placeholder="예: 2기"
                         />
                     </label>
                 </div>

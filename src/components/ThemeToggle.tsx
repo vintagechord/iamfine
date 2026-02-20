@@ -48,11 +48,11 @@ export default function ThemeToggle() {
     return (
         <button
             type="button"
-            className="rounded-full border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+            className="whitespace-nowrap rounded-full border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 sm:px-3 sm:text-sm"
             onClick={toggleTheme}
             aria-label={mode === 'dark' ? '라이트 모드로 변경' : '다크 모드로 변경'}
         >
-            <span suppressHydrationWarning>{mode === 'light' ? '다크 모드' : '라이트 모드'}</span>
+            <span suppressHydrationWarning>{mode === 'light' ? '다크모드' : '라이트모드'}</span>
         </button>
     );
 }

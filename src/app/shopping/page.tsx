@@ -18,6 +18,7 @@ import {
     type UserDietContext,
     type UserMedicationSchedule,
 } from '@/lib/dietEngine';
+import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type StageStatus = 'planned' | 'active' | 'completed';
@@ -364,6 +365,7 @@ function readIamfineMetadata(raw: unknown) {
             treatmentMeta: null as TreatmentMeta | null,
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
+            additionalConditions: [] as AdditionalCondition[],
         };
     }
 
@@ -374,6 +376,7 @@ function readIamfineMetadata(raw: unknown) {
             treatmentMeta: null as TreatmentMeta | null,
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
+            additionalConditions: [] as AdditionalCondition[],
         };
     }
 
@@ -382,6 +385,7 @@ function readIamfineMetadata(raw: unknown) {
         treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
         medications: parseMedicationNamesFromUnknown(scoped.medications),
         medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
+        additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
     };
 }
 
@@ -990,6 +994,7 @@ export default function ShoppingPage() {
     const [stageType, setStageType] = useState<StageType>('other');
     const [medications, setMedications] = useState<string[]>([]);
     const [medicationSchedules, setMedicationSchedules] = useState<MedicationSchedule[]>([]);
+    const [additionalConditions, setAdditionalConditions] = useState<AdditionalCondition[]>([]);
     const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
     const [logs, setLogs] = useState<Record<string, DayLog>>({});
 
@@ -1006,6 +1011,11 @@ export default function ShoppingPage() {
             category: item.category,
             timing: item.timing,
         }));
+        const contextAdditionalConditions = additionalConditions.map((item) => ({
+            name: item.name,
+            code: item.code,
+            category: item.category,
+        }));
 
         return {
             age,
@@ -1017,8 +1027,9 @@ export default function ShoppingPage() {
             cancerStage: treatmentMeta?.cancerStage ?? '',
             activeStageType: stageType,
             medicationSchedules: contextMedicationSchedules,
+            additionalConditions: contextAdditionalConditions,
         };
-    }, [profile, treatmentMeta, stageType, medicationSchedules]);
+    }, [profile, treatmentMeta, stageType, medicationSchedules, additionalConditions]);
     const bmi = useMemo(() => {
         const validHeight = userDietContext.heightCm && userDietContext.heightCm > 0 ? userDietContext.heightCm : null;
         const validWeight = userDietContext.weightKg && userDietContext.weightKg > 0 ? userDietContext.weightKg : null;
@@ -1045,6 +1056,7 @@ export default function ShoppingPage() {
                 setStageType('other');
                 setMedications([]);
                 setMedicationSchedules([]);
+                setAdditionalConditions([]);
                 setDailyPreferences({});
                 setLogs({});
                 setMemo(localStorage.getItem(getShoppingMemoKey(null)) ?? '');
@@ -1058,6 +1070,7 @@ export default function ShoppingPage() {
             const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             const resolvedTreatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
             setTreatmentMeta(resolvedTreatmentMeta);
+            setAdditionalConditions(metadata.additionalConditions);
 
             const [{ data: profileData }, { data: stageData }] = await Promise.all([
                 supabase
