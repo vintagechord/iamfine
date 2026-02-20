@@ -33,6 +33,11 @@ type CustomAlertArticle = {
     publishedAt: string;
 };
 
+type CustomAlertCache = {
+    items: CustomAlertArticle[];
+    updatedAt: string;
+};
+
 const DAILY_HYMN_VIDEOS: HymnVideo[] = [
     { title: '찬송가 305장 나 같은 죄인 살리신', videoId: 'SfUoRQy-LH4' },
     { title: '찬송가 305장 나 같은 죄인 살리신', videoId: 'wbWtTmUNjrI' },
@@ -47,6 +52,8 @@ const DAILY_HYMN_VIDEOS: HymnVideo[] = [
 const SHOW_DAILY_HYMN = false;
 const ALERT_PAGE_SIZE = 5;
 const ALERT_AUTO_SLIDE_MS = 6000;
+const ALERT_CACHE_PREFIX = 'custom-alert-cache-v1';
+const ALERT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const USER_METADATA_NAMESPACE = 'iamfine';
@@ -160,6 +167,46 @@ function formatAlertUpdatedAgo(raw: string) {
     return `${diffDays}일 전 업데이트`;
 }
 
+function buildCustomAlertCacheKey(params: URLSearchParams) {
+    return `${ALERT_CACHE_PREFIX}:${params.toString()}`;
+}
+
+function parseCustomAlertCache(raw: string | null): CustomAlertCache | null {
+    if (!raw) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(raw) as Partial<CustomAlertCache>;
+        const updatedAt = typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '';
+        if (!updatedAt) {
+            return null;
+        }
+
+        const items = Array.isArray(parsed.items)
+            ? parsed.items.filter((item): item is CustomAlertArticle => {
+                  if (!item || typeof item !== 'object') {
+                      return false;
+                  }
+                  const candidate = item as Partial<CustomAlertArticle>;
+                  return (
+                      typeof candidate.source === 'string' &&
+                      typeof candidate.title === 'string' &&
+                      typeof candidate.url === 'string' &&
+                      typeof candidate.publishedAt === 'string'
+                  );
+              })
+            : [];
+
+        return {
+            updatedAt,
+            items,
+        };
+    } catch {
+        return null;
+    }
+}
+
 export default function Home() {
     const todayKey = formatDateKey(new Date());
     const [todayHymnVideo, setTodayHymnVideo] = useState<HymnVideo | null>(null);
@@ -169,6 +216,7 @@ export default function Home() {
     const [treatmentMeta, setTreatmentMeta] = useState<TreatmentMeta | null>(null);
     const [stageType, setStageType] = useState<StageType>('medication');
     const [customAlertItems, setCustomAlertItems] = useState<CustomAlertArticle[]>([]);
+    const [customAlertUpdatedAt, setCustomAlertUpdatedAt] = useState('');
     const [customAlertLoading, setCustomAlertLoading] = useState(false);
     const [customAlertPage, setCustomAlertPage] = useState(0);
 
@@ -304,27 +352,66 @@ export default function Home() {
 
         const loadCustomAlerts = async () => {
             setCustomAlertLoading(true);
+            const params = new URLSearchParams();
+            if (isLoggedIn && resolvedCancerType) {
+                params.set('cancerType', resolvedCancerType);
+                params.set('stageType', stageType);
+                if (resolvedCancerStage) {
+                    params.set('cancerStage', resolvedCancerStage);
+                }
+            } else {
+                params.set('mode', 'general');
+            }
+            const cacheKey = buildCustomAlertCacheKey(params);
+            const cached = parseCustomAlertCache(localStorage.getItem(cacheKey));
+            const cachedUpdatedMs = cached ? Date.parse(cached.updatedAt) : Number.NaN;
+            const isCacheFresh =
+                cached !== null &&
+                Number.isFinite(cachedUpdatedMs) &&
+                Date.now() - cachedUpdatedMs < ALERT_CACHE_TTL_MS;
+
+            if (isCacheFresh) {
+                if (!cancelled) {
+                    setCustomAlertItems(cached.items);
+                    setCustomAlertUpdatedAt(cached.updatedAt);
+                    setCustomAlertLoading(false);
+                }
+                return;
+            }
 
             try {
-                const params = new URLSearchParams();
-                if (isLoggedIn && resolvedCancerType) {
-                    params.set('cancerType', resolvedCancerType);
-                    params.set('stageType', stageType);
-                    if (resolvedCancerStage) {
-                        params.set('cancerStage', resolvedCancerStage);
-                    }
-                } else {
-                    params.set('mode', 'general');
-                }
                 const response = await fetch(`/api/custom-alerts?${params.toString()}`);
-                const payload = (await response.json()) as { items?: CustomAlertArticle[] };
+                const payload = (await response.json()) as {
+                    items?: CustomAlertArticle[];
+                    updatedAt?: string;
+                };
+                const nextItems = Array.isArray(payload.items) ? payload.items : [];
+                const nextUpdatedAt =
+                    typeof payload.updatedAt === 'string' && payload.updatedAt
+                        ? payload.updatedAt
+                        : new Date().toISOString();
 
                 if (!cancelled) {
-                    setCustomAlertItems(Array.isArray(payload.items) ? payload.items : []);
+                    setCustomAlertItems(nextItems);
+                    setCustomAlertUpdatedAt(nextUpdatedAt);
                 }
+
+                localStorage.setItem(
+                    cacheKey,
+                    JSON.stringify({
+                        items: nextItems,
+                        updatedAt: nextUpdatedAt,
+                    } satisfies CustomAlertCache)
+                );
             } catch {
                 if (!cancelled) {
-                    setCustomAlertItems([]);
+                    if (cached) {
+                        setCustomAlertItems(cached.items);
+                        setCustomAlertUpdatedAt(cached.updatedAt);
+                    } else {
+                        setCustomAlertItems([]);
+                        setCustomAlertUpdatedAt('');
+                    }
                 }
             } finally {
                 if (!cancelled) {
@@ -438,7 +525,12 @@ export default function Home() {
 
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">맞춤 알림</h2>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{customAlertSummary}</p>
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{customAlertSummary}</p>
+                    <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                        {customAlertUpdatedAt ? formatAlertUpdatedAgo(customAlertUpdatedAt) : '업데이트 시간 미확인'}
+                    </span>
+                </div>
 
                 {isLoggedIn && !treatmentMeta && (
                     <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
