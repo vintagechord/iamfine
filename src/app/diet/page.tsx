@@ -1058,21 +1058,21 @@ export default function DietPage() {
     const snackCoffeeRecommendedTime = useMemo(() => {
         if (stageType === 'chemo' || stageType === 'chemo_2nd') {
             return {
-                snack: '14:00~16:00',
-                coffee: '10:00~11:30',
+                snack: '14시~16시',
+                coffee: '10시~11시',
             };
         }
 
         if (stageType === 'radiation') {
             return {
-                snack: '14:30~15:30',
-                coffee: '10:00~11:30',
+                snack: '14시~15시',
+                coffee: '10시~11시',
             };
         }
 
         return {
-            snack: '14:30~16:00',
-            coffee: '09:30~11:30',
+            snack: '14시~16시',
+            coffee: '9시~11시',
         };
     }, [stageType]);
     const foodGuides = useMemo(() => getStageFoodGuides(stageType), [stageType]);

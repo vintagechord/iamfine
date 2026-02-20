@@ -1077,14 +1077,14 @@ export function getStageFoodGuides(stageType: StageType) {
 export function getSnackCoffeeTimingGuide(stageType: StageType) {
     if (stageType === 'chemo' || stageType === 'chemo_2nd') {
         return {
-            snack: '간식은 점심 2~3시간 후(14:00~16:00)에 소량으로 드세요.',
+            snack: '간식은 점심 2~3시간 후(14시~16시)에 소량으로 드세요.',
             coffee: '커피는 식후 1시간 뒤, 하루 1잔 이내로 줄여보세요.',
         };
     }
 
     if (stageType === 'radiation') {
         return {
-            snack: '간식은 15:00 전후에 수분이 있는 음식으로 드세요.',
+            snack: '간식은 15시 전후에 수분이 있는 음식으로 드세요.',
             coffee: '카페인은 탈수를 줄이기 위해 물과 함께 드세요.',
         };
     }
