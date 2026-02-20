@@ -641,6 +641,7 @@ export default function DietPage() {
     const [loading, setLoading] = useState(true);
     const [storeReady, setStoreReady] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
+    const [accountStartDateKey, setAccountStartDateKey] = useState(todayKey);
     const [profile, setProfile] = useState<ProfileRow | null>(null);
     const [treatmentMeta, setTreatmentMeta] = useState<TreatmentMeta | null>(null);
     const [stages, setStages] = useState<TreatmentStageRow[]>([]);
@@ -1195,10 +1196,13 @@ export default function DietPage() {
         for (let offset = -3; offset <= 3; offset += 1) {
             const date = new Date(base);
             date.setDate(base.getDate() + offset);
-            keys.push(formatDateKey(date));
+            const key = formatDateKey(date);
+            if (key >= accountStartDateKey) {
+                keys.push(key);
+            }
         }
         return keys;
-    }, [todayKey]);
+    }, [todayKey, accountStartDateKey]);
 
     const loadInitial = useCallback(async () => {
         setLoading(true);
@@ -1218,6 +1222,12 @@ export default function DietPage() {
 
         const uid = userData.user.id;
         setUserId(uid);
+        const createdAt = userData.user.created_at;
+        const createdAtDateKey =
+            typeof createdAt === 'string' && createdAt.length >= 10
+                ? createdAt.slice(0, 10)
+                : todayKey;
+        setAccountStartDateKey(createdAtDateKey);
         setTreatmentMeta(parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid))));
 
         const [{ data: profileData }, { data: stageData }] = await Promise.all([
@@ -1250,7 +1260,7 @@ export default function DietPage() {
 
         setStoreReady(true);
         setLoading(false);
-    }, []);
+    }, [todayKey]);
 
     useEffect(() => {
         const timer = window.setTimeout(() => {
