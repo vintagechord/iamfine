@@ -1593,7 +1593,7 @@ export default function DietPage() {
         <main className="space-y-4">
             {!openRecordView && (
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <div className="flex items-center gap-2">
                             <button
@@ -1625,9 +1625,6 @@ export default function DietPage() {
                                 </button>
                             )}
                         </div>
-                        <p className="mt-2 inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
-                            {viewedTodayDateLabel}
-                        </p>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                         {profile?.nickname && (
                             <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -1635,19 +1632,24 @@ export default function DietPage() {
                             </p>
                         )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                            href="/diet/report"
-                            className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
-                        >
-                            적용 근거 리포트
-                        </Link>
-                        <Link
-                            href="/diet/calendar"
-                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                        >
-                            전체 식단표 보기
-                        </Link>
+                    <div className="flex flex-col items-end gap-2">
+                        <p className="inline-flex rounded-md border border-amber-300 bg-amber-100 px-2.5 py-1 text-sm font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100">
+                            {viewedTodayDateLabel}
+                        </p>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Link
+                                href="/diet/report"
+                                className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                            >
+                                적용 근거 리포트
+                            </Link>
+                            <Link
+                                href="/diet/calendar"
+                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                                전체 식단표 보기
+                            </Link>
+                        </div>
                     </div>
                 </div>
 
