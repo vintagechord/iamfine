@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
+type AuthMode = 'login' | 'signup';
+
 function toKoreanAuthMessage(rawMessage: string) {
     if (rawMessage.includes('Invalid login credentials')) {
         return '이메일 또는 비밀번호를 다시 확인해 주세요.';
@@ -20,6 +22,7 @@ function toKoreanAuthMessage(rawMessage: string) {
 }
 
 export default function AuthPage() {
+    const [authMode, setAuthMode] = useState<AuthMode>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -154,6 +157,14 @@ export default function AuthPage() {
         setMessage('로그아웃했어요.');
     };
 
+    const changeAuthMode = (nextMode: AuthMode) => {
+        setAuthMode(nextMode);
+        setMessage('');
+        if (nextMode === 'login') {
+            setConfirmPassword('');
+        }
+    };
+
     return (
         <main className="space-y-4">
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -197,6 +208,31 @@ export default function AuthPage() {
 
             {!checkingAuth && !loggedInUserId && (
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <div className="mb-4 flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={() => changeAuthMode('login')}
+                            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                                authMode === 'login'
+                                    ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                                    : 'border border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                            }`}
+                        >
+                            로그인
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => changeAuthMode('signup')}
+                            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                                authMode === 'signup'
+                                    ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                                    : 'border border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                            }`}
+                        >
+                            회원가입
+                        </button>
+                    </div>
+
                     <div className="grid gap-3">
                         <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
                             이메일
@@ -220,32 +256,28 @@ export default function AuthPage() {
                             />
                         </label>
 
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                            비밀번호 확인(회원가입용)
-                            <input
-                                type="password"
-                                placeholder="비밀번호를 다시 입력해 주세요"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
-                            />
-                        </label>
+                        {authMode === 'signup' && (
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                                비밀번호 확인(회원가입용)
+                                <input
+                                    type="password"
+                                    placeholder="비밀번호를 다시 입력해 주세요"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
+                                />
+                            </label>
+                        )}
                     </div>
 
-                    <div className="mt-4 flex flex-wrap gap-2">
+                    <div className="mt-4">
                         <button
-                            onClick={signUp}
-                            disabled={loading || !hasSupabaseEnv}
-                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                        >
-                            {loading ? '처리 중...' : '회원가입'}
-                        </button>
-                        <button
-                            onClick={signIn}
+                            type="button"
+                            onClick={authMode === 'signup' ? signUp : signIn}
                             disabled={loading || !hasSupabaseEnv}
                             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                         >
-                            {loading ? '처리 중...' : '로그인'}
+                            {loading ? '처리 중...' : authMode === 'signup' ? '회원가입' : '로그인'}
                         </button>
                     </div>
                 </section>
