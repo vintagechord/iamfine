@@ -104,6 +104,12 @@ export type UserDietContext = {
     medicationSchedules?: UserMedicationSchedule[];
 };
 
+export type DinnerCarbSafetyContext = {
+    bmi: number | null;
+    lowAppetiteRisk: boolean;
+    weightLossPreference: boolean;
+};
+
 export type CancerProfileMatch = {
     profileLabel: string;
     matchedKeyword: string;
@@ -312,6 +318,61 @@ function mealBySlot(plan: DayPlan, slot: MealSlot) {
         return plan.dinner;
     }
     return plan.snack;
+}
+
+function relaxDinnerCarbBySafety(nutrient: MealNutrient, carbFloor: number) {
+    const originalCarb = nutrient.carb;
+    let carb = Math.max(originalCarb, carbFloor);
+    const fat = nutrient.fat;
+    let protein = 100 - carb - fat;
+
+    // 단백질 최소치를 지키면서 저녁 탄수 하향 강도를 완화한다.
+    if (protein < 20) {
+        const lack = 20 - protein;
+        carb = Math.max(originalCarb, carb - lack);
+        protein = 100 - carb - fat;
+    }
+
+    return {
+        carb,
+        protein: clamp(protein, 20, 60),
+        fat,
+    };
+}
+
+export function applyDinnerCarbSafety(plan: DayPlan, context: DinnerCarbSafetyContext) {
+    const underweight = context.bmi !== null && context.bmi < 18.5;
+    const appetiteRisk = context.lowAppetiteRisk;
+
+    if (!underweight && !appetiteRisk) {
+        return {
+            plan,
+            notes: [] as string[],
+        };
+    }
+
+    const optimized = clonePlan(plan);
+    const notes: string[] = [];
+    const combinedRisk = underweight && appetiteRisk;
+    const carbFloor = context.weightLossPreference
+        ? combinedRisk
+            ? 32
+            : 30
+        : combinedRisk
+          ? 36
+          : 34;
+    const relativeFloor = Math.max(carbFloor, optimized.lunch.nutrient.carb - 4);
+    const nextDinnerNutrient = relaxDinnerCarbBySafety(optimized.dinner.nutrient, relativeFloor);
+
+    if (nextDinnerNutrient.carb > optimized.dinner.nutrient.carb) {
+        optimized.dinner.nutrient = nextDinnerNutrient;
+        notes.push('체중저하/식욕저하 위험을 반영해 저녁 탄수화물 감량 강도를 완화했어요.');
+    }
+
+    return {
+        plan: optimized,
+        notes,
+    };
 }
 
 function pickNextNonRepeating(current: string, pool: string[], recentValues: Set<string>) {

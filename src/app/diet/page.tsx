@@ -13,6 +13,7 @@ import {
     getStageFoodGuides,
     mealItemsFromSuggestion,
     mealTypeLabel,
+    applyDinnerCarbSafety,
     optimizePlanByMedications,
     optimizePlanByUserContext,
     optimizePlanByPreference,
@@ -1141,17 +1142,28 @@ export default function DietPage() {
         (basePlan: DayPlan, targetPreferences: PreferenceType[], dateKey: string) => {
             const userContextAdjusted = optimizePlanByUserContext(basePlan, userDietContext);
             const medicationAdjusted = optimizePlanByMedications(userContextAdjusted.plan, medications);
-            const preferenceAdjusted =
-                targetPreferences.length === 0
-                    ? { plan: medicationAdjusted.plan, notes: [] as string[] }
-                    : optimizePlanByPreference(medicationAdjusted.plan, targetPreferences);
             const validHeight = userDietContext.heightCm && userDietContext.heightCm > 0 ? userDietContext.heightCm : null;
             const validWeight = userDietContext.weightKg && userDietContext.weightKg > 0 ? userDietContext.weightKg : null;
             const bmi =
                 validHeight && validWeight
                     ? Number((validWeight / Math.pow(validHeight / 100, 2)).toFixed(1))
                     : null;
-            const yesterdayAdjusted = applyYesterdayIntakeCorrection(dateKey, preferenceAdjusted.plan, logs, {
+            const yesterdayLog = logs[offsetDateKey(dateKey, -1)];
+            const yesterdayEatenCount = yesterdayLog ? eatenTrackItems(yesterdayLog).length : 0;
+            const lowAppetiteRisk =
+                targetPreferences.includes('appetite_boost') ||
+                (yesterdayLog ? yesterdayEatenCount <= 2 : false);
+            const weightLossPreference = targetPreferences.includes('weight_loss');
+            const preferenceAdjusted =
+                targetPreferences.length === 0
+                    ? { plan: medicationAdjusted.plan, notes: [] as string[] }
+                    : optimizePlanByPreference(medicationAdjusted.plan, targetPreferences);
+            const dinnerCarbSafetyAdjusted = applyDinnerCarbSafety(preferenceAdjusted.plan, {
+                bmi,
+                lowAppetiteRisk,
+                weightLossPreference,
+            });
+            const yesterdayAdjusted = applyYesterdayIntakeCorrection(dateKey, dinnerCarbSafetyAdjusted.plan, logs, {
                 stageType,
                 bmi,
             });
@@ -1161,6 +1173,7 @@ export default function DietPage() {
                     ...userContextAdjusted.notes,
                     ...medicationAdjusted.notes,
                     ...preferenceAdjusted.notes,
+                    ...dinnerCarbSafetyAdjusted.notes,
                     ...yesterdayAdjusted.notes,
                 ],
             };
