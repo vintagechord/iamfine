@@ -460,7 +460,9 @@ export default function RestaurantsPage() {
                                         근거 {item.sourceCount}건
                                     </span>
                                 </div>
-                                <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{item.reason}</p>
+                                {item.reason.trim() && (
+                                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{item.reason}</p>
+                                )}
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     <a
                                         href={item.mapUrl}

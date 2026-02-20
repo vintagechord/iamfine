@@ -338,7 +338,7 @@ function scoreRecommendations(
         const reason =
             evidence.length > 0
                 ? `${CATEGORY_LABELS[category]} 관련 웹 문서 ${evidence.length}건에서 언급된 식당이에요.`
-                : `${CATEGORY_LABELS[category]} 카테고리 키워드에 맞는 지역 식당 후보예요.`;
+                : '';
 
         const previous = byName.get(key);
         if (!previous || previous.score < score) {
