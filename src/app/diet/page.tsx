@@ -765,6 +765,33 @@ function readIamfineMetadata(raw: unknown) {
     };
 }
 
+function buildUpdatedUserMetadata(
+    raw: unknown,
+    patch: Partial<{
+        treatmentMeta: TreatmentMeta;
+        medications: string[];
+        medicationSchedules: MedicationSchedule[];
+    }>
+) {
+    const root =
+        raw && typeof raw === 'object' && !Array.isArray(raw)
+            ? (raw as Record<string, unknown>)
+            : ({} as Record<string, unknown>);
+    const existingNamespacedRaw = root[USER_METADATA_NAMESPACE];
+    const existingNamespaced =
+        existingNamespacedRaw && typeof existingNamespacedRaw === 'object' && !Array.isArray(existingNamespacedRaw)
+            ? (existingNamespacedRaw as Record<string, unknown>)
+            : {};
+
+    return {
+        ...root,
+        [USER_METADATA_NAMESPACE]: {
+            ...existingNamespaced,
+            ...patch,
+        },
+    };
+}
+
 function parseStore(raw: string | null): DietStore {
     if (!raw) {
         return DEFAULT_STORE;
@@ -1930,6 +1957,26 @@ export default function DietPage() {
         const resolvedMedications = store.medications.length > 0 ? store.medications : metadata.medications;
         const resolvedMedicationSchedules =
             store.medicationSchedules.length > 0 ? store.medicationSchedules : metadata.medicationSchedules;
+        const syncPatch: Partial<{
+            treatmentMeta: TreatmentMeta;
+            medications: string[];
+            medicationSchedules: MedicationSchedule[];
+        }> = {};
+        if (!metadata.treatmentMeta && localTreatmentMeta) {
+            syncPatch.treatmentMeta = localTreatmentMeta;
+        }
+        if (metadata.medications.length === 0 && store.medications.length > 0) {
+            syncPatch.medications = store.medications;
+        }
+        if (metadata.medicationSchedules.length === 0 && store.medicationSchedules.length > 0) {
+            syncPatch.medicationSchedules = store.medicationSchedules;
+        }
+        if (Object.keys(syncPatch).length > 0) {
+            const updatedMetadata = buildUpdatedUserMetadata(userData.user.user_metadata, syncPatch);
+            await supabase.auth.updateUser({
+                data: updatedMetadata,
+            });
+        }
 
         if (!localTreatmentMeta && resolvedTreatmentMeta) {
             localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(resolvedTreatmentMeta));
