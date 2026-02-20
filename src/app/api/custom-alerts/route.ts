@@ -17,6 +17,7 @@ const TOTAL_LIMIT = 60;
 const MIN_ALERT_ITEMS = 3;
 const RECENT_DAYS = 30;
 const BACKFILL_DAYS = 180;
+const GENERAL_ALERT_KEYWORDS = ['암', '암환자', '식단', '영양', '건강', '치료', '보건', '의료'];
 const KEYWORD_SEARCH_SOURCES = new Set([
     '구글 뉴스(키워드 검색)',
     '국민건강보험 보도자료(키워드 검색)',
@@ -480,18 +481,31 @@ async function collectArticles(keyword: string, cancerKeywords: string[]) {
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
-    const cancerType = (searchParams.get('cancerType') || '유방암').trim();
+    const mode = (searchParams.get('mode') || 'personal').trim().toLowerCase();
+    const isGeneralMode = mode === 'general';
+    const cancerType = (searchParams.get('cancerType') || '').trim();
     const cancerStage = (searchParams.get('cancerStage') || '2기').trim();
     const stageType = (searchParams.get('stageType') || 'medication') as StageType;
     const stageLabel = STAGE_TYPE_LABELS[stageType] ?? STAGE_TYPE_LABELS.medication;
-    const keyword = cancerType || '유방암';
-    const cancerKeywords = buildCancerKeywords(keyword);
+    const keyword = isGeneralMode ? '암환자' : cancerType || '유방암';
+    const cancerKeywords = isGeneralMode ? GENERAL_ALERT_KEYWORDS : buildCancerKeywords(keyword);
+    const responseSummary = isGeneralMode
+        ? '암종 공통 건강 소식'
+        : `${keyword} / ${cancerStage} / ${stageLabel} 기준 최근 1개월 소식`;
 
     try {
         const allItems = await collectArticles(keyword, cancerKeywords);
-        const filtered = allItems.filter(
-            (item) => KEYWORD_SEARCH_SOURCES.has(item.source) || matchAnyKeyword(`${item.title} ${item.source}`, cancerKeywords)
-        );
+        const filtered = isGeneralMode
+            ? allItems.filter(
+                  (item) =>
+                      KEYWORD_SEARCH_SOURCES.has(item.source) ||
+                      matchAnyKeyword(`${item.title} ${item.source}`, GENERAL_ALERT_KEYWORDS)
+              )
+            : allItems.filter(
+                  (item) =>
+                      KEYWORD_SEARCH_SOURCES.has(item.source) ||
+                      matchAnyKeyword(`${item.title} ${item.source}`, cancerKeywords)
+              );
         const matched = dedupeAndSort(filtered);
         const recentOnly = matched.filter((item) => isWithinRecentDays(item.publishedAt, RECENT_DAYS));
         const backfillWindow = matched.filter(
@@ -514,7 +528,7 @@ export async function GET(request: NextRequest) {
         const ensuredItems = items.length >= MIN_ALERT_ITEMS ? items : ensureMinimumItems(items, fallbackPool, MIN_ALERT_ITEMS);
 
         return NextResponse.json({
-            summary: `${keyword} / ${cancerStage} / ${stageLabel} 기준 최근 1개월 소식`,
+            summary: responseSummary,
             keyword,
             items: ensuredItems,
         });
@@ -522,7 +536,7 @@ export async function GET(request: NextRequest) {
         console.error('custom-alerts api failed', error);
         return NextResponse.json(
             {
-                summary: `${keyword} / ${cancerStage} / ${stageLabel} 기준 최근 1개월 소식`,
+                summary: responseSummary,
                 keyword,
                 items: [],
             },

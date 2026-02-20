@@ -93,6 +93,8 @@ export default function Home() {
     const todayKey = formatDateKey(new Date());
     const [todayHymnVideo, setTodayHymnVideo] = useState<HymnVideo | null>(null);
     const [hymnLoading, setHymnLoading] = useState(true);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [alertContextReady, setAlertContextReady] = useState(false);
     const [treatmentMeta, setTreatmentMeta] = useState<TreatmentMeta | null>(null);
     const [stageType, setStageType] = useState<StageType>('medication');
     const [customAlertItems, setCustomAlertItems] = useState<CustomAlertArticle[]>([]);
@@ -149,24 +151,40 @@ export default function Home() {
         [todayHymnVideo]
     );
 
-    const resolvedCancerType = treatmentMeta?.cancerType?.trim() || '유방암';
-    const resolvedCancerStage = treatmentMeta?.cancerStage?.trim() || '2기';
-    const customAlertSummary = `${resolvedCancerType} / ${STAGE_TYPE_LABELS[stageType]} 기준 소식`;
+    const resolvedCancerType = treatmentMeta?.cancerType?.trim() ?? '';
+    const resolvedCancerStage = treatmentMeta?.cancerStage?.trim() ?? '';
+    const customAlertSummary =
+        isLoggedIn && resolvedCancerType
+            ? `${resolvedCancerType} / ${STAGE_TYPE_LABELS[stageType]} 기준 소식`
+            : '암종 공통 건강 소식';
 
     useEffect(() => {
         let cancelled = false;
 
         const loadAlertContext = async () => {
             if (!hasSupabaseEnv || !supabase) {
+                if (!cancelled) {
+                    setIsLoggedIn(false);
+                    setTreatmentMeta(null);
+                    setStageType('medication');
+                    setAlertContextReady(true);
+                }
                 return;
             }
 
             const { data: userData, error: userError } = await supabase.auth.getUser();
             if (userError || !userData.user || cancelled) {
+                if (!cancelled) {
+                    setIsLoggedIn(false);
+                    setTreatmentMeta(null);
+                    setStageType('medication');
+                    setAlertContextReady(true);
+                }
                 return;
             }
 
             const uid = userData.user.id;
+            setIsLoggedIn(true);
             const meta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             if (!cancelled) {
                 setTreatmentMeta(meta);
@@ -188,6 +206,9 @@ export default function Home() {
             if (activeStage) {
                 setStageType(activeStage.stage_type);
             }
+            if (!cancelled) {
+                setAlertContextReady(true);
+            }
         };
 
         void loadAlertContext();
@@ -198,17 +219,26 @@ export default function Home() {
     }, []);
 
     useEffect(() => {
+        if (!alertContextReady) {
+            return;
+        }
+
         let cancelled = false;
 
         const loadCustomAlerts = async () => {
             setCustomAlertLoading(true);
 
             try {
-                const params = new URLSearchParams({
-                    cancerType: resolvedCancerType,
-                    cancerStage: resolvedCancerStage,
-                    stageType,
-                });
+                const params = new URLSearchParams();
+                if (isLoggedIn && resolvedCancerType) {
+                    params.set('cancerType', resolvedCancerType);
+                    params.set('stageType', stageType);
+                    if (resolvedCancerStage) {
+                        params.set('cancerStage', resolvedCancerStage);
+                    }
+                } else {
+                    params.set('mode', 'general');
+                }
                 const response = await fetch(`/api/custom-alerts?${params.toString()}`);
                 const payload = (await response.json()) as { items?: CustomAlertArticle[] };
 
@@ -231,7 +261,7 @@ export default function Home() {
         return () => {
             cancelled = true;
         };
-    }, [resolvedCancerType, resolvedCancerStage, stageType]);
+    }, [alertContextReady, isLoggedIn, resolvedCancerType, resolvedCancerStage, stageType]);
 
     const visibleCustomAlerts = customAlertItems.slice(0, 6);
 
@@ -301,7 +331,7 @@ export default function Home() {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">맞춤 알림</h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{customAlertSummary}</p>
 
-                {!treatmentMeta && (
+                {isLoggedIn && !treatmentMeta && (
                     <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
                         <Link href="/profile" className="font-semibold underline">
                             내 정보
