@@ -129,6 +129,12 @@ const SOUPS = ['맑은채소국', '저염 된장국', '단호박수프', '들깨
 const SIDES = ['브로콜리찜', '버섯볶음', '시금치나물', '오이무침', '당근볶음', '애호박볶음'];
 const SNACKS = ['무가당 요거트', '바나나 반 개', '찐고구마', '두유', '사과 조각', '아몬드 소량'];
 const SNACK_FRUITS = ['사과 조각', '바나나 반 개', '배 조각', '키위', '딸기'];
+const BREAKFAST_MAIN_VARIANTS = ['달걀두부찜', '달걀찜', '두부조림', '닭안심찜', '닭가슴살구이', '연두부덮밥', '흰살생선찜', '부드러운 죽'];
+const LUNCH_MAIN_VARIANTS = ['연어구이', '닭가슴살구이', '두부조림', '닭안심찜', '흰살생선찜', '연두부덮밥', '고등어구이', '두부스테이크'];
+const DINNER_MAIN_VARIANTS = ['닭가슴살구이', '흰살생선찜', '두부조림', '연어구이', '닭안심찜', '부드러운 죽', '달걀두부찜', '고등어구이'];
+const SNACK_MAIN_VARIANTS = ['무가당 요거트', '그릭요거트', '무가당 두유', '찐고구마', '사과 조각', '바나나 반 개', '아몬드 소량', '베리류'];
+const SNACK_SIDE_VARIANTS = ['사과 조각', '바나나 반 개', '베리류', '키위', '딸기', '배 조각', '아몬드 소량', '호두 소량'];
+const SNACK_HYDRATION_VARIANTS = ['물', '따뜻한 물'];
 
 const SEASONAL_FOOD: Record<number, string[]> = {
     1: ['배추', '무', '시금치'],
@@ -262,6 +268,130 @@ function clonePlan(plan: DayPlan): DayPlan {
         lunch: { ...plan.lunch, sides: [...plan.lunch.sides], recipeSteps: [...plan.lunch.recipeSteps] },
         dinner: { ...plan.dinner, sides: [...plan.dinner.sides], recipeSteps: [...plan.dinner.recipeSteps] },
         snack: { ...plan.snack, sides: [...plan.snack.sides], recipeSteps: [...plan.snack.recipeSteps] },
+    };
+}
+
+function mealBySlot(plan: DayPlan, slot: MealSlot) {
+    if (slot === 'breakfast') {
+        return plan.breakfast;
+    }
+    if (slot === 'lunch') {
+        return plan.lunch;
+    }
+    if (slot === 'dinner') {
+        return plan.dinner;
+    }
+    return plan.snack;
+}
+
+function pickNextNonRepeating(current: string, pool: string[], recentValues: Set<string>) {
+    const normalizedCurrent = current.trim();
+    const basePool = pool.filter((item) => item.trim().length > 0);
+    const workingPool = normalizedCurrent && !basePool.includes(normalizedCurrent) ? [normalizedCurrent, ...basePool] : basePool;
+    const startIndex = Math.max(0, workingPool.indexOf(normalizedCurrent));
+
+    for (let offset = 0; offset < workingPool.length; offset += 1) {
+        const candidate = workingPool[(startIndex + offset) % workingPool.length];
+        if (!recentValues.has(candidate)) {
+            return candidate;
+        }
+    }
+
+    return normalizedCurrent || workingPool[0] || current;
+}
+
+function seasonalFromSide(side: string) {
+    const cleaned = side
+        .replace(/\([^)]*\)/g, '')
+        .replace(/저염|담백한|구운|데친|따뜻한|차가운/g, '')
+        .trim();
+    const token = cleaned.split(/\s+/).find(Boolean);
+    return token ?? '채소';
+}
+
+export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[], windowDays = 7) {
+    const recentWindow = clamp(Math.round(windowDays), 1, 14);
+    const recent = recentPlans.slice(-recentWindow);
+    const optimized = clonePlan(plan);
+
+    if (recent.length === 0) {
+        return {
+            plan: optimized,
+            notes: [] as string[],
+        };
+    }
+
+    const changedSlots: MealSlot[] = [];
+    const mainPools: Record<MealSlot, string[]> = {
+        breakfast: BREAKFAST_MAIN_VARIANTS,
+        lunch: LUNCH_MAIN_VARIANTS,
+        dinner: DINNER_MAIN_VARIANTS,
+        snack: SNACK_MAIN_VARIANTS,
+    };
+
+    (['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).forEach((slot) => {
+        const meal = mealBySlot(optimized, slot);
+        const recentMainValues = new Set(recent.map((item) => mealBySlot(item, slot).main));
+        const nextMain = pickNextNonRepeating(meal.main, mainPools[slot], recentMainValues);
+        const mainChanged = nextMain !== meal.main;
+        meal.main = nextMain;
+
+        if (slot === 'snack') {
+            const fallbackSide = meal.sides[0] ?? SNACK_FRUITS[0];
+            const recentSideValues = new Set(
+                recent
+                    .map((item) => item.snack.sides[0] ?? '')
+                    .map((value) => value.trim())
+                    .filter(Boolean)
+            );
+            const nextSide = pickNextNonRepeating(fallbackSide, SNACK_SIDE_VARIANTS, recentSideValues);
+            const recentHydrationValues = new Set(recent.map((item) => item.snack.soup));
+            const nextHydration = pickNextNonRepeating(meal.soup, SNACK_HYDRATION_VARIANTS, recentHydrationValues);
+            const sideChanged = nextSide !== fallbackSide;
+            const hydrationChanged = nextHydration !== meal.soup;
+
+            meal.sides = [nextSide];
+            meal.soup = nextHydration;
+            meal.summary = `${meal.main} + ${nextSide} + ${meal.soup}`;
+            const snackRecipe = buildSnackRecipe(meal.main, nextSide, meal.soup);
+            meal.recipeName = snackRecipe.recipeName;
+            meal.recipeSteps = snackRecipe.recipeSteps;
+
+            if (mainChanged || sideChanged || hydrationChanged) {
+                changedSlots.push(slot);
+            }
+            return;
+        }
+
+        const recentSoupValues = new Set(recent.map((item) => mealBySlot(item, slot).soup));
+        const nextSoup = pickNextNonRepeating(meal.soup, SOUPS, recentSoupValues);
+        const soupChanged = nextSoup !== meal.soup;
+        meal.soup = nextSoup;
+
+        const firstSide = meal.sides[0] ?? SIDES[0];
+        meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
+
+        if (mainChanged || soupChanged) {
+            const recipe = buildRecipe(meal.main, meal.soup, firstSide, seasonalFromSide(firstSide));
+            meal.recipeName = recipe.recipeName;
+            meal.recipeSteps = recipe.recipeSteps;
+            changedSlots.push(slot);
+        }
+    });
+
+    if (changedSlots.length === 0) {
+        return {
+            plan: optimized,
+            notes: [] as string[],
+        };
+    }
+
+    const uniqueChanged = Array.from(new Set(changedSlots));
+    const labels = uniqueChanged.map((slot) => mealTypeLabel(slot));
+
+    return {
+        plan: optimized,
+        notes: [`최근 ${recentWindow}일 중복 방지 규칙으로 ${labels.join(', ')} 메뉴를 자동 분산했어요.`],
     };
 }
 

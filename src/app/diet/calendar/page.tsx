@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
+    applySevenDayNoRepeatRule,
     formatDateLabel,
+    generatePlanForDate,
     generateMonthPlans,
     optimizePlanByPreference,
     PREFERENCE_OPTIONS,
@@ -43,6 +45,7 @@ const DISCLAIMER_TEXT =
     '이 서비스는 참고용 식단/기록 도구이며, 치료·약물 관련 결정은 반드시 의료진과 상의하세요.';
 
 const STORAGE_PREFIX = 'diet-store-v2';
+const NO_REPEAT_DAYS = 7;
 
 const PREFERENCE_LABELS = Object.fromEntries(
     PREFERENCE_OPTIONS.map((option) => [option.key, option.label])
@@ -272,10 +275,10 @@ export default function DietCalendarPage() {
 
     const monthPlans = useMemo(() => {
         const basePlans = generateMonthPlans(year, month, stageType, 70);
-
-        return basePlans.map((basePlan) => {
-            const byDatePreferences = dailyPreferences[basePlan.date];
-            const adaptivePreferences = recommendAdaptivePreferencesByRecentLogs(logs, basePlan.date);
+        const buildAdjustedPlanByDate = (dateKey: string) => {
+            const basePlan = generatePlanForDate(dateKey, stageType, 70);
+            const byDatePreferences = dailyPreferences[dateKey];
+            const adaptivePreferences = recommendAdaptivePreferencesByRecentLogs(logs, dateKey);
             const appliedPreferences = mergePreferences(adaptivePreferences, byDatePreferences ?? []);
 
             if (appliedPreferences.length === 0) {
@@ -297,6 +300,30 @@ export default function DietCalendarPage() {
                 plan: optimizePlanByPreference(basePlan, appliedPreferences).plan,
                 appliedPreferences,
                 source,
+            };
+        };
+
+        const firstDateKey = basePlans[0]?.date;
+        const rollingHistory =
+            firstDateKey === undefined
+                ? ([] as Array<ReturnType<typeof buildAdjustedPlanByDate>['plan']>)
+                : Array.from({ length: NO_REPEAT_DAYS }, (_, index) => {
+                      const historyDateKey = offsetDateKey(firstDateKey, -(NO_REPEAT_DAYS - index));
+                      return buildAdjustedPlanByDate(historyDateKey).plan;
+                  });
+
+        return basePlans.map((basePlan) => {
+            const adjusted = buildAdjustedPlanByDate(basePlan.date);
+            const noRepeatAdjusted = applySevenDayNoRepeatRule(adjusted.plan, rollingHistory, NO_REPEAT_DAYS);
+            rollingHistory.push(noRepeatAdjusted.plan);
+            if (rollingHistory.length > NO_REPEAT_DAYS) {
+                rollingHistory.shift();
+            }
+
+            return {
+                plan: noRepeatAdjusted.plan,
+                appliedPreferences: adjusted.appliedPreferences,
+                source: adjusted.source,
             };
         });
     }, [year, month, stageType, dailyPreferences, logs]);

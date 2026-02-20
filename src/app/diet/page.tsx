@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Coffee, Moon, Sun, Sunrise } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    applySevenDayNoRepeatRule,
     formatDateKey,
     formatDateLabel,
     generatePlanForDate,
@@ -136,6 +137,7 @@ const PREFERENCE_KEYS = new Set<PreferenceType>(PREFERENCE_OPTIONS.map((option) 
 const SLOT_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 const TWO_WEEK_DAYS = 14;
+const NO_REPEAT_DAYS = 7;
 const MEDICATION_TIMING_ORDER: MedicationTiming[] = ['breakfast', 'lunch', 'dinner'];
 
 function medicationTimingLabel(timing: MedicationTiming) {
@@ -827,8 +829,6 @@ export default function DietPage() {
         return applyRecommendationAdjustments(baseTodayPlan, confirmedTodayPreferences);
     }, [baseTodayPlan, confirmedTodayPreferences, applyRecommendationAdjustments]);
 
-    const todayPlan = optimizedToday.plan;
-
     const proposedTodayOptimization = useMemo(() => {
         return applyRecommendationAdjustments(
             baseTodayPlan,
@@ -845,17 +845,66 @@ export default function DietPage() {
         [dailyPreferences, logs]
     );
 
+    const getAdjustedPlanWithoutNoRepeat = useCallback(
+        (dateKey: string) => {
+            if (dateKey === todayKey) {
+                return optimizedToday;
+            }
+            const basePlan = generatePlanForDate(dateKey, stageType, previousMonthScore);
+            const appliedPreferences = resolveAppliedPreferences(dateKey);
+            return applyRecommendationAdjustments(basePlan, appliedPreferences);
+        },
+        [todayKey, optimizedToday, stageType, previousMonthScore, resolveAppliedPreferences, applyRecommendationAdjustments]
+    );
+
+    const getRecentHistoryPlans = useCallback(
+        (dateKey: string, todayOverridePlan?: DayPlan) =>
+            Array.from({ length: NO_REPEAT_DAYS }, (_, index) => {
+                const historyDateKey = offsetDateKey(dateKey, -(index + 1));
+                if (todayOverridePlan && historyDateKey === todayKey) {
+                    return todayOverridePlan;
+                }
+                return getAdjustedPlanWithoutNoRepeat(historyDateKey).plan;
+            }).reverse(),
+        [todayKey, getAdjustedPlanWithoutNoRepeat]
+    );
+
+    const optimizedTodayWithNoRepeat = useMemo(() => {
+        const recentHistoryPlans = getRecentHistoryPlans(todayKey);
+        const noRepeatAdjusted = applySevenDayNoRepeatRule(optimizedToday.plan, recentHistoryPlans, NO_REPEAT_DAYS);
+        return {
+            plan: noRepeatAdjusted.plan,
+            notes: [...optimizedToday.notes, ...noRepeatAdjusted.notes],
+        };
+    }, [todayKey, optimizedToday, getRecentHistoryPlans]);
+
+    const todayPlan = optimizedTodayWithNoRepeat.plan;
+
     const getPlanForDate = useCallback(
         (dateKey: string) => {
             if (dateKey === todayKey) {
                 return todayPlan;
             }
 
-            const basePlan = generatePlanForDate(dateKey, stageType, previousMonthScore);
-            const appliedPreferences = resolveAppliedPreferences(dateKey);
-            return applyRecommendationAdjustments(basePlan, appliedPreferences).plan;
+            const adjusted = getAdjustedPlanWithoutNoRepeat(dateKey);
+            const recentHistoryPlans = getRecentHistoryPlans(dateKey, todayPlan);
+            return applySevenDayNoRepeatRule(adjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS).plan;
         },
-        [todayKey, todayPlan, stageType, previousMonthScore, resolveAppliedPreferences, applyRecommendationAdjustments]
+        [todayKey, todayPlan, getAdjustedPlanWithoutNoRepeat, getRecentHistoryPlans]
+    );
+
+    const getPlanNotesForDate = useCallback(
+        (dateKey: string) => {
+            if (dateKey === todayKey) {
+                return optimizedTodayWithNoRepeat.notes;
+            }
+
+            const adjusted = getAdjustedPlanWithoutNoRepeat(dateKey);
+            const recentHistoryPlans = getRecentHistoryPlans(dateKey, todayPlan);
+            const noRepeatAdjusted = applySevenDayNoRepeatRule(adjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS);
+            return [...adjusted.notes, ...noRepeatAdjusted.notes];
+        },
+        [todayKey, optimizedTodayWithNoRepeat.notes, getAdjustedPlanWithoutNoRepeat, getRecentHistoryPlans, todayPlan]
     );
 
     const proposalWarnings = useMemo(() => {
@@ -995,22 +1044,10 @@ export default function DietPage() {
         () => (viewedTodayDateKey === todayKey ? todayPlan : getPlanForDate(viewedTodayDateKey)),
         [viewedTodayDateKey, todayKey, todayPlan, getPlanForDate]
     );
-    const viewedTodayNotes = useMemo(() => {
-        if (viewedTodayDateKey === todayKey) {
-            return optimizedToday.notes;
-        }
-        const basePlan = generatePlanForDate(viewedTodayDateKey, stageType, previousMonthScore);
-        const appliedPreferences = resolveAppliedPreferences(viewedTodayDateKey);
-        return applyRecommendationAdjustments(basePlan, appliedPreferences).notes;
-    }, [
-        viewedTodayDateKey,
-        todayKey,
-        optimizedToday.notes,
-        stageType,
-        previousMonthScore,
-        resolveAppliedPreferences,
-        applyRecommendationAdjustments,
-    ]);
+    const viewedTodayNotes = useMemo(
+        () => getPlanNotesForDate(viewedTodayDateKey),
+        [getPlanNotesForDate, viewedTodayDateKey]
+    );
     const sortedMedicationSchedules = useMemo(
         () =>
             [...medicationSchedules].sort(

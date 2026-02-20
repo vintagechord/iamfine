@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    applySevenDayNoRepeatRule,
     detectCancerProfileMatch,
     formatDateKey,
     generatePlanForDate,
@@ -69,6 +70,7 @@ type DietStore = {
 
 const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
+const NO_REPEAT_DAYS = 7;
 const DISCLAIMER_TEXT =
     '이 리포트는 규칙 기반 참고 자료입니다. 진단/처방/투약 변경은 반드시 담당 의료진 판단을 우선하세요.';
 
@@ -180,6 +182,13 @@ function medicationTimingLabel(timing: MedicationTiming | 'snack' | string) {
     return timing;
 }
 
+function offsetDateKey(baseDateKey: string, offset: number) {
+    const [year, month, day] = baseDateKey.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + offset);
+    return formatDateKey(date);
+}
+
 function changedFields(baseMeal: MealSuggestion, finalMeal: MealSuggestion) {
     const changes: string[] = [];
     if (baseMeal.riceType !== finalMeal.riceType) {
@@ -277,11 +286,39 @@ export default function DietReportPage() {
         return optimizePlanByPreference(medicationAdjusted.plan, todayPreferences);
     }, [medicationAdjusted.plan, todayPreferences]);
 
-    const finalPlan: DayPlan = preferenceAdjusted.plan;
+    const getPlanBeforeNoRepeatForDate = useCallback(
+        (dateKey: string) => {
+            const dateBasePlan = generatePlanForDate(dateKey, stageType, 70);
+            const dateContextAdjusted = optimizePlanByUserContext(dateBasePlan, userDietContext);
+            const dateMedicationAdjusted = optimizePlanByMedications(dateContextAdjusted.plan, medications);
+            const datePreferences = dailyPreferences[dateKey] ?? [];
+            if (datePreferences.length === 0) {
+                return dateMedicationAdjusted.plan;
+            }
+            return optimizePlanByPreference(dateMedicationAdjusted.plan, datePreferences).plan;
+        },
+        [stageType, userDietContext, medications, dailyPreferences]
+    );
+
+    const recentHistoryPlans = useMemo(
+        () =>
+            Array.from({ length: NO_REPEAT_DAYS }, (_, index) => {
+                const historyDateKey = offsetDateKey(todayKey, -(NO_REPEAT_DAYS - index));
+                return getPlanBeforeNoRepeatForDate(historyDateKey);
+            }),
+        [todayKey, getPlanBeforeNoRepeatForDate]
+    );
+
+    const noRepeatAdjusted = useMemo(
+        () => applySevenDayNoRepeatRule(preferenceAdjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS),
+        [preferenceAdjusted.plan, recentHistoryPlans]
+    );
+
+    const finalPlan: DayPlan = noRepeatAdjusted.plan;
     const profileMatch = useMemo(() => detectCancerProfileMatch(userDietContext.cancerType), [userDietContext.cancerType]);
     const mergedNotes = useMemo(
-        () => [...contextAdjusted.notes, ...medicationAdjusted.notes, ...preferenceAdjusted.notes],
-        [contextAdjusted.notes, medicationAdjusted.notes, preferenceAdjusted.notes]
+        () => [...contextAdjusted.notes, ...medicationAdjusted.notes, ...preferenceAdjusted.notes, ...noRepeatAdjusted.notes],
+        [contextAdjusted.notes, medicationAdjusted.notes, preferenceAdjusted.notes, noRepeatAdjusted.notes]
     );
 
     const reviewWarnings = useMemo(() => {

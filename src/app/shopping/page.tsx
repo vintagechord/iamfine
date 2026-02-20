@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
+    applySevenDayNoRepeatRule,
     formatDateKey,
     formatDateLabel,
     generatePlanForDate,
@@ -56,6 +57,7 @@ type GroceryCategory = {
 
 const STORAGE_PREFIX = 'diet-store-v2';
 const SHOPPING_MEMO_PREFIX = 'shopping-memo-v1';
+const NO_REPEAT_DAYS = 7;
 const PREFERENCE_KEYS = new Set<PreferenceType>([
     'spicy',
     'sweet',
@@ -521,7 +523,7 @@ export default function ShoppingPage() {
     );
 
     const planRows = useMemo(() => {
-        return dateKeys.map((dateKey) => {
+        const buildAdjustedPlanByDate = (dateKey: string) => {
             const basePlan = generatePlanForDate(dateKey, stageType, 70);
             const byDatePreferences = dailyPreferences[dateKey];
             const adaptivePreferences = recommendAdaptivePreferencesByRecentLogs(logs, dateKey);
@@ -529,14 +531,35 @@ export default function ShoppingPage() {
 
             if (appliedPreferences.length === 0) {
                 return {
-                    dateKey,
                     plan: basePlan,
                 };
             }
 
             return {
-                dateKey,
                 plan: optimizePlanByPreference(basePlan, appliedPreferences).plan,
+            };
+        };
+
+        const firstDateKey = dateKeys[0];
+        const rollingHistory =
+            firstDateKey === undefined
+                ? ([] as DayPlan[])
+                : Array.from({ length: NO_REPEAT_DAYS }, (_, index) => {
+                      const historyDateKey = offsetDateKey(firstDateKey, -(NO_REPEAT_DAYS - index));
+                      return buildAdjustedPlanByDate(historyDateKey).plan;
+                  });
+
+        return dateKeys.map((dateKey) => {
+            const adjusted = buildAdjustedPlanByDate(dateKey);
+            const noRepeatAdjusted = applySevenDayNoRepeatRule(adjusted.plan, rollingHistory, NO_REPEAT_DAYS);
+            rollingHistory.push(noRepeatAdjusted.plan);
+            if (rollingHistory.length > NO_REPEAT_DAYS) {
+                rollingHistory.shift();
+            }
+
+            return {
+                dateKey,
+                plan: noRepeatAdjusted.plan,
             };
         });
     }, [dateKeys, stageType, dailyPreferences, logs]);
