@@ -69,9 +69,11 @@ export default function RootLayout({
                                 </span>
                             </Link>
                             <div className="flex items-center gap-1.5 sm:gap-2">
-                                <MobileCategoryMenu items={CATEGORY_LINKS} />
                                 <AuthActionButton showSignUpWhenLoggedOut showProfileWhenLoggedIn />
-                                <ThemeToggle />
+                                <div className="hidden md:block">
+                                    <ThemeToggle />
+                                </div>
+                                <MobileCategoryMenu items={CATEGORY_LINKS} />
                             </div>
                         </div>
                         <nav className="hidden border-t border-gray-200/70 px-4 dark:border-gray-800/70 md:block">

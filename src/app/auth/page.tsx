@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type AuthMode = 'login' | 'signup';
@@ -24,6 +24,8 @@ function toKoreanAuthMessage(rawMessage: string) {
 
 export default function AuthPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const requestedMode = searchParams.get('mode');
     const [authMode, setAuthMode] = useState<AuthMode>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -78,6 +80,19 @@ export default function AuthPage() {
 
         return () => window.clearTimeout(timer);
     }, [loadAuthState]);
+
+    useEffect(() => {
+        const nextMode: AuthMode = requestedMode === 'signup' ? 'signup' : 'login';
+        const timer = window.setTimeout(() => {
+            setAuthMode(nextMode);
+            setMessage('');
+            if (nextMode === 'login') {
+                setConfirmPassword('');
+            }
+        }, 0);
+
+        return () => window.clearTimeout(timer);
+    }, [requestedMode]);
 
     const signUp = async () => {
         if (!supabase) {

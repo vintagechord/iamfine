@@ -1,8 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import ThemeToggle from '@/components/ThemeToggle';
 
 type CategoryItem = {
     href: string;
@@ -16,6 +19,8 @@ type MobileCategoryMenuProps = {
 export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
     const [open, setOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const pathname = usePathname();
+    const portalRoot = typeof window === 'undefined' ? null : document.body;
 
     const openMenu = () => {
         setMounted(true);
@@ -61,6 +66,18 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
         return () => window.clearTimeout(timer);
     }, [mounted, open]);
 
+    useEffect(() => {
+        if (!mounted) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            closeMenu();
+        }, 0);
+
+        return () => window.clearTimeout(timer);
+    }, [pathname, mounted]);
+
     return (
         <>
             <button
@@ -72,7 +89,7 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
                 <Menu className="h-4.5 w-4.5" />
             </button>
 
-            {mounted && (
+            {mounted && portalRoot && createPortal(
                 <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="카테고리 메뉴">
                     <button
                         type="button"
@@ -99,8 +116,12 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
                                 </Link>
                             ))}
                         </nav>
+                        <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-800">
+                            <ThemeToggle />
+                        </div>
                     </aside>
-                </div>
+                </div>,
+                portalRoot
             )}
         </>
     );

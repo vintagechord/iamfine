@@ -91,11 +91,11 @@ export default function AuthActionButton({
     return (
         <div className="flex items-center gap-1.5 sm:gap-2">
             {showSignUpWhenLoggedOut && (
-                <Link href="/auth" className={baseClassName} aria-label="회원가입">
+                <Link href="/auth?mode=signup" className={baseClassName} aria-label="회원가입">
                     회원가입
                 </Link>
             )}
-            <Link href="/auth" className={baseClassName} aria-label="로그인">
+            <Link href="/auth?mode=login" className={baseClassName} aria-label="로그인">
                 로그인
             </Link>
         </div>
