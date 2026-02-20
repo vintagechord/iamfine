@@ -1142,6 +1142,7 @@ export default function DietPage() {
     const [openRecipeSlot, setOpenRecipeSlot] = useState<RecipeTarget | null>(null);
     const [openPortionGuideContent, setOpenPortionGuideContent] = useState<PortionGuideModalContent | null>(null);
     const [showRecordPlanModal, setShowRecordPlanModal] = useState(false);
+    const [openRecordPortionSlot, setOpenRecordPortionSlot] = useState<MealSlot | null>(null);
     const [showNutrients, setShowNutrients] = useState(false);
     const [newItemBySlot, setNewItemBySlot] = useState<Record<MealSlot, string>>({
         breakfast: '',
@@ -2639,7 +2640,10 @@ export default function DietPage() {
                             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">기록할 날짜 선택</h2>
                             <button
                                 type="button"
-                                onClick={() => setShowRecordPlanModal(true)}
+                                onClick={() => {
+                                    setOpenRecordPortionSlot(null);
+                                    setShowRecordPlanModal(true);
+                                }}
                                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 식단 보기
@@ -2672,7 +2676,10 @@ export default function DietPage() {
                     {showRecordPlanModal && (
                         <div
                             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-                            onClick={() => setShowRecordPlanModal(false)}
+                            onClick={() => {
+                                setShowRecordPlanModal(false);
+                                setOpenRecordPortionSlot(null);
+                            }}
                         >
                             <section
                                 className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-800 dark:bg-gray-900"
@@ -2689,7 +2696,10 @@ export default function DietPage() {
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => setShowRecordPlanModal(false)}
+                                        onClick={() => {
+                                            setShowRecordPlanModal(false);
+                                            setOpenRecordPortionSlot(null);
+                                        }}
                                         className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                     >
                                         닫기
@@ -2706,6 +2716,8 @@ export default function DietPage() {
                                                   : slot === 'dinner'
                                                     ? selectedPlan.dinner
                                                     : selectedPlan.snack;
+                                        const mealPortionGuide = mealPortionGuideFromPlan(meal, slot);
+                                        const isRecordPortionOpen = openRecordPortionSlot === slot;
                                         return (
                                             <article
                                                 key={`record-plan-${slot}`}
@@ -2718,16 +2730,27 @@ export default function DietPage() {
                                                 )}
                                                 <button
                                                     type="button"
-                                                    onClick={() =>
-                                                        setOpenPortionGuideContent({
-                                                            title: `${mealTypeLabel(slot)} 권장 섭취량(1인 기준)`,
-                                                            guide: mealPortionGuideFromPlan(meal, slot),
-                                                        })
-                                                    }
+                                                    onClick={() => setOpenRecordPortionSlot((prev) => (prev === slot ? null : slot))}
                                                     className="mt-2 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                                                 >
                                                     권장 섭취량
                                                 </button>
+                                                {isRecordPortionOpen && (
+                                                    <div className="mt-2 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                                        <div className="space-y-1">
+                                                            {mealPortionGuide.items.map((item) => (
+                                                                <p key={`record-inline-${slot}-portion-${item.name}`}>- {item.name}: {item.amount}</p>
+                                                            ))}
+                                                        </div>
+                                                        {mealPortionGuide.notes.length > 0 && (
+                                                            <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                                                                {mealPortionGuide.notes.map((note) => (
+                                                                    <p key={`record-inline-${slot}-portion-note-${note}`}>· {note}</p>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                                                     탄수 {meal.nutrient.carb}% / 단백질 {meal.nutrient.protein}% / 지방 {meal.nutrient.fat}%
                                                 </p>
