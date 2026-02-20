@@ -73,6 +73,28 @@ const PLACE_NAME_STOPWORDS = new Set([
     '제주',
 ]);
 
+const PLACE_TRAILING_META_MARKERS = [
+    '톡톡',
+    '쿠폰',
+    '포장',
+    '배달',
+    '예약',
+    '주차',
+    '메뉴',
+    '리뷰',
+    '사진',
+    '길찾기',
+    '전화',
+    '영업중',
+    '영업종료',
+    '홈페이지',
+    '이벤트',
+    '할인',
+] as const;
+
+const PLACE_CATEGORY_TRAILING_TOKEN_REGEX =
+    /^(?:한식|중식|일식|양식|분식|카페|디저트|치킨|피자|버거|족발|보쌈|고기|찌개(?:,전골)?|전골|국밥|백반|샤브샤브|샐러드|포케|브런치)$/u;
+
 function decodeHtml(raw: string) {
     return raw
         .replace(/&amp;/g, '&')
@@ -92,8 +114,29 @@ function cleanText(raw: string) {
 }
 
 function normalizePlaceName(raw: string) {
-    const noBracket = cleanText(raw).replace(/\[[^\]]+\]\s*/g, '').trim();
-    return noBracket
+    const noBracket = cleanText(raw)
+        .replace(/\[[^\]]+\]\s*/g, '')
+        .replace(/\([^)]*\)/g, '')
+        .trim();
+    const tokens = noBracket.split(/\s+/).filter(Boolean);
+    let cutIndex = tokens.length;
+
+    for (let index = 0; index < tokens.length; index += 1) {
+        const token = tokens[index].replace(/[·|]/g, '').trim();
+        if (!token) {
+            continue;
+        }
+        const compact = token.toLowerCase();
+        const hasMetaMarker = PLACE_TRAILING_META_MARKERS.some((marker) => compact.includes(marker));
+        const isCategoryToken = PLACE_CATEGORY_TRAILING_TOKEN_REGEX.test(token);
+        if ((hasMetaMarker || isCategoryToken) && index >= 1) {
+            cutIndex = index;
+            break;
+        }
+    }
+
+    const trimmedByToken = tokens.slice(0, cutIndex).join(' ');
+    return trimmedByToken
         .replace(
             /\s+(?:다이어트|샐러드(?:뷔페)?|채식|카페|도시락|컵밥|비건|포케|브런치|한식|일식|양식|분식|죽|패스트푸드)(?:[,/][^\s]+)*$/u,
             ''
@@ -158,7 +201,8 @@ function extractHost(url: string) {
 }
 
 function buildKakaoMapSearchUrl(region: string, placeName: string) {
-    const query = `${region} ${placeName}`.trim();
+    const normalizedPlaceName = normalizePlaceName(placeName);
+    const query = (normalizedPlaceName || placeName || region).trim();
     return `https://map.kakao.com/?q=${encodeURIComponent(query)}`;
 }
 
@@ -241,7 +285,7 @@ function extractNamedCandidatesFromSources(sources: WebSource[]) {
 
         const matches = cleanTitle.match(/[가-힣A-Za-z0-9&·\s]{2,28}(?:점|식당|카페|비스트로|포케|샐러드)/g) ?? [];
         for (const rawName of matches) {
-            const name = cleanText(rawName);
+            const name = normalizePlaceName(rawName);
             if (!isLikelyPlaceName(name)) {
                 continue;
             }
@@ -269,7 +313,7 @@ function scoreRecommendations(
     }));
 
     for (const place of places) {
-        const name = cleanText(place.name);
+        const name = normalizePlaceName(place.name);
         if (!isLikelyPlaceName(name)) {
             continue;
         }
@@ -318,7 +362,7 @@ function scoreRecommendations(
                 continue;
             }
             byName.set(key, {
-                name: fallback.name,
+                name: normalizePlaceName(fallback.name),
                 score: fallback.score,
                 reason: `${CATEGORY_LABELS[category]} 관련 웹 문서에서 추출한 식당명이에요.`,
                 sourceCount: 1,
