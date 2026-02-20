@@ -823,7 +823,7 @@ export default function ProfilePage() {
         showSaveCompletePopup();
     };
 
-    const saveMedicationInfo = () => {
+    const saveMedicationInfo = async () => {
         setFeedback(null);
 
         if (!hasSupabaseEnv || !supabase) {
@@ -846,7 +846,7 @@ export default function ProfilePage() {
 
         setSavingMedicationInfo(true);
 
-        void (async () => {
+        try {
             const rawDietStore = localStorage.getItem(getDietStoreKey(userId));
             let currentDietStore: Record<string, unknown> = {};
 
@@ -873,7 +873,6 @@ export default function ProfilePage() {
             const { data: authData, error: authError } = await supabase.auth.getUser();
             if (authError || !authData.user) {
                 setFeedback({ type: 'error', text: '로그인이 만료되었어요. 다시 로그인해 주세요.' });
-                setSavingMedicationInfo(false);
                 return;
             }
 
@@ -886,7 +885,6 @@ export default function ProfilePage() {
             });
             if (updateError) {
                 setFeedback({ type: 'error', text: '복용 약 정보를 서버에 저장하지 못했어요. 다시 시도해 주세요.' });
-                setSavingMedicationInfo(false);
                 return;
             }
 
@@ -896,8 +894,9 @@ export default function ProfilePage() {
             setMedicationTimingDraft('breakfast');
             setFeedback({ type: 'success', text: '복용 약 정보를 저장했어요.' });
             showSaveCompletePopup();
+        } finally {
             setSavingMedicationInfo(false);
-        })();
+        }
     };
 
     const saveTreatmentInfo = async () => {
