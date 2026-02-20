@@ -3405,6 +3405,9 @@ export default function DietPage() {
                                                     const substituteCandidates = isSubstitutePanelOpen
                                                         ? buildSubstituteCandidates(item.name, slot, manualFoodCandidates)
                                                         : null;
+                                                    const [displayFoodNameRaw, ...displayAmountParts] = item.name.split(' · ');
+                                                    const displayFoodName = displayFoodNameRaw.trim();
+                                                    const displayAmount = displayAmountParts.join(' · ').trim();
 
                                                     return (
                                                         <div key={item.id} className="space-y-1.5">
@@ -3423,9 +3426,14 @@ export default function DietPage() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => toggleMealSubstitutePanel(slot, item.id)}
-                                                                    className="min-w-0 px-1 text-center text-sm leading-snug text-gray-800 underline decoration-dotted underline-offset-4 transition hover:text-gray-900 dark:text-gray-100 dark:hover:text-white"
+                                                                    className="min-w-0 px-1 text-center leading-snug text-gray-800 underline decoration-dotted underline-offset-4 transition hover:text-gray-900 dark:text-gray-100 dark:hover:text-white"
                                                                 >
-                                                                    {item.name}
+                                                                    <span className="block text-base font-bold">{displayFoodName}</span>
+                                                                    {displayAmount && (
+                                                                        <span className="block text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                                                                            {displayAmount}
+                                                                        </span>
+                                                                    )}
                                                                 </button>
                                                                 <button
                                                                     type="button"
