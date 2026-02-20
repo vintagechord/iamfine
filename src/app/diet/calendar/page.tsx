@@ -839,7 +839,6 @@ export default function DietCalendarPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">월간 식단표</h1>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}
                         </p>
@@ -925,6 +924,10 @@ export default function DietCalendarPage() {
                         ))}
                     </div>
                 )}
+            </section>
+
+            <section className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                <p>{DISCLAIMER_TEXT}</p>
             </section>
         </main>
     );

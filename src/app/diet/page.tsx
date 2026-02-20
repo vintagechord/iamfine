@@ -2744,7 +2744,6 @@ export default function DietPage() {
                         </span>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">식단 제안</h1>
                     </div>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                 </section>
                 <section
                     role="alert"
@@ -2752,6 +2751,9 @@ export default function DietPage() {
                 >
                     <p className="text-sm font-semibold">설정이 필요해요</p>
                     <p className="mt-1 text-sm">`.env.local` 파일의 연결 설정을 확인해 주세요.</p>
+                </section>
+                <section className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                    <p>{DISCLAIMER_TEXT}</p>
                 </section>
             </main>
         );
@@ -2767,7 +2769,6 @@ export default function DietPage() {
                         </span>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">식단 제안</h1>
                     </div>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                 </section>
                 <section
                     role="alert"
@@ -2780,6 +2781,9 @@ export default function DietPage() {
                         </Link>
                         에서 로그인해 주세요.
                     </p>
+                </section>
+                <section className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                    <p>{DISCLAIMER_TEXT}</p>
                 </section>
             </main>
         );
@@ -2827,7 +2831,6 @@ export default function DietPage() {
                                 {viewedTodayDateLabel}
                             </p>
                         </div>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                         {profile?.nickname && (
                             <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
                                 {profile.nickname} 님 맞춤 추천이에요.
@@ -3797,6 +3800,10 @@ export default function DietPage() {
                         <p key={item}>- {item}</p>
                     ))}
                 </div>
+            </section>
+
+            <section className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                <p>{DISCLAIMER_TEXT}</p>
             </section>
         </main>
     );
