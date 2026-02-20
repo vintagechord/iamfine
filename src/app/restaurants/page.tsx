@@ -166,7 +166,11 @@ export default function RestaurantsPage() {
                 const json = (await response.json()) as RecommendationResponse;
                 setRecommendations(json.items ?? []);
                 setUsedQueries(json.queries ?? []);
-                setResolvedRegion(json.region ?? context.region);
+                const nextResolvedRegion = json.region ?? context.region;
+                setResolvedRegion(nextResolvedRegion);
+                if (context.lat !== null && context.lng !== null && nextResolvedRegion.trim()) {
+                    setRegionInput(nextResolvedRegion);
+                }
                 setGeneratedAt(json.generatedAt ?? '');
             } catch (error) {
                 console.error(error);
