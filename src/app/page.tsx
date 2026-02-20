@@ -674,7 +674,7 @@ export default function Home() {
                                 총 {visitSchedules.length}건
                             </span>
                         </div>
-                        <p className="mt-1 truncate text-sm text-gray-600 dark:text-gray-300">
+                        <p className="mt-1 truncate pl-10 text-sm text-gray-600 dark:text-gray-300">
                             {upcomingVisit
                                 ? `${formatVisitScheduleDate(upcomingVisit.visitDate)} ${formatVisitScheduleTime(upcomingVisit.visitTime)} · ${upcomingVisit.treatmentNote}`
                                 : '다음 병원 방문 일정을 등록해 주세요.'}

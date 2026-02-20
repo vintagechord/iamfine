@@ -315,6 +315,15 @@ function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
 
+function stripLeadingFieldLabel(value: string, pattern: RegExp) {
+    const normalized = value.trim();
+    if (!normalized) {
+        return '미입력';
+    }
+    const stripped = normalized.replace(pattern, '').trim();
+    return stripped || '미입력';
+}
+
 function cloneDayPlan(plan: DayPlan): DayPlan {
     return {
         date: plan.date,
@@ -1684,20 +1693,36 @@ export default function DietPage() {
         [userDietContext, medications, logs, stageType, externalSignalPreferences]
     );
     const personalizationSummary = useMemo(() => {
-        const ageText =
-            userDietContext.age && userDietContext.age > 0 ? `${userDietContext.age}세` : '미입력';
-        const sexText =
+        const ageText = stripLeadingFieldLabel(
+            userDietContext.age && userDietContext.age > 0 ? `${userDietContext.age}세` : '미입력',
+            /^나이\s*/u
+        );
+        const sexText = stripLeadingFieldLabel(
             userDietContext.sex === 'female'
                 ? '여성'
                 : userDietContext.sex === 'male'
                   ? '남성'
                   : userDietContext.sex === 'other'
                     ? '기타'
-                    : '미입력';
-        const heightText = userDietContext.heightCm ? `${userDietContext.heightCm}cm` : '미입력';
-        const weightText = userDietContext.weightKg ? `${userDietContext.weightKg}kg` : '미입력';
-        const ethnicityText = userDietContext.ethnicity?.trim() ? userDietContext.ethnicity.trim() : '미입력';
-        const cancerTypeText = userDietContext.cancerType?.trim() ? userDietContext.cancerType.trim() : '미입력';
+                    : '미입력',
+            /^성별\s*/u
+        );
+        const heightText = stripLeadingFieldLabel(
+            userDietContext.heightCm ? `${userDietContext.heightCm}cm` : '미입력',
+            /^키\s*/u
+        );
+        const weightText = stripLeadingFieldLabel(
+            userDietContext.weightKg ? `${userDietContext.weightKg}kg` : '미입력',
+            /^몸무게\s*/u
+        );
+        const ethnicityText = stripLeadingFieldLabel(
+            userDietContext.ethnicity?.trim() ? userDietContext.ethnicity.trim() : '미입력',
+            /^(인종\s*[·/]\s*배경|인종\s*배경|인종|배경)\s*[:：-]?\s*/u
+        );
+        const cancerTypeText = stripLeadingFieldLabel(
+            userDietContext.cancerType?.trim() ? userDietContext.cancerType.trim() : '미입력',
+            /^(암\s*종류|암종)\s*[:：-]?\s*/u
+        );
         const stageLabel = activeStage?.stage_label?.trim() || '미입력';
         const medicationCount = medicationSchedules.length;
         const medicationTimingText =
