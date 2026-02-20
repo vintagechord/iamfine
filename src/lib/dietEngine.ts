@@ -206,6 +206,48 @@ function buildSnackRecipe(main: string, side: string, hydration: string, recipeN
     };
 }
 
+function baseMealNutrientByStage(stageType: StageType, mealType: '아침' | '점심' | '저녁' | '간식'): MealNutrient {
+    if (mealType === '간식') {
+        return { carb: 35, protein: 30, fat: 35 };
+    }
+
+    const stageSoft = stageType === 'chemo' || stageType === 'chemo_2nd' || stageType === 'radiation';
+    const stageLowerCarb =
+        stageType === 'hormone_therapy' ||
+        stageType === 'medication' ||
+        stageType === 'targeted' ||
+        stageType === 'immunotherapy';
+
+    // 저녁 탄수화물은 아침/점심 대비 단계적으로 낮춰 야간 과식·혈당 급상승을 줄이도록 조정.
+    if (stageLowerCarb) {
+        if (mealType === '아침') {
+            return { carb: 36, protein: 34, fat: 30 };
+        }
+        if (mealType === '점심') {
+            return { carb: 34, protein: 36, fat: 30 };
+        }
+        return { carb: 30, protein: 40, fat: 30 };
+    }
+
+    if (stageSoft) {
+        if (mealType === '아침') {
+            return { carb: 42, protein: 31, fat: 27 };
+        }
+        if (mealType === '점심') {
+            return { carb: 40, protein: 33, fat: 27 };
+        }
+        return { carb: 36, protein: 35, fat: 29 };
+    }
+
+    if (mealType === '아침') {
+        return { carb: 40, protein: 32, fat: 28 };
+    }
+    if (mealType === '점심') {
+        return { carb: 38, protein: 34, fat: 28 };
+    }
+    return { carb: 34, protein: 36, fat: 30 };
+}
+
 function createMealSuggestion(
     seed: number,
     stageType: StageType,
@@ -224,22 +266,8 @@ function createMealSuggestion(
     const sideB = SIDES[(seed + 4) % SIDES.length];
     const sideC = SIDES[(seed + 5) % SIDES.length];
 
-    const stageSoft = stageType === 'chemo' || stageType === 'chemo_2nd' || stageType === 'radiation';
-    const stageLowerCarb =
-        stageType === 'hormone_therapy' ||
-        stageType === 'medication' ||
-        stageType === 'targeted' ||
-        stageType === 'immunotherapy';
     const easierMenu = prevMonthScore < 60;
-
-    const nutrient: MealNutrient =
-        mealType === '간식'
-            ? { carb: 35, protein: 30, fat: 35 }
-            : stageLowerCarb
-              ? { carb: 35, protein: 35, fat: 30 }
-              : stageSoft
-                ? { carb: 40, protein: 33, fat: 27 }
-                : { carb: 38, protein: 34, fat: 28 };
+    const nutrient = baseMealNutrientByStage(stageType, mealType);
 
     const flourGuide = easierMenu
         ? '밀가루 음식은 주 2회 이하로 줄여보세요.'
@@ -1257,9 +1285,9 @@ export function optimizePlanByPreference(plan: DayPlan, preferences: PreferenceT
         optimized.breakfast.sides = ['브로콜리찜', '버섯볶음', '당근볶음'];
         optimized.lunch.sides = ['양배추볶음', '저염 나물', '구운채소'];
         optimized.dinner.sides = ['애호박볶음', '버섯볶음', '오이무침'];
-        optimized.breakfast.nutrient = { carb: 28, protein: 47, fat: 25 };
+        optimized.breakfast.nutrient = { carb: 30, protein: 45, fat: 25 };
         optimized.lunch.nutrient = { carb: 28, protein: 47, fat: 25 };
-        optimized.dinner.nutrient = { carb: 28, protein: 47, fat: 25 };
+        optimized.dinner.nutrient = { carb: 24, protein: 48, fat: 28 };
         optimized.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량';
         optimized.snack.main = '그릭요거트';
         optimized.snack.soup = '물';
@@ -1274,7 +1302,7 @@ export function optimizePlanByPreference(plan: DayPlan, preferences: PreferenceT
         syncSummary(optimized.breakfast);
         syncSummary(optimized.lunch);
         syncSummary(optimized.dinner);
-        notes.push('체중감량 방향을 반영해 탄수화물 비율을 더 낮추고 단백질 중심으로 조정했어요.');
+        notes.push('체중감량 방향을 반영해 저녁 탄수화물 비율을 더 낮추고 단백질 중심으로 조정했어요.');
     }
 
     return {
