@@ -165,6 +165,136 @@ function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
 
+function cloneDayPlan(plan: DayPlan): DayPlan {
+    return {
+        date: plan.date,
+        breakfast: { ...plan.breakfast, sides: [...plan.breakfast.sides], recipeSteps: [...plan.breakfast.recipeSteps] },
+        lunch: { ...plan.lunch, sides: [...plan.lunch.sides], recipeSteps: [...plan.lunch.recipeSteps] },
+        dinner: { ...plan.dinner, sides: [...plan.dinner.sides], recipeSteps: [...plan.dinner.recipeSteps] },
+        snack: { ...plan.snack, sides: [...plan.snack.sides], recipeSteps: [...plan.snack.recipeSteps] },
+    };
+}
+
+function rebalanceMealNutrient(nutrient: MealNutrient, carbDelta: number, proteinDelta: number) {
+    let carb = clamp(Math.round(nutrient.carb + carbDelta), 20, 60);
+    let protein = clamp(Math.round(nutrient.protein + proteinDelta), 20, 60);
+    let fat = 100 - carb - protein;
+
+    if (fat < 20) {
+        const need = 20 - fat;
+        const proteinReducible = Math.max(0, protein - 20);
+        const proteinCut = Math.min(need, proteinReducible);
+        protein -= proteinCut;
+        const remain = need - proteinCut;
+        if (remain > 0) {
+            carb = Math.max(20, carb - remain);
+        }
+        fat = 100 - carb - protein;
+    }
+
+    if (fat > 35) {
+        const excess = fat - 35;
+        carb = clamp(carb + excess, 20, 60);
+        fat = 100 - carb - protein;
+    }
+
+    return {
+        carb,
+        protein,
+        fat,
+    };
+}
+
+function applyYesterdayIntakeCorrection(dateKey: string, plan: DayPlan, logs: Record<string, DayLog>) {
+    const yesterdayKey = offsetDateKey(dateKey, -1);
+    const yesterdayLog = logs[yesterdayKey];
+
+    if (!yesterdayLog) {
+        return {
+            plan,
+            notes: [] as string[],
+        };
+    }
+
+    const eatenItems = eatenTrackItems(yesterdayLog);
+    if (eatenItems.length === 0) {
+        return {
+            plan,
+            notes: [] as string[],
+        };
+    }
+
+    const eatenText = eatenItems.map((item) => stripPortionLabel(item.name)).join(' ');
+    const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛'];
+    const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림', '시럽', '주스'];
+    const heavyKeywords = ['튀김', '치킨', '야식', '족발', '보쌈', '술', '맥주', '소주', '곱창'];
+    const proteinKeywords = ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유'];
+
+    const flourSugarCount = countKeywords(eatenText, flourKeywords) + countKeywords(eatenText, sugarKeywords);
+    const heavyCount = countKeywords(eatenText, heavyKeywords);
+    const proteinCount = countKeywords(eatenText, proteinKeywords);
+    const skippedMeals = (['breakfast', 'lunch', 'dinner'] as MealSlot[]).reduce((count, slot) => {
+        const hasEaten = yesterdayLog.meals[slot].some((item) => item.eaten);
+        return hasEaten ? count : count + 1;
+    }, 0);
+
+    const adjusted = cloneDayPlan(plan);
+    const notes: string[] = [];
+
+    if (flourSugarCount + heavyCount >= 3) {
+        (['breakfast', 'lunch', 'dinner'] as MealSlot[]).forEach((slot) => {
+            const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
+            meal.nutrient = rebalanceMealNutrient(meal.nutrient, -6, +4);
+            if (
+                (meal.riceType.includes('밥') || meal.riceType.includes('죽') || meal.riceType.includes('덮밥')) &&
+                !meal.riceType.includes('소량')
+            ) {
+                meal.riceType = `${meal.riceType}(소량)`;
+                meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
+            }
+        });
+
+        adjusted.snack.main = '그릭요거트';
+        adjusted.snack.sides = ['베리류', '아몬드 소량'];
+        adjusted.snack.soup = '물';
+        adjusted.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량 + 물';
+        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, -8, +5);
+        adjusted.snack.recipeName = '전날 과식 보정 간식';
+        adjusted.snack.recipeSteps = [
+            '그릭요거트를 1회 분량(90g)으로 준비해 주세요.',
+            '베리류는 한 줌(50~60g)만 곁들여 주세요.',
+            '아몬드는 5~6알 이내로 제한해 주세요.',
+            '당류가 많은 음료는 피하고 물과 함께 드세요.',
+        ];
+
+        notes.push('전날 기록을 반영해 오늘은 탄수화물·당류를 낮추고 단백질 중심으로 자동 조정했어요.');
+    } else if (skippedMeals >= 2 || proteinCount === 0) {
+        (['breakfast', 'lunch', 'dinner'] as MealSlot[]).forEach((slot) => {
+            const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
+            meal.nutrient = rebalanceMealNutrient(meal.nutrient, +2, +3);
+        });
+
+        adjusted.snack.main = '무가당 요거트';
+        adjusted.snack.sides = ['바나나 반 개'];
+        adjusted.snack.soup = '따뜻한 물';
+        adjusted.snack.summary = '무가당 요거트 + 바나나 반 개 + 따뜻한 물';
+        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, +2, +4);
+        adjusted.snack.recipeName = '전날 결식 보정 간식';
+        adjusted.snack.recipeSteps = [
+            '무가당 요거트를 1회 분량으로 준비해 주세요.',
+            '바나나 반 개를 추가해 부족한 에너지를 보충해 주세요.',
+            '따뜻한 물과 함께 천천히 드세요.',
+        ];
+
+        notes.push('전날 섭취 부족 기록을 반영해 오늘은 결식을 막는 회복형 구성을 보강했어요.');
+    }
+
+    return {
+        plan: adjusted,
+        notes,
+    };
+}
+
 type PortionGuideItem = {
     name: string;
     amount: string;
@@ -907,24 +1037,25 @@ export default function DietPage() {
     }, [profile, treatmentMeta, activeStage, medicationSchedules]);
 
     const applyRecommendationAdjustments = useCallback(
-        (basePlan: DayPlan, targetPreferences: PreferenceType[]) => {
+        (basePlan: DayPlan, targetPreferences: PreferenceType[], dateKey: string) => {
             const userContextAdjusted = optimizePlanByUserContext(basePlan, userDietContext);
             const medicationAdjusted = optimizePlanByMedications(userContextAdjusted.plan, medications);
-
-            if (targetPreferences.length === 0) {
-                return {
-                    plan: medicationAdjusted.plan,
-                    notes: [...userContextAdjusted.notes, ...medicationAdjusted.notes],
-                };
-            }
-
-            const preferenceAdjusted = optimizePlanByPreference(medicationAdjusted.plan, targetPreferences);
+            const preferenceAdjusted =
+                targetPreferences.length === 0
+                    ? { plan: medicationAdjusted.plan, notes: [] as string[] }
+                    : optimizePlanByPreference(medicationAdjusted.plan, targetPreferences);
+            const yesterdayAdjusted = applyYesterdayIntakeCorrection(dateKey, preferenceAdjusted.plan, logs);
             return {
-                plan: preferenceAdjusted.plan,
-                notes: [...userContextAdjusted.notes, ...medicationAdjusted.notes, ...preferenceAdjusted.notes],
+                plan: yesterdayAdjusted.plan,
+                notes: [
+                    ...userContextAdjusted.notes,
+                    ...medicationAdjusted.notes,
+                    ...preferenceAdjusted.notes,
+                    ...yesterdayAdjusted.notes,
+                ],
             };
         },
-        [userDietContext, medications]
+        [userDietContext, medications, logs]
     );
     const personalizationSummary = useMemo(() => {
         const ageText =
@@ -984,7 +1115,7 @@ export default function DietPage() {
                 if (!log) {
                     return null;
                 }
-                const plan = applyRecommendationAdjustments(generatePlanForDate(key, stageType, 70), []).plan;
+                const plan = applyRecommendationAdjustments(generatePlanForDate(key, stageType, 70), [], key).plan;
                 return analyzeDay(plan, log, stageType).dailyScore;
             })
             .filter((score): score is number => typeof score === 'number');
@@ -1023,15 +1154,16 @@ export default function DietPage() {
     );
 
     const optimizedToday = useMemo(() => {
-        return applyRecommendationAdjustments(baseTodayPlan, confirmedTodayPreferences);
-    }, [baseTodayPlan, confirmedTodayPreferences, applyRecommendationAdjustments]);
+        return applyRecommendationAdjustments(baseTodayPlan, confirmedTodayPreferences, todayKey);
+    }, [baseTodayPlan, confirmedTodayPreferences, applyRecommendationAdjustments, todayKey]);
 
     const proposedTodayOptimization = useMemo(() => {
         return applyRecommendationAdjustments(
             baseTodayPlan,
-            mergePreferences(adaptiveTodayPreferences, userSelectedTodayPreferences, draftTodayPreferences)
+            mergePreferences(adaptiveTodayPreferences, userSelectedTodayPreferences, draftTodayPreferences),
+            todayKey
         );
-    }, [baseTodayPlan, adaptiveTodayPreferences, userSelectedTodayPreferences, draftTodayPreferences, applyRecommendationAdjustments]);
+    }, [baseTodayPlan, adaptiveTodayPreferences, userSelectedTodayPreferences, draftTodayPreferences, applyRecommendationAdjustments, todayKey]);
 
     const resolveAppliedPreferences = useCallback(
         (dateKey: string) => {
@@ -1049,7 +1181,7 @@ export default function DietPage() {
             }
             const basePlan = generatePlanForDate(dateKey, stageType, previousMonthScore);
             const appliedPreferences = resolveAppliedPreferences(dateKey);
-            return applyRecommendationAdjustments(basePlan, appliedPreferences);
+            return applyRecommendationAdjustments(basePlan, appliedPreferences, dateKey);
         },
         [todayKey, optimizedToday, stageType, previousMonthScore, resolveAppliedPreferences, applyRecommendationAdjustments]
     );
