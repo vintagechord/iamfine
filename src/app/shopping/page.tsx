@@ -576,6 +576,12 @@ export default function ShoppingPage() {
         <main className="space-y-4">
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    날짜를 정하면 해당 기간 식단표를 기준으로 장볼 목록을 분야별로 추천해 드려요.
+                </p>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                    현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}
+                </p>
             </section>
 
             {!hasSupabaseEnv && (
@@ -741,16 +747,7 @@ export default function ShoppingPage() {
             </section>
 
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">장보기 메모</h2>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                            날짜를 정하면 해당 기간 식단표를 기준으로 장볼 목록을 분야별로 추천해 드려요.
-                        </p>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                            현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}
-                        </p>
-                    </div>
+                <div className="flex justify-center">
                     <Link
                         href="/"
                         className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
