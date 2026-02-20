@@ -130,6 +130,13 @@ type PortionGuideModalContent = {
     guide: ReturnType<typeof mealPortionGuideFromPlan>;
 };
 
+type SubstituteGroup = {
+    id: string;
+    nutritionHint: string;
+    keywords: readonly string[];
+    options: readonly string[];
+};
+
 const DISCLAIMER_TEXT =
     '이 서비스는 참고용 식단/기록 도구이며, 치료·약물 관련 결정은 반드시 의료진과 상의하세요.';
 
@@ -185,6 +192,38 @@ const COMMON_MANUAL_FOOD_CANDIDATES = [
     '감자',
     '견과류',
 ] as const;
+const SUBSTITUTE_GROUPS: SubstituteGroup[] = [
+    {
+        id: 'grain',
+        nutritionHint: '탄수화물 공급원군',
+        keywords: ['밥', '죽', '오트밀', '국수', '덮밥', '고구마', '감자'],
+        options: ['현미밥', '잡곡밥', '오트밀', '죽', '고구마', '감자'],
+    },
+    {
+        id: 'protein',
+        nutritionHint: '단백질 공급원군',
+        keywords: ['닭', '생선', '연어', '흰살', '두부', '달걀', '계란', '소고기', '돼지'],
+        options: ['닭가슴살', '연어구이', '흰살생선찜', '두부조림', '달걀찜'],
+    },
+    {
+        id: 'vegetable',
+        nutritionHint: '저열량 채소군',
+        keywords: ['브로콜리', '당근', '양배추', '버섯', '시금치', '오이', '샐러드', '채소'],
+        options: ['브로콜리찜', '당근볶음', '양배추볶음', '버섯볶음', '시금치나물', '오이무침', '샐러드'],
+    },
+    {
+        id: 'soup',
+        nutritionHint: '국/수프군',
+        keywords: ['국', '수프', '탕', '미역', '된장', '콩나물'],
+        options: ['된장국', '미역국', '콩나물국', '채소수프'],
+    },
+    {
+        id: 'snack',
+        nutritionHint: '간식 과일·유제품군',
+        keywords: ['바나나', '사과', '배', '키위', '오렌지', '과일', '요거트', '두유', '견과'],
+        options: ['바나나', '사과', '배', '키위', '오렌지', '그릭요거트', '무가당 요거트', '두유', '견과류'],
+    },
+];
 
 const TWO_WEEK_DAYS = 14;
 const NO_REPEAT_DAYS = 30;
@@ -1034,6 +1073,46 @@ function searchManualFoodCandidates(query: string, candidates: string[], maxResu
     return Array.from(new Set(ranked));
 }
 
+function findSubstituteGroup(foodName: string, slot: MealSlot) {
+    const normalizedName = compactFoodText(stripPortionLabel(foodName));
+    if (!normalizedName) {
+        return null;
+    }
+
+    if (slot === 'snack') {
+        const snackGroup = SUBSTITUTE_GROUPS.find((group) => group.id === 'snack');
+        if (snackGroup) {
+            return snackGroup;
+        }
+    }
+
+    return (
+        SUBSTITUTE_GROUPS.find((group) =>
+            group.keywords.some((keyword) => normalizedName.includes(compactFoodText(keyword)))
+        ) ?? null
+    );
+}
+
+function buildSubstituteCandidates(foodName: string, slot: MealSlot, fallbackCandidates: string[]) {
+    const normalizedCurrent = normalizeManualMealName(stripPortionLabel(foodName));
+    const matchedGroup = findSubstituteGroup(normalizedCurrent, slot);
+    const groupCandidates = (matchedGroup?.options ?? [])
+        .map((name) => normalizeManualMealName(name))
+        .filter(Boolean)
+        .filter((name) => name !== normalizedCurrent);
+
+    const similarCandidates = searchManualFoodCandidates(normalizedCurrent, fallbackCandidates, 8)
+        .map((name) => normalizeManualMealName(name))
+        .filter((name) => name && name !== normalizedCurrent);
+
+    const merged = Array.from(new Set([...groupCandidates, ...similarCandidates])).slice(0, 8);
+
+    return {
+        hint: matchedGroup?.nutritionHint ?? '비슷한 영양군',
+        options: merged,
+    };
+}
+
 function eatenTrackItems(log: DayLog) {
     return SLOT_ORDER.flatMap((slot) => log.meals[slot].filter((item) => item.eaten));
 }
@@ -1385,6 +1464,10 @@ export default function DietPage() {
     const [openPortionGuideContent, setOpenPortionGuideContent] = useState<PortionGuideModalContent | null>(null);
     const [showRecordPlanModal, setShowRecordPlanModal] = useState(false);
     const [openRecordPortionSlot, setOpenRecordPortionSlot] = useState<MealSlot | null>(null);
+    const [openSubstituteTarget, setOpenSubstituteTarget] = useState<{
+        slot: MealSlot;
+        itemId: string;
+    } | null>(null);
     const [showNutrients, setShowNutrients] = useState(false);
     const [newItemBySlot, setNewItemBySlot] = useState<Record<MealSlot, string>>({
         breakfast: '',
@@ -2236,7 +2319,6 @@ export default function DietPage() {
 
         return () => window.clearTimeout(timer);
     }, [loading, openRecordView]);
-
     const updateCurrentLog = (updater: (current: DayLog) => DayLog) => {
         setLogs((prev) => {
             const current = prev[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
@@ -2368,6 +2450,9 @@ export default function DietPage() {
 
     const setMealSlotStatus = (slot: MealSlot, status: 'eaten' | 'not_eaten' | 'reset') => {
         const resetItems = buildDefaultLog(selectedDate, selectedPlan).meals[slot];
+        if (status === 'reset') {
+            setOpenSubstituteTarget((prev) => (prev?.slot === slot ? null : prev));
+        }
         updateCurrentLog((current) => ({
             ...current,
             meals: {
@@ -2397,6 +2482,52 @@ export default function DietPage() {
                 }),
             },
         }));
+    };
+
+    const toggleMealSubstitutePanel = (slot: MealSlot, itemId: string) => {
+        setOpenSubstituteTarget((prev) => {
+            if (prev?.slot === slot && prev.itemId === itemId) {
+                return null;
+            }
+            return {
+                slot,
+                itemId,
+            };
+        });
+    };
+
+    const applyMealSubstitute = (
+        slot: MealSlot,
+        itemId: string,
+        originalName: string,
+        substituteName: string
+    ) => {
+        const normalizedSubstitute = normalizeManualMealName(substituteName);
+        if (!normalizedSubstitute) {
+            return;
+        }
+
+        updateCurrentLog((current) => ({
+            ...current,
+            meals: {
+                ...current.meals,
+                [slot]: current.meals[slot].map((item) =>
+                    item.id === itemId
+                        ? {
+                              ...item,
+                              name: `${normalizedSubstitute} · ${baseAmountByFoodName(normalizedSubstitute, slot)}`,
+                              eaten: true,
+                              notEaten: false,
+                              isManual: true,
+                              servings: 1,
+                          }
+                        : item
+                ),
+            },
+        }));
+
+        setOpenSubstituteTarget(null);
+        setMessage(`"${stripPortionLabel(originalName)}" 대신 "${normalizedSubstitute}"으로 기록했어요.`);
     };
 
     const addMealItem = (
@@ -3035,7 +3166,10 @@ export default function DietPage() {
                                         <button
                                             key={key}
                                             type="button"
-                                            onClick={() => setSelectedDate(key)}
+                                            onClick={() => {
+                                                setSelectedDate(key);
+                                                setOpenSubstituteTarget(null);
+                                            }}
                                             className={`whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition ${
                                                 isSelected
                                                     ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
@@ -3264,36 +3398,89 @@ export default function DietPage() {
                                             </div>
 
                                             <div className="mt-3 space-y-2">
-                                                {items.map((item) => (
-                                                    <div
-                                                        key={item.id}
-                                                        className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900"
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toggleMealItem(slot, item.id)}
-                                                            className={`cursor-pointer min-w-[64px] rounded-lg px-2.5 py-1 text-xs font-semibold ${
-                                                                item.eaten
-                                                                    ? 'bg-emerald-600 text-white'
-                                                                    : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
-                                                            }`}
-                                                        >
-                                                            먹었어요
-                                                        </button>
-                                                        <p className="min-w-0 px-1 text-center text-sm leading-snug text-gray-800 dark:text-gray-100">{item.name}</p>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => markMealAsNotEaten(slot, item.id)}
-                                                            className={`cursor-pointer min-w-[64px] rounded-md border px-2 py-1 text-xs font-semibold ${
-                                                                item.notEaten
-                                                                    ? 'border-amber-400 bg-amber-400 text-amber-950 dark:border-amber-400 dark:bg-amber-400 dark:text-amber-950'
-                                                                    : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-200'
-                                                            }`}
-                                                        >
-                                                            안먹었어요
-                                                        </button>
-                                                    </div>
-                                                ))}
+                                                {items.map((item) => {
+                                                    const isSubstitutePanelOpen =
+                                                        openSubstituteTarget?.slot === slot &&
+                                                        openSubstituteTarget.itemId === item.id;
+                                                    const substituteCandidates = isSubstitutePanelOpen
+                                                        ? buildSubstituteCandidates(item.name, slot, manualFoodCandidates)
+                                                        : null;
+
+                                                    return (
+                                                        <div key={item.id} className="space-y-1.5">
+                                                            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleMealItem(slot, item.id)}
+                                                                    className={`cursor-pointer min-w-[64px] rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                                                                        item.eaten
+                                                                            ? 'bg-emerald-600 text-white'
+                                                                            : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                                                                    }`}
+                                                                >
+                                                                    먹었어요
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => toggleMealSubstitutePanel(slot, item.id)}
+                                                                    className="min-w-0 px-1 text-center text-sm leading-snug text-gray-800 underline decoration-dotted underline-offset-4 transition hover:text-gray-900 dark:text-gray-100 dark:hover:text-white"
+                                                                >
+                                                                    {item.name}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => markMealAsNotEaten(slot, item.id)}
+                                                                    className={`cursor-pointer min-w-[64px] rounded-md border px-2 py-1 text-xs font-semibold ${
+                                                                        item.notEaten
+                                                                            ? 'border-amber-400 bg-amber-400 text-amber-950 dark:border-amber-400 dark:bg-amber-400 dark:text-amber-950'
+                                                                            : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-200'
+                                                                    }`}
+                                                                >
+                                                                    안먹었어요
+                                                                </button>
+                                                            </div>
+
+                                                            {isSubstitutePanelOpen && (
+                                                                <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 dark:border-gray-700 dark:bg-gray-950/40">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">
+                                                                            대체 가능한 음식
+                                                                        </p>
+                                                                        <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                                                            {substituteCandidates?.hint}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    {substituteCandidates && substituteCandidates.options.length > 0 ? (
+                                                                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                                                            {substituteCandidates.options.map((candidate) => (
+                                                                                <button
+                                                                                    key={`${item.id}-${candidate}`}
+                                                                                    type="button"
+                                                                                    onClick={() =>
+                                                                                        applyMealSubstitute(
+                                                                                            slot,
+                                                                                            item.id,
+                                                                                            item.name,
+                                                                                            candidate
+                                                                                        )
+                                                                                    }
+                                                                                    className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                                                >
+                                                                                    {candidate}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                                                                            대체 후보를 찾지 못했어요.
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
 
                                             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
