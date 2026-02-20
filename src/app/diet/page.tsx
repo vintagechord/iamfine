@@ -1608,7 +1608,9 @@ export default function DietPage() {
                                 </button>
                             )}
                         </div>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{viewedTodayDateLabel} 기준</p>
+                        <p className="mt-2 inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+                            {viewedTodayDateLabel}
+                        </p>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                         {profile?.nickname && (
                             <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
