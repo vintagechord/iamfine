@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { MapPinned, Search, Truck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
+import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type FinderCategory = 'healthy' | 'veggie' | 'protein' | 'soft';
 
@@ -35,6 +37,8 @@ type RecommendationResponse = {
     keyword?: string;
     queries: string[];
     items: RecommendationItem[];
+    personalizationApplied?: boolean;
+    personalizationFocusTerms?: string[];
     generatedAt: string;
 };
 
@@ -44,12 +48,104 @@ type SearchContext = {
     lng: number | null;
 };
 
+type StageType =
+    | 'diagnosis'
+    | 'chemo'
+    | 'chemo_2nd'
+    | 'radiation'
+    | 'targeted'
+    | 'immunotherapy'
+    | 'hormone_therapy'
+    | 'surgery'
+    | 'medication'
+    | 'other';
+
+type StageStatus = 'planned' | 'active' | 'completed';
+
+type TreatmentStageRow = {
+    stage_type: StageType;
+    stage_label: string | null;
+    stage_order: number;
+    status: StageStatus;
+    created_at: string;
+};
+
+type TreatmentMeta = {
+    cancerType: string;
+    cancerStage: string;
+    updatedAt: string;
+};
+
+type FinderPatientContext = {
+    mode: 'guest' | 'personalized';
+    cancerType: string;
+    cancerStage: string;
+    activeStageType: StageType | null;
+    activeStageLabel: string;
+    additionalConditions: AdditionalCondition[];
+};
+
 type DeliveryProvider = {
     name: string;
     description: string;
     homepage: string;
     searchUrlTemplate?: string;
 };
+
+const USER_METADATA_NAMESPACE = 'iamfine';
+const STAGE_TYPE_LABELS: Record<StageType, string> = {
+    diagnosis: '진단',
+    chemo: '항암치료',
+    chemo_2nd: '항암치료(2차)',
+    radiation: '방사선치료',
+    targeted: '표적치료',
+    immunotherapy: '면역치료',
+    hormone_therapy: '호르몬치료',
+    surgery: '수술',
+    medication: '약물치료',
+    other: '기타',
+};
+
+function parseTreatmentMetaFromUnknown(raw: unknown): TreatmentMeta | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
+
+    const parsed = raw as Partial<TreatmentMeta>;
+    if (typeof parsed.cancerType !== 'string' || !parsed.cancerType.trim()) {
+        return null;
+    }
+
+    return {
+        cancerType: parsed.cancerType.trim(),
+        cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage.trim() : '',
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
+    };
+}
+
+function readIamfineMetadata(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {
+            treatmentMeta: null as TreatmentMeta | null,
+            additionalConditions: [] as AdditionalCondition[],
+        };
+    }
+
+    const root = raw as Record<string, unknown>;
+    const namespaced = root[USER_METADATA_NAMESPACE];
+    if (!namespaced || typeof namespaced !== 'object' || Array.isArray(namespaced)) {
+        return {
+            treatmentMeta: null as TreatmentMeta | null,
+            additionalConditions: [] as AdditionalCondition[],
+        };
+    }
+
+    const scoped = namespaced as Record<string, unknown>;
+    return {
+        treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
+        additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
+    };
+}
 
 const FINDER_OPTIONS: Record<FinderCategory, FinderOption> = {
     healthy: {
@@ -173,6 +269,16 @@ export default function RestaurantsPage() {
     const [loadingRecommendations, setLoadingRecommendations] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [recommendationError, setRecommendationError] = useState('');
+    const [serverPersonalizationApplied, setServerPersonalizationApplied] = useState(false);
+    const [serverPersonalizationFocusTerms, setServerPersonalizationFocusTerms] = useState<string[]>([]);
+    const [patientContext, setPatientContext] = useState<FinderPatientContext>({
+        mode: 'guest',
+        cancerType: '',
+        cancerStage: '',
+        activeStageType: null,
+        activeStageLabel: '',
+        additionalConditions: [],
+    });
 
     const selected = FINDER_OPTIONS[selectedCategory];
     const quickKeywords = useMemo(
@@ -204,6 +310,31 @@ export default function RestaurantsPage() {
         return `${month}/${day} ${hours}:${minutes}`;
     }, [generatedAt]);
 
+    const patientContextKeywords = useMemo(() => {
+        if (patientContext.mode !== 'personalized') {
+            return [];
+        }
+        const keywords: string[] = [];
+        if (patientContext.cancerType.trim()) {
+            keywords.push(patientContext.cancerType.trim());
+        }
+        if (patientContext.activeStageType) {
+            const stageLabel = patientContext.activeStageLabel.trim();
+            keywords.push(stageLabel || STAGE_TYPE_LABELS[patientContext.activeStageType]);
+        }
+        patientContext.additionalConditions
+            .slice(0, 3)
+            .forEach((condition) => keywords.push(`${condition.name}(${condition.code})`));
+        return keywords;
+    }, [patientContext]);
+
+    const displayedPersonalizationKeywords = useMemo(() => {
+        if (serverPersonalizationApplied && serverPersonalizationFocusTerms.length > 0) {
+            return serverPersonalizationFocusTerms;
+        }
+        return patientContextKeywords;
+    }, [patientContextKeywords, serverPersonalizationApplied, serverPersonalizationFocusTerms]);
+
     const fetchRecommendations = useCallback(
         async (context: SearchContext) => {
             setLoadingRecommendations(true);
@@ -222,6 +353,24 @@ export default function RestaurantsPage() {
                 if (selectedKeyword.trim()) {
                     params.set('keyword', selectedKeyword.trim());
                 }
+                if (patientContext.mode === 'personalized') {
+                    params.set('personalized', '1');
+                    if (patientContext.cancerType.trim()) {
+                        params.set('cancerType', patientContext.cancerType.trim());
+                    }
+                    if (patientContext.cancerStage.trim()) {
+                        params.set('cancerStage', patientContext.cancerStage.trim());
+                    }
+                    if (patientContext.activeStageType) {
+                        params.set('stageType', patientContext.activeStageType);
+                    }
+                    if (patientContext.activeStageLabel.trim()) {
+                        params.set('stageLabel', patientContext.activeStageLabel.trim());
+                    }
+                    patientContext.additionalConditions.slice(0, 8).forEach((condition) => {
+                        params.append('condition', `${condition.name}:${condition.code}`);
+                    });
+                }
 
                 const response = await fetch(`/api/restaurants/recommend?${params.toString()}`, {
                     cache: 'no-store',
@@ -233,6 +382,15 @@ export default function RestaurantsPage() {
                 const json = (await response.json()) as RecommendationResponse;
                 setRecommendations(json.items ?? []);
                 setUsedQueries(json.queries ?? []);
+                setServerPersonalizationApplied(Boolean(json.personalizationApplied));
+                setServerPersonalizationFocusTerms(
+                    Array.isArray(json.personalizationFocusTerms)
+                        ? json.personalizationFocusTerms
+                              .filter((item): item is string => typeof item === 'string')
+                              .map((item) => item.trim())
+                              .filter(Boolean)
+                        : []
+                );
                 const nextResolvedRegion = json.region ?? context.region;
                 setResolvedRegion(nextResolvedRegion);
                 if (context.lat !== null && context.lng !== null && nextResolvedRegion.trim()) {
@@ -244,11 +402,13 @@ export default function RestaurantsPage() {
                 setRecommendationError('추천 식당을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
                 setRecommendations([]);
                 setUsedQueries([]);
+                setServerPersonalizationApplied(false);
+                setServerPersonalizationFocusTerms([]);
             } finally {
                 setLoadingRecommendations(false);
             }
         },
-        [selectedCategory, selectedKeyword]
+        [patientContext, selectedCategory, selectedKeyword]
     );
 
     useEffect(() => {
@@ -281,6 +441,61 @@ export default function RestaurantsPage() {
                 maximumAge: 5 * 60 * 1000,
             }
         );
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadPatientContext = async () => {
+            if (!hasSupabaseEnv || !supabase) {
+                return;
+            }
+
+            try {
+                const { data: userData, error: userError } = await supabase.auth.getUser();
+                if (userError || !userData.user) {
+                    if (!cancelled) {
+                        setPatientContext({
+                            mode: 'guest',
+                            cancerType: '',
+                            cancerStage: '',
+                            activeStageType: null,
+                            activeStageLabel: '',
+                            additionalConditions: [],
+                        });
+                    }
+                    return;
+                }
+
+                const metadata = readIamfineMetadata(userData.user.user_metadata);
+                const { data: stageData } = await supabase
+                    .from('treatment_stages')
+                    .select('stage_type, stage_label, stage_order, status, created_at')
+                    .eq('user_id', userData.user.id)
+                    .order('stage_order', { ascending: true })
+                    .order('created_at', { ascending: true });
+                const stages = (stageData as TreatmentStageRow[] | null) ?? [];
+                const activeStage = stages.find((stage) => stage.status === 'active') ?? stages[0] ?? null;
+
+                if (!cancelled) {
+                    setPatientContext({
+                        mode: 'personalized',
+                        cancerType: metadata.treatmentMeta?.cancerType ?? '',
+                        cancerStage: metadata.treatmentMeta?.cancerStage ?? '',
+                        activeStageType: activeStage?.stage_type ?? null,
+                        activeStageLabel: activeStage?.stage_label?.trim() ?? '',
+                        additionalConditions: metadata.additionalConditions,
+                    });
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
+        void loadPatientContext();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     const updateContextByRegion = () => {
@@ -335,6 +550,34 @@ export default function RestaurantsPage() {
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             치료 상황에 맞는 식당을 키워드로 빠르게 찾을 수 있어요.
                         </p>
+                        {patientContext.mode === 'personalized' ? (
+                            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-950/30">
+                                <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-100">
+                                    로그인 맞춤 추천 모드가 적용됐어요.
+                                </p>
+                                <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
+                                    암 치료 맥락을 우선으로 두고, 치료 단계와 추가 질병 정보를 함께 고려해 더 보수적으로
+                                    추천해요.
+                                </p>
+                                {displayedPersonalizationKeywords.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {displayedPersonalizationKeywords.map((item) => (
+                                            <span
+                                                key={`patient-keyword-${item}`}
+                                                className="rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100"
+                                            >
+                                                {item}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <p className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
+                                비로그인 상태에서도 바로 사용 가능해요. 로그인하면 치료 정보 기반 맞춤 추천이 더 깊게
+                                적용돼요.
+                            </p>
+                        )}
                     </div>
                     <Link
                         href="/"

@@ -1211,6 +1211,71 @@ export default function ShoppingPage() {
         setMemoSavedAt(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')} 저장 완료`);
     };
 
+    if (loading) {
+        return (
+            <main className="space-y-4">
+                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <div className="flex items-center gap-2">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500 text-white shadow-sm dark:bg-sky-600">
+                            <ShoppingCart className="h-5 w-5" />
+                        </span>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
+                    </div>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">불러오는 중이에요…</p>
+                </section>
+            </main>
+        );
+    }
+
+    if (!hasSupabaseEnv || !supabase) {
+        return (
+            <main className="space-y-4">
+                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <div className="flex items-center gap-2">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500 text-white shadow-sm dark:bg-sky-600">
+                            <ShoppingCart className="h-5 w-5" />
+                        </span>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
+                    </div>
+                </section>
+                <section
+                    role="alert"
+                    className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                >
+                    <p className="text-sm font-semibold">설정이 필요해요</p>
+                    <p className="mt-1 text-sm">`.env.local` 파일에서 연결 설정을 확인해 주세요.</p>
+                </section>
+            </main>
+        );
+    }
+
+    if (!userId) {
+        return (
+            <main className="space-y-4">
+                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <div className="flex items-center gap-2">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500 text-white shadow-sm dark:bg-sky-600">
+                            <ShoppingCart className="h-5 w-5" />
+                        </span>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
+                    </div>
+                </section>
+                <section
+                    role="alert"
+                    className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+                >
+                    <p className="text-sm font-semibold">로그인이 필요해요</p>
+                    <p className="mt-1 text-sm">
+                        <Link href="/auth?mode=login" className="font-semibold underline">
+                            로그인 페이지
+                        </Link>
+                        에서 로그인해 주세요.
+                    </p>
+                </section>
+            </main>
+        );
+    }
+
     return (
         <main className="space-y-4">
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -1227,30 +1292,6 @@ export default function ShoppingPage() {
                     현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}
                 </p>
             </section>
-
-            {!hasSupabaseEnv && (
-                <section
-                    role="alert"
-                    className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-                >
-                    <p className="text-sm font-semibold">설정이 필요해요</p>
-                    <p className="mt-1 text-sm">`.env.local` 파일에서 연결 설정을 확인해 주세요.</p>
-                </section>
-            )}
-
-            {hasSupabaseEnv && !loading && !userId && (
-                <section
-                    role="alert"
-                    className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-800 shadow-sm dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
-                >
-                    <p className="text-sm">
-                        로그인하면 오늘 확정한 방향까지 포함한 맞춤 장보기를 볼 수 있어요.{' '}
-                        <Link href="/auth" className="font-semibold underline">
-                            로그인/회원가입
-                        </Link>
-                    </p>
-                </section>
-            )}
 
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">날짜 설정</h2>

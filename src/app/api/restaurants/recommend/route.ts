@@ -25,10 +25,20 @@ type RecommendationItem = {
     sources: WebSource[];
 };
 
+type PersonalizationContext = {
+    enabled: boolean;
+    cancerType: string;
+    cancerStage: string;
+    stageType: string;
+    stageLabel: string;
+    conditions: string[];
+    focusTerms: string[];
+};
+
 const USER_AGENT =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 const FETCH_REVALIDATE_SECONDS = 60 * 60 * 6;
-const MAX_QUERY_COUNT = 4;
+const MAX_QUERY_COUNT = 6;
 const MAX_WEB_SOURCE_COUNT = 40;
 const MAX_RECOMMENDATION_COUNT = 12;
 
@@ -101,6 +111,17 @@ const PLACE_TRAILING_META_MARKERS = [
 const PLACE_CATEGORY_TRAILING_TOKEN_REGEX =
     /^(?:한식|중식|일식|양식|분식|카페|디저트|치킨|피자|버거|족발|보쌈|고기|찌개(?:,전골)?|전골|국밥|백반|샤브샤브|샐러드|포케|브런치)$/u;
 
+const STAGE_FOCUS_TERMS: Record<string, string[]> = {
+    chemo: ['저자극 식사', '부드러운 식사', '담백한 식당'],
+    chemo_2nd: ['저자극 식사', '부드러운 식사', '소화 편한 식당'],
+    radiation: ['부드러운 식사', '수분 보충 식사', '자극 적은 식당'],
+    surgery: ['회복식 식당', '단백질 식사', '소화 편한 식사'],
+    targeted: ['균형식 식당', '담백한 식당'],
+    immunotherapy: ['균형식 식당', '담백한 식당'],
+    hormone_therapy: ['저염식 식당', '균형식 식당'],
+    medication: ['저염식 식당', '균형식 식당'],
+};
+
 function decodeHtml(raw: string) {
     return raw
         .replace(/&amp;/g, '&')
@@ -117,6 +138,104 @@ function cleanText(raw: string) {
         .replace(/<[^>]*>/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function dedupeWords(values: string[], limit: number) {
+    return Array.from(new Set(values.map((item) => cleanText(item)).filter(Boolean))).slice(0, limit);
+}
+
+function stageFocusTerms(stageType: string, stageLabel: string) {
+    const normalizedStageType = cleanText(stageType).toLowerCase();
+    const fromType = STAGE_FOCUS_TERMS[normalizedStageType] ?? [];
+    const fromLabel: string[] = [];
+    if (/항암|chemo/i.test(stageLabel)) {
+        fromLabel.push('저자극 식사');
+    }
+    if (/수술|surgery/i.test(stageLabel)) {
+        fromLabel.push('회복식 식당');
+    }
+    if (/방사선|radiation/i.test(stageLabel)) {
+        fromLabel.push('부드러운 식사');
+    }
+    return dedupeWords([...fromType, ...fromLabel], 5);
+}
+
+function conditionFocusTerms(conditions: string[]) {
+    const focus = new Set<string>();
+    for (const conditionRaw of conditions) {
+        const condition = cleanText(conditionRaw).toLowerCase();
+        if (!condition) {
+            continue;
+        }
+
+        if (/고혈압|hypertension|i10/.test(condition)) {
+            focus.add('저염식 식당');
+        }
+        if (/당뇨|diabetes|e1[0-4]/.test(condition)) {
+            focus.add('저당 식단 식당');
+            focus.add('통곡물 식사');
+        }
+        if (/신장|콩팥|신부전|n18/.test(condition)) {
+            focus.add('신장 부담 적은 식사');
+            focus.add('저염식 식당');
+        }
+        if (/간|간염|지방간|hepatitis|k7/.test(condition)) {
+            focus.add('간 부담 적은 식사');
+            focus.add('저지방 식당');
+        }
+        if (/고지혈|콜레스테롤|지질|e78/.test(condition)) {
+            focus.add('저지방 식당');
+        }
+        if (/위염|장염|소화|역류|위장/.test(condition)) {
+            focus.add('소화 편한 식사');
+            focus.add('자극 적은 식당');
+        }
+        if (/감기|독감|호흡기|기관지|j0/.test(condition)) {
+            focus.add('따뜻한 국물 식사');
+        }
+    }
+
+    return Array.from(focus).slice(0, 6);
+}
+
+function parsePersonalizationContext(searchParams: URLSearchParams): PersonalizationContext {
+    const enabled = searchParams.get('personalized') === '1';
+    const cancerType = cleanText(searchParams.get('cancerType') || '').slice(0, 32);
+    const cancerStage = cleanText(searchParams.get('cancerStage') || '').slice(0, 24);
+    const stageType = cleanText(searchParams.get('stageType') || '').slice(0, 24);
+    const stageLabel = cleanText(searchParams.get('stageLabel') || '').slice(0, 40);
+    const conditions = dedupeWords(searchParams.getAll('condition'), 12);
+
+    if (!enabled) {
+        return {
+            enabled: false,
+            cancerType: '',
+            cancerStage: '',
+            stageType: '',
+            stageLabel: '',
+            conditions: [],
+            focusTerms: [],
+        };
+    }
+
+    const focusTerms = dedupeWords(
+        [
+            ...(cancerType || cancerStage ? ['암환자 식단'] : []),
+            ...stageFocusTerms(stageType, stageLabel),
+            ...conditionFocusTerms(conditions),
+        ],
+        8
+    );
+
+    return {
+        enabled: true,
+        cancerType,
+        cancerStage,
+        stageType,
+        stageLabel,
+        conditions,
+        focusTerms,
+    };
 }
 
 function normalizePlaceName(raw: string) {
@@ -178,6 +297,10 @@ function normalizeForMatch(value: string) {
 
 function unique<T>(items: T[]) {
     return Array.from(new Set(items));
+}
+
+function buildNormalizedTokens(values: string[]) {
+    return unique(values.map((value) => normalizeForMatch(value)).filter((token) => token.length >= 2));
 }
 
 function isLikelyPlaceName(name: string) {
@@ -314,9 +437,19 @@ function scoreRecommendations(
     region: string,
     category: FinderCategory,
     places: PlaceCandidate[],
-    webSources: WebSource[]
+    webSources: WebSource[],
+    personalization: PersonalizationContext
 ) {
     const byName = new Map<string, RecommendationItem>();
+    const personalizationTokens = personalization.enabled
+        ? buildNormalizedTokens([
+              personalization.cancerType,
+              personalization.cancerStage,
+              personalization.stageLabel,
+              ...personalization.focusTerms,
+              ...personalization.conditions,
+          ])
+        : [];
     const normalizedWebSources = webSources.map((source) => ({
         source,
         normalizedTitle: normalizeForMatch(source.title),
@@ -330,6 +463,7 @@ function scoreRecommendations(
         const normalizedName = normalizeForMatch(name);
         const tokens = placeNameTokens(name).map((token) => normalizeForMatch(token));
         const evidence: WebSource[] = [];
+        let personalizedEvidenceCount = 0;
 
         for (const item of normalizedWebSources) {
             const titleMatchedByName = normalizedName.length >= 2 && item.normalizedTitle.includes(normalizedName);
@@ -338,17 +472,31 @@ function scoreRecommendations(
                 continue;
             }
             evidence.push(item.source);
+            if (
+                personalizationTokens.length > 0 &&
+                personalizationTokens.some((token) => token.length >= 2 && item.normalizedTitle.includes(token))
+            ) {
+                personalizedEvidenceCount += 1;
+            }
             if (evidence.length >= 4) {
                 break;
             }
         }
 
         const key = normalizeForMatch(name);
-        const score = place.baseScore + evidence.length * 25;
-        const reason =
-            evidence.length > 0
-                ? `${CATEGORY_LABELS[category]} 관련 웹 문서 ${evidence.length}건에서 언급된 식당이에요.`
-                : '';
+        const personalizedBoost = personalization.enabled ? personalizedEvidenceCount * 14 : 0;
+        const score = place.baseScore + evidence.length * 25 + personalizedBoost;
+        const baseReason =
+            evidence.length > 0 ? `${CATEGORY_LABELS[category]} 관련 웹 문서 ${evidence.length}건에서 언급된 식당이에요.` : '';
+        const personalizedReason =
+            personalization.enabled && personalizedEvidenceCount > 0 && personalization.focusTerms.length > 0
+                ? ` 맞춤 조건(${personalization.focusTerms.slice(0, 2).join(', ')})과 일치한 근거 ${personalizedEvidenceCount}건을 반영했어요.`
+                : personalization.enabled && personalization.focusTerms.length > 0
+                  ? ` 맞춤 조건(${personalization.focusTerms.slice(0, 2).join(', ')})을 함께 고려했어요.`
+                : personalization.enabled
+                  ? ' 맞춤 치료 정보를 고려했어요.'
+                  : '';
+        const reason = baseReason ? `${baseReason}${personalizedReason}` : '';
 
         const previous = byName.get(key);
         if (!previous || previous.score < score) {
@@ -373,8 +521,10 @@ function scoreRecommendations(
             }
             byName.set(key, {
                 name: normalizePlaceName(fallback.name),
-                score: fallback.score,
-                reason: `${CATEGORY_LABELS[category]} 관련 웹 문서에서 추출한 식당명이에요.`,
+                score: fallback.score + (personalization.enabled ? 6 : 0),
+                reason: personalization.enabled
+                    ? `${CATEGORY_LABELS[category]} 관련 웹 문서에서 추출했고, 맞춤 조건을 함께 고려했어요.`
+                    : `${CATEGORY_LABELS[category]} 관련 웹 문서에서 추출한 식당명이에요.`,
                 sourceCount: 1,
                 mapUrl: buildKakaoMapSearchUrl(region, fallback.name),
                 sources: [fallback.source],
@@ -457,20 +607,39 @@ async function resolveRegionByCoordinates(lat: number | null, lng: number | null
     }
 }
 
-function buildSearchQueries(region: string, category: FinderCategory, keyword: string) {
+function buildSearchQueries(region: string, category: FinderCategory, keyword: string, personalization: PersonalizationContext) {
     const terms = CATEGORY_SEARCH_TERMS[category] ?? CATEGORY_SEARCH_TERMS.healthy;
-    const set = new Set<string>();
+    const queries: string[] = [];
+    const pushQuery = (value: string) => {
+        const next = cleanText(value);
+        if (!next || queries.includes(next)) {
+            return;
+        }
+        queries.push(next);
+    };
     const normalizedKeyword = cleanText(keyword);
     if (normalizedKeyword) {
-        set.add(`${region} ${normalizedKeyword}`);
-        set.add(`${region} ${normalizedKeyword} 맛집`);
-        set.add(`${region} ${normalizedKeyword} 식당`);
+        pushQuery(`${region} ${normalizedKeyword}`);
+        pushQuery(`${region} ${normalizedKeyword} 맛집`);
+        pushQuery(`${region} ${normalizedKeyword} 식당`);
     }
-    terms.forEach((term) => {
-        set.add(`${region} ${term}`);
+    terms.slice(0, 2).forEach((term) => {
+        pushQuery(`${region} ${term}`);
     });
-    set.add(`${region} 건강식 맛집`);
-    return Array.from(set).slice(0, MAX_QUERY_COUNT);
+    if (personalization.enabled) {
+        personalization.focusTerms.slice(0, 2).forEach((focusTerm) => {
+            pushQuery(`${region} ${focusTerm}`);
+            pushQuery(`${region} ${focusTerm} ${CATEGORY_LABELS[category]} 식당`);
+        });
+        if (personalization.cancerType) {
+            pushQuery(`${region} ${personalization.cancerType} 환자 식사 가능한 식당`);
+        }
+    }
+    terms.slice(2).forEach((term) => {
+        pushQuery(`${region} ${term}`);
+    });
+    pushQuery(`${region} 건강식 맛집`);
+    return queries.slice(0, MAX_QUERY_COUNT);
 }
 
 export async function GET(request: NextRequest) {
@@ -483,10 +652,11 @@ export async function GET(request: NextRequest) {
     const lat = safeCoordinate(searchParams.get('lat'), -90, 90);
     const lng = safeCoordinate(searchParams.get('lng'), -180, 180);
     const keyword = cleanText(searchParams.get('keyword') || '').slice(0, 32);
+    const personalization = parsePersonalizationContext(searchParams);
 
     const manualRegion = cleanText(searchParams.get('region') || '');
     const resolvedRegion = manualRegion || (await resolveRegionByCoordinates(lat, lng)) || '내 주변';
-    const queries = buildSearchQueries(resolvedRegion, category, keyword);
+    const queries = buildSearchQueries(resolvedRegion, category, keyword, personalization);
 
     const searchTasks = queries.map((query) =>
         fetchText(`https://search.naver.com/search.naver?where=nexearch&query=${encodeURIComponent(query)}`)
@@ -501,7 +671,7 @@ export async function GET(request: NextRequest) {
     const dedupedWebSourcePool = unique(webSourcePool.map((item) => JSON.stringify(item)))
         .map((raw) => JSON.parse(raw) as WebSource)
         .slice(0, MAX_WEB_SOURCE_COUNT);
-    const recommendations = scoreRecommendations(resolvedRegion, category, placePool, dedupedWebSourcePool);
+    const recommendations = scoreRecommendations(resolvedRegion, category, placePool, dedupedWebSourcePool, personalization);
 
     return NextResponse.json({
         region: resolvedRegion,
@@ -510,6 +680,8 @@ export async function GET(request: NextRequest) {
         keyword,
         queries,
         items: recommendations,
+        personalizationApplied: personalization.enabled,
+        personalizationFocusTerms: personalization.focusTerms,
         generatedAt: new Date().toISOString(),
     });
 }
