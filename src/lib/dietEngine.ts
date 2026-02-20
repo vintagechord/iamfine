@@ -135,6 +135,8 @@ const DINNER_MAIN_VARIANTS = ['닭가슴살구이', '흰살생선찜', '두부�
 const SNACK_MAIN_VARIANTS = ['무가당 요거트', '그릭요거트', '무가당 두유', '찐고구마', '사과 조각', '바나나 반 개', '아몬드 소량', '베리류'];
 const SNACK_SIDE_VARIANTS = ['사과 조각', '바나나 반 개', '베리류', '키위', '딸기', '배 조각', '아몬드 소량', '호두 소량'];
 const SNACK_HYDRATION_VARIANTS = ['물', '따뜻한 물'];
+const MEAL_SIMILARITY_THRESHOLD = 0.72;
+const MEAL_REGEN_MAX_ATTEMPTS = 5;
 
 const SEASONAL_FOOD: Record<number, string[]> = {
     1: ['배추', '무', '시금치'],
@@ -300,6 +302,129 @@ function pickNextNonRepeating(current: string, pool: string[], recentValues: Set
     return normalizedCurrent || workingPool[0] || current;
 }
 
+function pickNextNonRepeatingWithOffset(current: string, pool: string[], recentValues: Set<string>, startOffset: number) {
+    const normalizedCurrent = current.trim();
+    const basePool = pool.filter((item) => item.trim().length > 0);
+    const workingPool = normalizedCurrent && !basePool.includes(normalizedCurrent) ? [normalizedCurrent, ...basePool] : basePool;
+
+    if (workingPool.length === 0) {
+        return current;
+    }
+
+    const startIndex = Math.max(0, workingPool.indexOf(normalizedCurrent));
+    const safeOffset = ((Math.round(startOffset) % workingPool.length) + workingPool.length) % workingPool.length;
+
+    for (let offset = 0; offset < workingPool.length; offset += 1) {
+        const candidate = workingPool[(startIndex + safeOffset + offset) % workingPool.length];
+        if (!recentValues.has(candidate)) {
+            return candidate;
+        }
+    }
+
+    const fallback = workingPool[(startIndex + safeOffset) % workingPool.length];
+    return fallback ?? normalizedCurrent ?? current;
+}
+
+function normalizeMealTokenForSimilarity(input: string) {
+    return input
+        .toLowerCase()
+        .replace(/\([^)]*\)/g, '')
+        .replace(/저염|담백한|무가당|저지방|따뜻한|차가운|부드러운|소량/g, '')
+        .replace(/\s+/g, '')
+        .trim();
+}
+
+function extractSimilarityTokens(name: string) {
+    const normalized = normalizeMealTokenForSimilarity(name);
+    if (!normalized) {
+        return [] as string[];
+    }
+
+    const tokens = [`menu:${normalized}`];
+
+    if (normalized.includes('닭')) {
+        tokens.push('protein:chicken');
+    }
+    if (normalized.includes('생선') || normalized.includes('연어') || normalized.includes('고등어') || normalized.includes('흰살')) {
+        tokens.push('protein:fish');
+    }
+    if (normalized.includes('두부') || normalized.includes('콩')) {
+        tokens.push('protein:tofu_bean');
+    }
+    if (normalized.includes('달걀') || normalized.includes('계란')) {
+        tokens.push('protein:egg');
+    }
+    if (normalized.includes('요거트') || normalized.includes('두유')) {
+        tokens.push('protein:dairy_soy');
+    }
+
+    if (normalized.includes('밥') || normalized.includes('죽') || normalized.includes('덮밥') || normalized.includes('국수') || normalized.includes('면')) {
+        tokens.push('carb:grain');
+    }
+    if (normalized.includes('고구마') || normalized.includes('바나나') || normalized.includes('사과') || normalized.includes('배') || normalized.includes('키위') || normalized.includes('딸기') || normalized.includes('베리')) {
+        tokens.push('carb:fruit_starch');
+    }
+
+    if (normalized.includes('구이') || normalized.includes('구운')) {
+        tokens.push('method:grill');
+    }
+    if (normalized.includes('찜')) {
+        tokens.push('method:steam');
+    }
+    if (normalized.includes('볶음')) {
+        tokens.push('method:stir_fry');
+    }
+    if (normalized.includes('무침')) {
+        tokens.push('method:season');
+    }
+    if (normalized.includes('국') || normalized.includes('수프')) {
+        tokens.push('dish:soup');
+    }
+    if (normalized.includes('샐러드')) {
+        tokens.push('dish:salad');
+    }
+
+    return Array.from(new Set(tokens));
+}
+
+function mealSimilarityTokenSet(meal: MealSuggestion, slot: MealSlot) {
+    const names =
+        slot === 'snack'
+            ? [meal.main, ...meal.sides.slice(0, 2), meal.soup]
+            : [meal.riceType, meal.main, meal.soup, ...meal.sides.slice(0, 2)];
+
+    return new Set(names.flatMap((name) => extractSimilarityTokens(name)));
+}
+
+function jaccardSimilarityScore(base: Set<string>, target: Set<string>) {
+    if (base.size === 0 && target.size === 0) {
+        return 0;
+    }
+
+    let intersection = 0;
+    base.forEach((token) => {
+        if (target.has(token)) {
+            intersection += 1;
+        }
+    });
+
+    const union = new Set<string>([...base, ...target]).size;
+    return union === 0 ? 0 : intersection / union;
+}
+
+function maxMealSimilarityAgainstRecent(meal: MealSuggestion, slot: MealSlot, recentPlans: DayPlan[]) {
+    if (recentPlans.length === 0) {
+        return 0;
+    }
+
+    const currentTokens = mealSimilarityTokenSet(meal, slot);
+    return recentPlans.reduce((maxScore, recentPlan) => {
+        const recentTokens = mealSimilarityTokenSet(mealBySlot(recentPlan, slot), slot);
+        const score = jaccardSimilarityScore(currentTokens, recentTokens);
+        return Math.max(maxScore, score);
+    }, 0);
+}
+
 function seasonalFromSide(side: string) {
     const cleaned = side
         .replace(/\([^)]*\)/g, '')
@@ -322,6 +447,8 @@ export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[],
     }
 
     const changedSlots: MealSlot[] = [];
+    const similarityAdjustedSlots: MealSlot[] = [];
+    const similarityUnresolvedSlots: MealSlot[] = [];
     const mainPools: Record<MealSlot, string[]> = {
         breakfast: BREAKFAST_MAIN_VARIANTS,
         lunch: LUNCH_MAIN_VARIANTS,
@@ -331,9 +458,11 @@ export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[],
 
     (['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).forEach((slot) => {
         const meal = mealBySlot(optimized, slot);
+        const originalMain = meal.main;
+        const originalSoup = meal.soup;
+        const originalFirstSide = meal.sides[0] ?? '';
         const recentMainValues = new Set(recent.map((item) => mealBySlot(item, slot).main));
         const nextMain = pickNextNonRepeating(meal.main, mainPools[slot], recentMainValues);
-        const mainChanged = nextMain !== meal.main;
         meal.main = nextMain;
 
         if (slot === 'snack') {
@@ -347,8 +476,6 @@ export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[],
             const nextSide = pickNextNonRepeating(fallbackSide, SNACK_SIDE_VARIANTS, recentSideValues);
             const recentHydrationValues = new Set(recent.map((item) => item.snack.soup));
             const nextHydration = pickNextNonRepeating(meal.soup, SNACK_HYDRATION_VARIANTS, recentHydrationValues);
-            const sideChanged = nextSide !== fallbackSide;
-            const hydrationChanged = nextHydration !== meal.soup;
 
             meal.sides = [nextSide];
             meal.soup = nextHydration;
@@ -357,7 +484,46 @@ export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[],
             meal.recipeName = snackRecipe.recipeName;
             meal.recipeSteps = snackRecipe.recipeSteps;
 
-            if (mainChanged || sideChanged || hydrationChanged) {
+            let similarityScore = maxMealSimilarityAgainstRecent(meal, slot, recent);
+            if (similarityScore >= MEAL_SIMILARITY_THRESHOLD) {
+                for (let attempt = 1; attempt <= MEAL_REGEN_MAX_ATTEMPTS; attempt += 1) {
+                    meal.main = pickNextNonRepeatingWithOffset(meal.main, mainPools[slot], recentMainValues, attempt);
+                    const nextSnackSide = pickNextNonRepeatingWithOffset(
+                        meal.sides[0] ?? fallbackSide,
+                        SNACK_SIDE_VARIANTS,
+                        recentSideValues,
+                        attempt
+                    );
+                    const nextSnackHydration = pickNextNonRepeatingWithOffset(
+                        meal.soup,
+                        SNACK_HYDRATION_VARIANTS,
+                        recentHydrationValues,
+                        attempt
+                    );
+                    meal.sides = [nextSnackSide];
+                    meal.soup = nextSnackHydration;
+                    meal.summary = `${meal.main} + ${nextSnackSide} + ${meal.soup}`;
+                    const refreshedSnackRecipe = buildSnackRecipe(meal.main, nextSnackSide, meal.soup);
+                    meal.recipeName = refreshedSnackRecipe.recipeName;
+                    meal.recipeSteps = refreshedSnackRecipe.recipeSteps;
+
+                    similarityScore = maxMealSimilarityAgainstRecent(meal, slot, recent);
+                    if (similarityScore < MEAL_SIMILARITY_THRESHOLD) {
+                        similarityAdjustedSlots.push(slot);
+                        break;
+                    }
+                }
+            }
+
+            if (similarityScore >= MEAL_SIMILARITY_THRESHOLD) {
+                similarityUnresolvedSlots.push(slot);
+            }
+
+            if (
+                meal.main !== originalMain ||
+                meal.soup !== originalSoup ||
+                (meal.sides[0] ?? '') !== originalFirstSide
+            ) {
                 changedSlots.push(slot);
             }
             return;
@@ -365,33 +531,72 @@ export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[],
 
         const recentSoupValues = new Set(recent.map((item) => mealBySlot(item, slot).soup));
         const nextSoup = pickNextNonRepeating(meal.soup, SOUPS, recentSoupValues);
-        const soupChanged = nextSoup !== meal.soup;
         meal.soup = nextSoup;
 
         const firstSide = meal.sides[0] ?? SIDES[0];
         meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
+        const recipe = buildRecipe(meal.main, meal.soup, firstSide, seasonalFromSide(firstSide));
+        meal.recipeName = recipe.recipeName;
+        meal.recipeSteps = recipe.recipeSteps;
 
-        if (mainChanged || soupChanged) {
-            const recipe = buildRecipe(meal.main, meal.soup, firstSide, seasonalFromSide(firstSide));
-            meal.recipeName = recipe.recipeName;
-            meal.recipeSteps = recipe.recipeSteps;
+        let similarityScore = maxMealSimilarityAgainstRecent(meal, slot, recent);
+        if (similarityScore >= MEAL_SIMILARITY_THRESHOLD) {
+            for (let attempt = 1; attempt <= MEAL_REGEN_MAX_ATTEMPTS; attempt += 1) {
+                meal.main = pickNextNonRepeatingWithOffset(meal.main, mainPools[slot], recentMainValues, attempt);
+                meal.soup = pickNextNonRepeatingWithOffset(meal.soup, SOUPS, recentSoupValues, attempt);
+                meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
+
+                const adjustedFirstSide = meal.sides[0] ?? SIDES[0];
+                const adjustedRecipe = buildRecipe(meal.main, meal.soup, adjustedFirstSide, seasonalFromSide(adjustedFirstSide));
+                meal.recipeName = adjustedRecipe.recipeName;
+                meal.recipeSteps = adjustedRecipe.recipeSteps;
+
+                similarityScore = maxMealSimilarityAgainstRecent(meal, slot, recent);
+                if (similarityScore < MEAL_SIMILARITY_THRESHOLD) {
+                    similarityAdjustedSlots.push(slot);
+                    break;
+                }
+            }
+        }
+
+        if (similarityScore >= MEAL_SIMILARITY_THRESHOLD) {
+            similarityUnresolvedSlots.push(slot);
+        }
+
+        if (meal.main !== originalMain || meal.soup !== originalSoup) {
             changedSlots.push(slot);
         }
     });
 
-    if (changedSlots.length === 0) {
+    if (changedSlots.length === 0 && similarityAdjustedSlots.length === 0 && similarityUnresolvedSlots.length === 0) {
         return {
             plan: optimized,
             notes: [] as string[],
         };
     }
 
+    const notes: string[] = [];
     const uniqueChanged = Array.from(new Set(changedSlots));
-    const labels = uniqueChanged.map((slot) => mealTypeLabel(slot));
+    if (uniqueChanged.length > 0) {
+        const labels = uniqueChanged.map((slot) => mealTypeLabel(slot));
+        notes.push(`최근 ${recentWindow}일 중복 방지 규칙으로 ${labels.join(', ')} 메뉴를 자동 분산했어요.`);
+    }
+
+    const uniqueSimilarityAdjusted = Array.from(new Set(similarityAdjustedSlots));
+    if (uniqueSimilarityAdjusted.length > 0) {
+        const labels = uniqueSimilarityAdjusted.map((slot) => mealTypeLabel(slot));
+        notes.push(`유사도 필터(72% 이상)로 ${labels.join(', ')} 메뉴를 재생성해 반복을 더 줄였어요.`);
+    }
+
+    const uniqueSimilarityUnresolved = Array.from(new Set(similarityUnresolvedSlots));
+    if (uniqueSimilarityUnresolved.length > 0) {
+        const labels = uniqueSimilarityUnresolved.map((slot) => mealTypeLabel(slot));
+        notes.push(`메뉴 풀이 제한적이라 ${labels.join(', ')}은 일부 유사 패턴이 남았어요. 다음 추천에서 후보군을 더 늘려 개선할게요.`);
+    }
 
     return {
         plan: optimized,
-        notes: [`최근 ${recentWindow}일 중복 방지 규칙으로 ${labels.join(', ')} 메뉴를 자동 분산했어요.`],
+        notes,
     };
 }
 
