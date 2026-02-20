@@ -901,6 +901,102 @@ function normalizeManualMealName(input: string) {
     return withoutPortion || firstItem;
 }
 
+function compactFoodText(input: string) {
+    return input.toLowerCase().replace(/[^0-9a-zA-Z가-힣]/g, '');
+}
+
+function levenshteinDistance(a: string, b: string) {
+    if (a === b) {
+        return 0;
+    }
+
+    if (!a) {
+        return b.length;
+    }
+
+    if (!b) {
+        return a.length;
+    }
+
+    const prev = Array.from({ length: b.length + 1 }, (_, index) => index);
+    const next = new Array<number>(b.length + 1).fill(0);
+
+    for (let i = 1; i <= a.length; i += 1) {
+        next[0] = i;
+        for (let j = 1; j <= b.length; j += 1) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            next[j] = Math.min(
+                prev[j] + 1,
+                next[j - 1] + 1,
+                prev[j - 1] + cost
+            );
+        }
+        for (let j = 0; j <= b.length; j += 1) {
+            prev[j] = next[j];
+        }
+    }
+
+    return prev[b.length];
+}
+
+function foodNameSimilarityScore(query: string, candidate: string) {
+    const normalizedQuery = compactFoodText(normalizeManualMealName(query));
+    const normalizedCandidate = compactFoodText(stripPortionLabel(candidate));
+
+    if (!normalizedQuery || !normalizedCandidate) {
+        return 0;
+    }
+
+    if (normalizedQuery === normalizedCandidate) {
+        return 1;
+    }
+
+    let score = 0;
+
+    if (normalizedCandidate.includes(normalizedQuery)) {
+        score = Math.max(
+            score,
+            0.9 + Math.min(normalizedQuery.length / normalizedCandidate.length, 0.08)
+        );
+    }
+    if (normalizedQuery.includes(normalizedCandidate)) {
+        score = Math.max(
+            score,
+            0.84 + Math.min(normalizedCandidate.length / normalizedQuery.length, 0.08)
+        );
+    }
+
+    const distance = levenshteinDistance(normalizedQuery, normalizedCandidate);
+    const distanceScore = 1 - distance / Math.max(normalizedQuery.length, normalizedCandidate.length);
+    score = Math.max(score, distanceScore);
+
+    const queryCharSet = new Set(normalizedQuery.split(''));
+    const overlapCount = normalizedCandidate.split('').filter((char) => queryCharSet.has(char)).length;
+    const overlapScore = overlapCount / Math.max(normalizedQuery.length, normalizedCandidate.length);
+    score = Math.max(score, overlapScore * 0.85);
+
+    return clamp(score, 0, 1);
+}
+
+function searchManualFoodCandidates(query: string, candidates: string[], maxResults = 8) {
+    const normalizedQuery = normalizeManualMealName(query);
+    if (!normalizedQuery) {
+        return [];
+    }
+
+    const ranked = candidates
+        .map((name) => ({
+            name,
+            score: foodNameSimilarityScore(normalizedQuery, name),
+        }))
+        .filter((item) => item.score >= 0.42)
+        .sort((a, b) => b.score - a.score || a.name.length - b.name.length || a.name.localeCompare(b.name, 'ko'))
+        .slice(0, maxResults)
+        .map((item) => item.name);
+
+    return Array.from(new Set(ranked));
+}
+
 function eatenTrackItems(log: DayLog) {
     return SLOT_ORDER.flatMap((slot) => log.meals[slot].filter((item) => item.eaten));
 }
@@ -1694,6 +1790,54 @@ export default function DietPage() {
         () => logs[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan),
         [logs, selectedDate, selectedPlan]
     );
+    const manualFoodCandidates = useMemo(() => {
+        const names = new Set<string>();
+        const addCandidate = (rawName: string) => {
+            const normalized = normalizeManualMealName(stripPortionLabel(rawName));
+            if (!normalized) {
+                return;
+            }
+            names.add(normalized);
+        };
+
+        const planDateKeys = Array.from({ length: 21 }, (_, index) => offsetDateKey(todayKey, index - 10));
+        planDateKeys.forEach((dateKey) => {
+            const plan = getPlanForDate(dateKey);
+            const meals: Record<MealSlot, MealPlanItem> = {
+                breakfast: plan.breakfast,
+                lunch: plan.lunch,
+                dinner: plan.dinner,
+                snack: plan.snack,
+            };
+            SLOT_ORDER.forEach((slot) => {
+                mealItemsFromSuggestion(meals[slot], slot).forEach((name) => addCandidate(name));
+            });
+        });
+
+        Object.values(logs).forEach((log) => {
+            SLOT_ORDER.forEach((slot) => {
+                log.meals[slot].forEach((item) => addCandidate(item.name));
+            });
+        });
+
+        return Array.from(names).sort((a, b) => a.localeCompare(b, 'ko'));
+    }, [todayKey, getPlanForDate, logs]);
+    const manualMatchCandidatesBySlot = useMemo<Record<MealSlot, string[]>>(
+        () =>
+            SLOT_ORDER.reduce<Record<MealSlot, string[]>>(
+                (acc, slot) => {
+                    acc[slot] = searchManualFoodCandidates(newItemBySlot[slot], manualFoodCandidates);
+                    return acc;
+                },
+                {
+                    breakfast: [],
+                    lunch: [],
+                    dinner: [],
+                    snack: [],
+                }
+            ),
+        [newItemBySlot, manualFoodCandidates]
+    );
     const viewedTodayDateKey = useMemo(
         () => offsetDateKey(todayKey, todayPlanOffset),
         [todayKey, todayPlanOffset]
@@ -2208,8 +2352,11 @@ export default function DietPage() {
         }));
     };
 
-    const addMealItem = (slot: MealSlot) => {
-        const input = newItemBySlot[slot].trim();
+    const addMealItem = (slot: MealSlot, matchedFoodName?: string) => {
+        const suggestedNames = manualMatchCandidatesBySlot[slot];
+        const autoMatchedName =
+            !matchedFoodName && suggestedNames.length > 0 ? suggestedNames[0] : undefined;
+        const input = (matchedFoodName ?? autoMatchedName ?? newItemBySlot[slot]).trim();
         if (!input) {
             return;
         }
@@ -2235,6 +2382,15 @@ export default function DietPage() {
                 ],
             },
         }));
+
+        const typedRaw = newItemBySlot[slot].trim();
+        if (
+            (matchedFoodName || autoMatchedName) &&
+            typedRaw &&
+            normalizeManualMealName(typedRaw) !== normalizedName
+        ) {
+            setMessage(`입력한 "${typedRaw}"을 "${normalizedName}"(으)로 매칭해 기록했어요.`);
+        }
 
         setNewItemBySlot((prev) => ({
             ...prev,
@@ -3081,6 +3237,13 @@ export default function DietPage() {
                                                             [slot]: event.target.value,
                                                         }))
                                                     }
+                                                    onKeyDown={(event) => {
+                                                        if (event.key !== 'Enter') {
+                                                            return;
+                                                        }
+                                                        event.preventDefault();
+                                                        addMealItem(slot);
+                                                    }}
                                                     placeholder="먹은 음식 추가"
                                                     className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                                 />
@@ -3092,6 +3255,31 @@ export default function DietPage() {
                                                     추가
                                                 </button>
                                             </div>
+                                            {newItemBySlot[slot].trim().length > 0 && (
+                                                <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-950/40">
+                                                    <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">
+                                                        유사 음식 선택
+                                                    </p>
+                                                    {manualMatchCandidatesBySlot[slot].length > 0 ? (
+                                                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                                            {manualMatchCandidatesBySlot[slot].map((candidate) => (
+                                                                <button
+                                                                    key={`${slot}-${candidate}`}
+                                                                    type="button"
+                                                                    onClick={() => addMealItem(slot, candidate)}
+                                                                    className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                                >
+                                                                    {candidate}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                                                            비슷한 후보가 없어요. 입력 후 추가하면 새 음식으로 기록돼요.
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
                                             <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
                                                 직접 입력한 음식은 1인분 기준으로 분석해요.
                                             </p>
