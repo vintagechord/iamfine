@@ -115,6 +115,8 @@ type RecipeModalContent = {
     recipeSteps: string[];
 };
 
+type FinderKeywordGroup = 'health' | 'veggie';
+
 const DISCLAIMER_TEXT =
     '이 서비스는 참고용 식단/기록 도구이며, 치료·약물 관련 결정은 반드시 의료진과 상의하세요.';
 
@@ -134,14 +136,23 @@ const DEFAULT_STORE: DietStore = {
 const KAKAO_MAP_SEARCH_BASE_URL = 'https://map.kakao.com/?q=';
 const HEALTH_FINDER_KEYWORDS = [
     '건강식 식당',
-    '샐러드 전문점',
-    '포케',
-    '비건 식당',
+    '저염식 한식',
     '한식 백반',
     '죽 전문점',
     '생선구이',
     '쌈밥',
     '두부요리',
+    '닭가슴살 식당',
+];
+const VEGGIE_FINDER_KEYWORDS = [
+    '샐러드 전문점',
+    '포케',
+    '채식 식당',
+    '비건 식당',
+    '야채 샤브샤브',
+    '샤브샤브',
+    '그린 샐러드',
+    '야채 요리',
 ];
 
 function buildKakaoMapSearchUrl(keyword: string) {
@@ -674,6 +685,7 @@ export default function DietPage() {
     const [selectedDate, setSelectedDate] = useState(todayKey);
     const [todayPlanOffset, setTodayPlanOffset] = useState(0);
     const [openRecipeSlot, setOpenRecipeSlot] = useState<RecipeTarget | null>(null);
+    const [openFinderKeywordGroup, setOpenFinderKeywordGroup] = useState<FinderKeywordGroup | null>(null);
     const [showRecordPlanModal, setShowRecordPlanModal] = useState(false);
     const [showNutrients, setShowNutrients] = useState(false);
     const [newItemBySlot, setNewItemBySlot] = useState<Record<MealSlot, string>>({
@@ -2382,52 +2394,77 @@ export default function DietPage() {
                 <section className="finderSection rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <h2 className="finderSection__title text-lg font-semibold text-gray-900 dark:text-gray-100">근처 건강식 찾기</h2>
                     <div className="finderSection__grid mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <a
-                            href={buildKakaoMapSearchUrl('건강식 식당')}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="finderSearch finderSearch--leaf flex h-12 items-center gap-3 rounded-full px-3"
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setOpenFinderKeywordGroup((prev) => (prev === 'health' ? null : 'health'))
+                            }
+                            aria-expanded={openFinderKeywordGroup === 'health'}
+                            aria-controls="finder-health-keywords"
+                            className="finderSearch finderSearch--leaf flex h-12 w-full items-center gap-3 rounded-full px-3 text-left"
                         >
                             <span className="finderSearch__left relative grid h-8 w-8 shrink-0 place-items-center rounded-full" aria-hidden="true">
                                 <MapPin className="finderSearch__icon h-[18px] w-[18px]" />
                                 <span className="finderSearch__dot absolute -right-1 -top-1"></span>
                             </span>
                             <span className="finderSearch__text flex-1 truncate text-sm">내 주변 건강식 식당 찾기</span>
-                            <ChevronRight className="finderSearch__chev h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-                        </a>
-                        <a
-                            href={buildKakaoMapSearchUrl('샐러드 전문점')}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="finderSearch finderSearch--salad flex h-12 items-center gap-3 rounded-full px-3"
+                            <ChevronRight
+                                className={`finderSearch__chev h-[18px] w-[18px] shrink-0 transition-transform ${
+                                    openFinderKeywordGroup === 'health' ? 'rotate-90' : ''
+                                }`}
+                                aria-hidden="true"
+                            />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setOpenFinderKeywordGroup((prev) => (prev === 'veggie' ? null : 'veggie'))
+                            }
+                            aria-expanded={openFinderKeywordGroup === 'veggie'}
+                            aria-controls="finder-veggie-keywords"
+                            className="finderSearch finderSearch--salad flex h-12 w-full items-center gap-3 rounded-full px-3 text-left"
                         >
                             <span className="finderSearch__left relative grid h-8 w-8 shrink-0 place-items-center rounded-full" aria-hidden="true">
                                 <Leaf className="finderSearch__icon h-[18px] w-[18px]" />
                                 <span className="finderSearch__dot absolute -right-1 -top-1"></span>
                             </span>
                             <span className="finderSearch__text flex-1 truncate text-sm">내 주변 샐러드/야채 식당 찾기</span>
-                            <ChevronRight className="finderSearch__chev h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-                        </a>
+                            <ChevronRight
+                                className={`finderSearch__chev h-[18px] w-[18px] shrink-0 transition-transform ${
+                                    openFinderKeywordGroup === 'veggie' ? 'rotate-90' : ''
+                                }`}
+                                aria-hidden="true"
+                            />
+                        </button>
                     </div>
-                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950/30">
-                        <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">추천 검색 키워드</p>
-                        <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
-                            아래 키워드를 누르면 카카오맵에서 바로 검색돼요.
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                            {HEALTH_FINDER_KEYWORDS.map((keyword) => (
-                                <a
-                                    key={keyword}
-                                    href={buildKakaoMapSearchUrl(keyword)}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
-                                >
-                                    {keyword}
-                                </a>
-                            ))}
+                    {openFinderKeywordGroup && (
+                        <div
+                            id={openFinderKeywordGroup === 'health' ? 'finder-health-keywords' : 'finder-veggie-keywords'}
+                            className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950/30"
+                        >
+                            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">추천 검색 키워드</p>
+                            <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
+                                {openFinderKeywordGroup === 'health'
+                                    ? '건강식 위주 키워드를 눌러 카카오맵에서 바로 찾아보세요.'
+                                    : '샐러드/야채/채식 위주 키워드를 눌러 카카오맵에서 바로 찾아보세요.'}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {(openFinderKeywordGroup === 'health' ? HEALTH_FINDER_KEYWORDS : VEGGIE_FINDER_KEYWORDS).map(
+                                    (keyword) => (
+                                        <a
+                                            key={`${openFinderKeywordGroup}-${keyword}`}
+                                            href={buildKakaoMapSearchUrl(keyword)}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="rounded-full border border-emerald-300 bg-white px-3 py-1 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
+                                        >
+                                            {keyword}
+                                        </a>
+                                    )
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </section>
             )}
 
