@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { MapPinned, NotebookPen, ShoppingCart, Utensils } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { CalendarClock, MapPinned, NotebookPen, ShoppingCart, Stethoscope, Utensils } from 'lucide-react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { formatDateKey, STAGE_TYPE_LABELS, type StageType } from '@/lib/dietEngine';
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
@@ -38,6 +38,15 @@ type CustomAlertCache = {
     updatedAt: string;
 };
 
+type VisitScheduleItem = {
+    id: string;
+    visitDate: string;
+    visitTime: string;
+    treatmentNote: string;
+    preparationNote: string;
+    createdAt: string;
+};
+
 const DAILY_HYMN_VIDEOS: HymnVideo[] = [
     { title: '찬송가 305장 나 같은 죄인 살리신', videoId: 'SfUoRQy-LH4' },
     { title: '찬송가 305장 나 같은 죄인 살리신', videoId: 'wbWtTmUNjrI' },
@@ -54,6 +63,7 @@ const ALERT_PAGE_SIZE = 5;
 const ALERT_AUTO_SLIDE_MS = 6000;
 const ALERT_CACHE_PREFIX = 'custom-alert-cache-v1';
 const ALERT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const VISIT_SCHEDULE_PREFIX = 'visit-schedule-v1';
 
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const USER_METADATA_NAMESPACE = 'iamfine';
@@ -207,6 +217,76 @@ function parseCustomAlertCache(raw: string | null): CustomAlertCache | null {
     }
 }
 
+function getVisitScheduleKey(userId: string | null) {
+    return `${VISIT_SCHEDULE_PREFIX}:${userId ?? 'guest'}`;
+}
+
+function parseVisitScheduleList(raw: string | null) {
+    if (!raw) {
+        return [] as VisitScheduleItem[];
+    }
+
+    try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) {
+            return [] as VisitScheduleItem[];
+        }
+
+        return parsed
+            .filter((item): item is VisitScheduleItem => {
+                if (!item || typeof item !== 'object') {
+                    return false;
+                }
+                const candidate = item as Partial<VisitScheduleItem>;
+                return (
+                    typeof candidate.id === 'string' &&
+                    typeof candidate.visitDate === 'string' &&
+                    typeof candidate.visitTime === 'string' &&
+                    typeof candidate.treatmentNote === 'string' &&
+                    typeof candidate.preparationNote === 'string' &&
+                    typeof candidate.createdAt === 'string'
+                );
+            })
+            .sort((a, b) => {
+                const aKey = `${a.visitDate} ${a.visitTime}`;
+                const bKey = `${b.visitDate} ${b.visitTime}`;
+                return aKey.localeCompare(bKey);
+            });
+    } catch {
+        return [] as VisitScheduleItem[];
+    }
+}
+
+function formatVisitScheduleDate(rawDate: string) {
+    if (!rawDate) {
+        return '날짜 미정';
+    }
+
+    const [year, month, day] = rawDate.split('-').map(Number);
+    if (!year || !month || !day) {
+        return rawDate;
+    }
+
+    const date = new Date(year, month - 1, day);
+    const weekday = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+    return `${month}/${day}(${weekday})`;
+}
+
+function formatVisitScheduleTime(rawTime: string) {
+    if (!rawTime) {
+        return '시간 미정';
+    }
+
+    const [hour, minute] = rawTime.split(':').map(Number);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+        return rawTime;
+    }
+
+    const period = hour >= 12 ? '오후' : '오전';
+    const normalizedHour = hour % 12 === 0 ? 12 : hour % 12;
+    return `${period} ${normalizedHour}:${String(minute).padStart(2, '0')}`;
+}
+
 export default function Home() {
     const todayKey = formatDateKey(new Date());
     const [todayHymnVideo, setTodayHymnVideo] = useState<HymnVideo | null>(null);
@@ -219,6 +299,15 @@ export default function Home() {
     const [customAlertUpdatedAt, setCustomAlertUpdatedAt] = useState('');
     const [customAlertLoading, setCustomAlertLoading] = useState(false);
     const [customAlertPage, setCustomAlertPage] = useState(0);
+    const [authUserId, setAuthUserId] = useState<string | null>(null);
+    const [visitSchedules, setVisitSchedules] = useState<VisitScheduleItem[]>([]);
+    const [showVisitScheduleModal, setShowVisitScheduleModal] = useState(false);
+    const [visitDateInput, setVisitDateInput] = useState('');
+    const [visitTimeInput, setVisitTimeInput] = useState('');
+    const [visitTreatmentInput, setVisitTreatmentInput] = useState('');
+    const [visitPreparationInput, setVisitPreparationInput] = useState('');
+    const [visitFormMessage, setVisitFormMessage] = useState('');
+    const [visitFormIsError, setVisitFormIsError] = useState(false);
 
     const startIndex = useMemo(() => {
         const seed = Number(todayKey.replaceAll('-', ''));
@@ -287,6 +376,7 @@ export default function Home() {
                     setIsLoggedIn(false);
                     setTreatmentMeta(null);
                     setStageType('medication');
+                    setAuthUserId(null);
                     setAlertContextReady(true);
                 }
                 return;
@@ -298,6 +388,7 @@ export default function Home() {
                     setIsLoggedIn(false);
                     setTreatmentMeta(null);
                     setStageType('medication');
+                    setAuthUserId(null);
                     setAlertContextReady(true);
                 }
                 return;
@@ -305,6 +396,7 @@ export default function Home() {
 
             const uid = userData.user.id;
             setIsLoggedIn(true);
+            setAuthUserId(uid);
             const metadataMeta = readIamfineTreatmentMeta(userData.user.user_metadata);
             const localMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             const meta = metadataMeta ?? localMeta;
@@ -342,6 +434,15 @@ export default function Home() {
             cancelled = true;
         };
     }, []);
+
+    useEffect(() => {
+        if (!alertContextReady) {
+            return;
+        }
+
+        const key = getVisitScheduleKey(authUserId);
+        setVisitSchedules(parseVisitScheduleList(localStorage.getItem(key)));
+    }, [alertContextReady, authUserId]);
 
     useEffect(() => {
         if (!alertContextReady) {
@@ -452,6 +553,66 @@ export default function Home() {
         return customAlertItems.slice(start, start + ALERT_PAGE_SIZE);
     }, [customAlertItems, customAlertPage]);
 
+    const upcomingVisit = useMemo(() => {
+        if (visitSchedules.length === 0) {
+            return null;
+        }
+
+        const now = Date.now();
+        const upcoming = visitSchedules.find((item) => {
+            const parsed = Date.parse(`${item.visitDate}T${item.visitTime || '00:00'}:00`);
+            return Number.isFinite(parsed) && parsed >= now;
+        });
+        return upcoming ?? visitSchedules[visitSchedules.length - 1];
+    }, [visitSchedules]);
+
+    const persistVisitSchedules = (nextItems: VisitScheduleItem[]) => {
+        const normalized = [...nextItems].sort((a, b) => {
+            const aKey = `${a.visitDate} ${a.visitTime}`;
+            const bKey = `${b.visitDate} ${b.visitTime}`;
+            return aKey.localeCompare(bKey);
+        });
+        setVisitSchedules(normalized);
+        localStorage.setItem(getVisitScheduleKey(authUserId), JSON.stringify(normalized));
+    };
+
+    const resetVisitForm = () => {
+        setVisitDateInput('');
+        setVisitTimeInput('');
+        setVisitTreatmentInput('');
+        setVisitPreparationInput('');
+    };
+
+    const handleVisitScheduleSave = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const trimmedTreatment = visitTreatmentInput.trim();
+        const trimmedPreparation = visitPreparationInput.trim();
+
+        if (!visitDateInput || !visitTimeInput || !trimmedTreatment) {
+            setVisitFormIsError(true);
+            setVisitFormMessage('방문 일자, 시간, 진료 내용을 입력해 주세요.');
+            return;
+        }
+
+        const nextItem: VisitScheduleItem = {
+            id: `visit-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            visitDate: visitDateInput,
+            visitTime: visitTimeInput,
+            treatmentNote: trimmedTreatment,
+            preparationNote: trimmedPreparation,
+            createdAt: new Date().toISOString(),
+        };
+
+        persistVisitSchedules([...visitSchedules, nextItem]);
+        setVisitFormIsError(false);
+        setVisitFormMessage('진료 일정이 저장되었어요.');
+        resetVisitForm();
+    };
+
+    const handleVisitScheduleDelete = (targetId: string) => {
+        persistVisitSchedules(visitSchedules.filter((item) => item.id !== targetId));
+    };
+
     return (
         <main className="mx-auto max-w-3xl space-y-4 py-6">
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -491,6 +652,41 @@ export default function Home() {
                     </span>
                     <span className="quickTileMono__label text-xl">건강식당 찾기</span>
                 </Link>
+            </section>
+
+            <section className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                                aria-hidden="true"
+                            >
+                                <CalendarClock className="h-4 w-4" />
+                            </span>
+                            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">다음 병원 방문/진료 일정</h2>
+                            <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                총 {visitSchedules.length}건
+                            </span>
+                        </div>
+                        <p className="mt-1 truncate text-sm text-gray-600 dark:text-gray-300">
+                            {upcomingVisit
+                                ? `${formatVisitScheduleDate(upcomingVisit.visitDate)} ${formatVisitScheduleTime(upcomingVisit.visitTime)} · ${upcomingVisit.treatmentNote}`
+                                : '다음 병원 방문 일정을 등록해 주세요.'}
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setShowVisitScheduleModal(true);
+                            setVisitFormMessage('');
+                            setVisitFormIsError(false);
+                        }}
+                        className="inline-flex items-center justify-center rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                    >
+                        일정 입력/보기
+                    </button>
+                </div>
             </section>
 
             {SHOW_DAILY_HYMN && (
@@ -600,6 +796,148 @@ export default function Home() {
                     </div>
                 )}
             </section>
+
+            {showVisitScheduleModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    onClick={() => {
+                        setShowVisitScheduleModal(false);
+                        setVisitFormMessage('');
+                    }}
+                >
+                    <section
+                        className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-800 dark:bg-gray-900"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">다음 병원 방문/진료 일정</h3>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                                    방문 일정은 여러 건 저장되며, 카드 형태로 계속 누적됩니다.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowVisitScheduleModal(false);
+                                    setVisitFormMessage('');
+                                }}
+                                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                                닫기
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleVisitScheduleSave} className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <label className="space-y-1">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">방문 일자</span>
+                                <input
+                                    type="date"
+                                    value={visitDateInput}
+                                    onChange={(event) => setVisitDateInput(event.target.value)}
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
+                                />
+                            </label>
+                            <label className="space-y-1">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">방문 시간</span>
+                                <input
+                                    type="time"
+                                    value={visitTimeInput}
+                                    onChange={(event) => setVisitTimeInput(event.target.value)}
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
+                                />
+                            </label>
+                            <label className="space-y-1 sm:col-span-2">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">진료 내용</span>
+                                <input
+                                    type="text"
+                                    value={visitTreatmentInput}
+                                    onChange={(event) => setVisitTreatmentInput(event.target.value)}
+                                    placeholder="예: 항암 부작용 추적 진료"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
+                                />
+                            </label>
+                            <label className="space-y-1 sm:col-span-2">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">준비사항</span>
+                                <textarea
+                                    value={visitPreparationInput}
+                                    onChange={(event) => setVisitPreparationInput(event.target.value)}
+                                    rows={2}
+                                    placeholder="예: 최근 검사 결과지, 복용 약 목록 지참"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
+                                />
+                            </label>
+                            <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
+                                <button
+                                    type="submit"
+                                    className="rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                                >
+                                    일정 저장
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        resetVisitForm();
+                                        setVisitFormMessage('');
+                                    }}
+                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                    입력 초기화
+                                </button>
+                                {visitFormMessage && (
+                                    <p
+                                        className={`text-sm font-semibold ${
+                                            visitFormIsError
+                                                ? 'text-rose-600 dark:text-rose-300'
+                                                : 'text-emerald-600 dark:text-emerald-300'
+                                        }`}
+                                    >
+                                        {visitFormMessage}
+                                    </p>
+                                )}
+                            </div>
+                        </form>
+
+                        <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800">
+                                <Stethoscope className="h-4 w-4 text-gray-600 dark:text-gray-300" aria-hidden="true" />
+                                <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100">등록된 진료 카드</h4>
+                            </div>
+                            {visitSchedules.length === 0 ? (
+                                <p className="px-3 py-4 text-sm text-gray-600 dark:text-gray-300">
+                                    아직 저장된 일정이 없어요. 위 입력값을 작성해 첫 일정을 등록해 주세요.
+                                </p>
+                            ) : (
+                                <div className="max-h-[40vh] divide-y divide-gray-200 overflow-y-auto dark:divide-gray-800">
+                                    {visitSchedules.map((item) => (
+                                        <article key={item.id} className="px-3 py-3">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                        {formatVisitScheduleDate(item.visitDate)} ·{' '}
+                                                        {formatVisitScheduleTime(item.visitTime)}
+                                                    </p>
+                                                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{item.treatmentNote}</p>
+                                                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                                        준비사항: {item.preparationNote || '없음'}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleVisitScheduleDelete(item.id)}
+                                                    className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                                                >
+                                                    삭제
+                                                </button>
+                                            </div>
+                                        </article>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                </div>
+            )}
         </main>
     );
 }
