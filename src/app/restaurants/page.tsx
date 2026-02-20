@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BellRing, MapPinned, Search, Truck } from 'lucide-react';
+import { MapPinned, Search, Truck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type FinderCategory = 'healthy' | 'veggie' | 'protein' | 'soft';
@@ -43,6 +43,13 @@ type SearchContext = {
     lng: number | null;
 };
 
+type DeliveryProvider = {
+    name: string;
+    description: string;
+    homepage: string;
+    searchUrlTemplate?: string;
+};
+
 const FINDER_OPTIONS: Record<FinderCategory, FinderOption> = {
     healthy: {
         label: '건강식 일반',
@@ -66,6 +73,25 @@ const FINDER_OPTIONS: Record<FinderCategory, FinderOption> = {
     },
 };
 
+const DELIVERY_PROVIDERS: DeliveryProvider[] = [
+    {
+        name: '배달의민족',
+        description: '배민1/가게배달 포함 주요 배달 플랫폼',
+        homepage: 'https://www.baemin.com',
+    },
+    {
+        name: '요기요',
+        description: '지역 기반 배달 식당 탐색과 포장 주문 지원',
+        homepage: 'https://www.yogiyo.co.kr/mobile',
+        searchUrlTemplate: 'https://www.yogiyo.co.kr/mobile/#/search/',
+    },
+    {
+        name: '쿠팡이츠',
+        description: '빠른 배달 중심의 지역 식당 탐색 플랫폼',
+        homepage: 'https://www.coupangeats.com',
+    },
+];
+
 export default function RestaurantsPage() {
     const [selectedCategory, setSelectedCategory] = useState<FinderCategory>('healthy');
     const [regionInput, setRegionInput] = useState('서울');
@@ -84,6 +110,16 @@ export default function RestaurantsPage() {
 
     const selected = FINDER_OPTIONS[selectedCategory];
     const quickKeywords = useMemo(() => selected.keywords.slice(0, 6), [selected]);
+    const deliveryKeywords = useMemo(() => {
+        const recommendationKeywords = recommendations.map((item) => item.name.trim()).filter(Boolean);
+        const merged = [...recommendationKeywords, ...quickKeywords];
+        return Array.from(new Set(merged)).slice(0, 6);
+    }, [quickKeywords, recommendations]);
+
+    const deliveryRestaurantNames = useMemo(() => {
+        return recommendations.map((item) => item.name).filter(Boolean).slice(0, 6);
+    }, [recommendations]);
+
     const generatedAtLabel = useMemo(() => {
         if (!generatedAt) {
             return '';
@@ -350,36 +386,90 @@ export default function RestaurantsPage() {
                 )}
             </section>
 
-            <section className="grid gap-3 sm:grid-cols-2">
+            <section className="grid gap-3">
                 <article className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="flex items-center gap-2">
                         <Truck className="h-4 w-4 text-sky-600 dark:text-sky-300" />
-                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">배달 연동 준비</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">배달 업체/식당 보기</p>
                     </div>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                        요기요/배민과 연결 시, 현재 식단 기준 키워드에 맞는 메뉴를 자동 추천하는 구조로 확장할 예정이에요.
+                        현재 추천 키워드를 기준으로 배달 업체와 배달 가능한 식당을 바로 확인할 수 있어요.
                     </p>
-                    <div className="mt-3 space-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <p>- 키워드 기반 메뉴 후보 수집</p>
-                        <p>- 저염/저당/단백질 필터 우선 적용</p>
-                        <p>- 사용자 기록 기반 재정렬</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        {DELIVERY_PROVIDERS.map((provider) => (
+                            <article
+                                key={provider.name}
+                                className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40"
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{provider.name}</p>
+                                    <a
+                                        href={provider.homepage}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    >
+                                        플랫폼 열기
+                                    </a>
+                                </div>
+                                <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{provider.description}</p>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {deliveryKeywords.slice(0, 3).map((keyword) =>
+                                        provider.searchUrlTemplate ? (
+                                            <a
+                                                key={`${provider.name}-${keyword}`}
+                                                href={`${provider.searchUrlTemplate}${encodeURIComponent(keyword)}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-100 dark:hover:bg-sky-900/50"
+                                            >
+                                                {keyword}
+                                            </a>
+                                        ) : (
+                                            <span
+                                                key={`${provider.name}-${keyword}`}
+                                                className="rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                            >
+                                                {keyword}
+                                            </span>
+                                        )
+                                    )}
+                                </div>
+                                {!provider.searchUrlTemplate && (
+                                    <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                        플랫폼 내 검색창에서 위 키워드로 검색해 보세요.
+                                    </p>
+                                )}
+                            </article>
+                        ))}
+                    </div>
+                    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">배달 가능한 식당 후보</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            {deliveryRestaurantNames.length > 0 ? (
+                                deliveryRestaurantNames.map((name) => (
+                                    <span
+                                        key={`delivery-restaurant-${name}`}
+                                        className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-100"
+                                    >
+                                        {name}
+                                    </span>
+                                ))
+                            ) : (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    상단 추천 결과가 생성되면 배달 식당 후보를 함께 보여드려요.
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </article>
 
+                {/* 예약/방문 연동 준비는 추후 구현 단계에서 다시 활성화 예정 */}
+                {/*
                 <article className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div className="flex items-center gap-2">
-                        <BellRing className="h-4 w-4 text-amber-600 dark:text-amber-300" />
-                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">예약/방문 연동 준비</p>
-                    </div>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                        캐치테이블 연동 시, 치료 단계와 선호 키워드를 반영한 식당 탐색·예약 연결로 확장할 수 있어요.
-                    </p>
-                    <div className="mt-3 space-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <p>- 식당 유형별 태그 정규화</p>
-                        <p>- 메뉴/알레르기/조리법 메모 반영</p>
-                        <p>- 재방문 이력 기반 추천 강화</p>
-                    </div>
+                    ...
                 </article>
+                */}
             </section>
         </main>
     );
