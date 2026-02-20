@@ -76,8 +76,8 @@ export default function RootLayout({
                         </div>
                         <nav className="hidden border-t border-gray-200/70 px-4 dark:border-gray-800/70 md:block">
                             <div className="mx-auto w-full max-w-4xl">
-                                <div className="flex justify-center overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                                    <div className="inline-flex min-w-full justify-center gap-2">
+                                <div className="flex overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                    <div className="inline-flex gap-2 pl-2 lg:pl-3">
                                     {CATEGORY_LINKS.map((item) => (
                                         <Link
                                             key={item.href}

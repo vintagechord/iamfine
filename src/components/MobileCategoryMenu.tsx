@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Menu, X } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 type CategoryItem = {
@@ -87,18 +87,7 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
                             open ? 'translate-x-0' : 'translate-x-full'
                         }`}
                     >
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm font-bold text-gray-900 dark:text-gray-100">카테고리</p>
-                            <button
-                                type="button"
-                                onClick={closeMenu}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                                aria-label="메뉴 닫기"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <nav className="mt-4 grid gap-2">
+                        <nav className="grid gap-2 pt-1">
                             {items.map((item) => (
                                 <Link
                                     key={item.href}

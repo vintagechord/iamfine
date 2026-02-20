@@ -76,6 +76,10 @@ type Feedback = {
     text: string;
 } | null;
 
+type DiseaseSearchApiResponse = {
+    items?: ConditionCatalogItem[];
+};
+
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const DIET_STORE_PREFIX = 'diet-store-v2';
 const USER_METADATA_NAMESPACE = 'iamfine';
@@ -148,6 +152,24 @@ const BACKGROUND_COUNTRY_OPTIONS = [
 function normalizeNickname(input: string) {
     const trimmed = input.trim();
     return trimmed.replace(/[^a-zA-Z0-9_가-힣]/g, '');
+}
+
+function normalizeConditionSearchText(value: string) {
+    return value.toLowerCase().replace(/\s+/g, '').trim();
+}
+
+function isConditionCatalogItem(item: unknown): item is ConditionCatalogItem {
+    if (!item || typeof item !== 'object') {
+        return false;
+    }
+
+    const candidate = item as Partial<ConditionCatalogItem>;
+    return (
+        typeof candidate.name === 'string' &&
+        typeof candidate.code === 'string' &&
+        typeof candidate.category === 'string' &&
+        Array.isArray(candidate.aliases)
+    );
 }
 
 function getTreatmentMetaKey(userId: string) {
@@ -461,6 +483,8 @@ export default function ProfilePage() {
     const [addStageStatus, setAddStageStatus] = useState<StageStatus>('planned');
     const [additionalConditions, setAdditionalConditions] = useState<AdditionalCondition[]>([]);
     const [additionalConditionDraft, setAdditionalConditionDraft] = useState('');
+    const [remoteConditionSuggestions, setRemoteConditionSuggestions] = useState<ConditionCatalogItem[]>([]);
+    const [loadingConditionSuggestions, setLoadingConditionSuggestions] = useState(false);
     const [isConditionComposing, setIsConditionComposing] = useState(false);
     const [feedback, setFeedback] = useState<Feedback>(null);
 
@@ -509,10 +533,70 @@ export default function ProfilePage() {
             return a.created_at.localeCompare(b.created_at);
         });
     }, [treatmentStages]);
-    const conditionSuggestions = useMemo(
+    const localConditionSuggestions = useMemo(
         () => searchConditionCatalog(additionalConditionDraft.trim(), 8),
         [additionalConditionDraft]
     );
+    const conditionSuggestions = useMemo(() => {
+        const merged = [...remoteConditionSuggestions, ...localConditionSuggestions];
+        const deduped: ConditionCatalogItem[] = [];
+        const used = new Set<string>();
+
+        merged.forEach((item) => {
+            const key = `${item.code}::${item.name}`;
+            if (used.has(key)) {
+                return;
+            }
+            used.add(key);
+            deduped.push(item);
+        });
+
+        return deduped.slice(0, 24);
+    }, [remoteConditionSuggestions, localConditionSuggestions]);
+
+    useEffect(() => {
+        const query = additionalConditionDraft.trim();
+        if (!query) {
+            setRemoteConditionSuggestions([]);
+            setLoadingConditionSuggestions(false);
+            return;
+        }
+
+        const controller = new AbortController();
+        const timer = window.setTimeout(async () => {
+            try {
+                setLoadingConditionSuggestions(true);
+                const response = await fetch(`/api/diseases/search?q=${encodeURIComponent(query)}`, {
+                    signal: controller.signal,
+                });
+                if (!response.ok) {
+                    setRemoteConditionSuggestions([]);
+                    return;
+                }
+
+                const payload = (await response.json()) as DiseaseSearchApiResponse;
+                const items = Array.isArray(payload.items)
+                    ? payload.items.filter((item): item is ConditionCatalogItem => isConditionCatalogItem(item))
+                    : [];
+                setRemoteConditionSuggestions(items);
+            } catch (error) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+                console.error('질병 검색 API 호출 실패', error);
+                setRemoteConditionSuggestions([]);
+            } finally {
+                if (!controller.signal.aborted) {
+                    setLoadingConditionSuggestions(false);
+                }
+            }
+        }, 180);
+
+        return () => {
+            controller.abort();
+            window.clearTimeout(timer);
+        };
+    }, [additionalConditionDraft]);
 
     const loadTreatmentStages = useCallback(async (uid: string) => {
         if (!supabase) {
@@ -1187,11 +1271,21 @@ export default function ProfilePage() {
             return;
         }
 
-        const matched = matchConditionByName(input);
+        const normalizedInput = normalizeConditionSearchText(input);
+        const matchedFromSuggestions = conditionSuggestions.find((item) => {
+            if (normalizeConditionSearchText(item.name) === normalizedInput) {
+                return true;
+            }
+            if (normalizeConditionSearchText(item.code) === normalizedInput) {
+                return true;
+            }
+            return item.aliases.some((alias) => normalizeConditionSearchText(alias) === normalizedInput);
+        });
+        const matched = matchedFromSuggestions ?? matchConditionByName(input);
         if (!matched) {
             setFeedback({
                 type: 'error',
-                text: '정확한 질병명을 찾지 못했어요. 아래 추천 목록에서 선택해 주세요.',
+                text: '정확 일치하는 질병을 찾지 못했어요. 아래 추천 목록에서 선택해 주세요.',
             });
             return;
         }
@@ -1603,7 +1697,12 @@ export default function ProfilePage() {
                     </label>
 
                     <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">추천 질병명(정확 매칭용)</p>
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                            추천 질병명(통계분류포털 KCD 전체 코드 검색)
+                        </p>
+                        {loadingConditionSuggestions && (
+                            <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">검색 중…</p>
+                        )}
                         <div className="mt-2 flex flex-wrap gap-1.5">
                             {conditionSuggestions.map((item) => (
                                 <button
