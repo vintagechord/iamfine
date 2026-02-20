@@ -531,6 +531,7 @@ export async function GET(request: NextRequest) {
             summary: responseSummary,
             keyword,
             items: ensuredItems,
+            updatedAt: new Date().toISOString(),
         });
     } catch (error) {
         console.error('custom-alerts api failed', error);
@@ -539,6 +540,7 @@ export async function GET(request: NextRequest) {
                 summary: responseSummary,
                 keyword,
                 items: [],
+                updatedAt: new Date().toISOString(),
             },
             { status: 200 }
         );

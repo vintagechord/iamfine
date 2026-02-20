@@ -140,13 +140,18 @@ function parseAlertDate(raw: string) {
         return null;
     }
 
-    const normalized = raw.replace(/\.\s*/g, '-').replace(/\.\s*$/, '');
-    const parsed = Date.parse(normalized);
-    if (Number.isNaN(parsed)) {
-        return null;
+    const directParsed = Date.parse(raw);
+    if (!Number.isNaN(directParsed)) {
+        return new Date(directParsed);
     }
 
-    return new Date(parsed);
+    const normalized = raw.replace(/\.\s*/g, '-').replace(/\.\s*$/, '');
+    const normalizedParsed = Date.parse(normalized);
+    if (!Number.isNaN(normalizedParsed)) {
+        return new Date(normalizedParsed);
+    }
+
+    return null;
 }
 
 function formatAlertUpdatedAgo(raw: string) {
