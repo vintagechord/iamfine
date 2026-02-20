@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import ThemeToggle from '@/components/ThemeToggle';
 
@@ -20,6 +20,7 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
     const [open, setOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
     const pathname = usePathname();
+    const previousPathnameRef = useRef(pathname);
     const portalRoot = typeof window === 'undefined' ? null : document.body;
 
     const openMenu = () => {
@@ -67,7 +68,10 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
     }, [mounted, open]);
 
     useEffect(() => {
-        if (!mounted) {
+        const previousPathname = previousPathnameRef.current;
+        previousPathnameRef.current = pathname;
+
+        if (!mounted || previousPathname === pathname) {
             return;
         }
 
