@@ -88,8 +88,26 @@ type CategoryKey =
 
 type GroceryCategory = {
     category: CategoryKey;
-    items: Array<{ name: string; count: number }>;
+    items: Array<{ name: string; count: number; amount: string }>;
 };
+
+type CountUnit = '개' | '모' | '마리' | '알' | '장' | '송이' | '통' | '포기' | '봉';
+
+type QuantityRule =
+    | {
+          kind: 'count';
+          unit: CountUnit;
+          perUse: number;
+      }
+    | {
+          kind: 'weight';
+          perUseGram: number;
+          preferKg?: boolean;
+      }
+    | {
+          kind: 'volume';
+          perUseMl: number;
+      };
 
 const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
@@ -221,6 +239,39 @@ const INGREDIENT_RULES: Array<{ pattern: RegExp; ingredient: string }> = [
     { pattern: /아몬드/, ingredient: '아몬드' },
     { pattern: /견과/, ingredient: '견과류' },
 ];
+
+const QUANTITY_RULES: Array<{ pattern: RegExp; rule: QuantityRule }> = [
+    { pattern: /현미|잡곡쌀|귀리|보리|흑미|기장|쌀/, rule: { kind: 'weight', perUseGram: 70, preferKg: true } },
+    { pattern: /닭가슴살|닭안심/, rule: { kind: 'weight', perUseGram: 100 } },
+    { pattern: /소고기|돼지안심/, rule: { kind: 'weight', perUseGram: 90 } },
+    { pattern: /연어/, rule: { kind: 'weight', perUseGram: 100 } },
+    { pattern: /흰살생선|고등어/, rule: { kind: 'count', unit: '마리', perUse: 0.5 } },
+    { pattern: /두부/, rule: { kind: 'count', unit: '모', perUse: 0.5 } },
+    { pattern: /달걀/, rule: { kind: 'count', unit: '알', perUse: 1 } },
+    { pattern: /콩류/, rule: { kind: 'weight', perUseGram: 40 } },
+    { pattern: /요거트/, rule: { kind: 'weight', perUseGram: 90 } },
+    { pattern: /두유/, rule: { kind: 'volume', perUseMl: 190 } },
+    { pattern: /브로콜리/, rule: { kind: 'count', unit: '송이', perUse: 0.5 } },
+    { pattern: /버섯/, rule: { kind: 'weight', perUseGram: 60 } },
+    { pattern: /시금치|나물채소|상추|미나리|냉이|달래|두릅|쑥/, rule: { kind: 'weight', perUseGram: 70 } },
+    { pattern: /오이|당근|애호박|가지|토마토/, rule: { kind: 'count', unit: '개', perUse: 0.5 } },
+    { pattern: /단호박/, rule: { kind: 'count', unit: '통', perUse: 0.25 } },
+    { pattern: /양배추/, rule: { kind: 'count', unit: '통', perUse: 0.25 } },
+    { pattern: /배추/, rule: { kind: 'count', unit: '포기', perUse: 0.25 } },
+    { pattern: /무/, rule: { kind: 'count', unit: '개', perUse: 0.2 } },
+    { pattern: /해초/, rule: { kind: 'weight', perUseGram: 30 } },
+    { pattern: /마른미역/, rule: { kind: 'weight', perUseGram: 10 } },
+    { pattern: /멸치/, rule: { kind: 'weight', perUseGram: 15 } },
+    { pattern: /통밀 또띠아/, rule: { kind: 'count', unit: '장', perUse: 1 } },
+    { pattern: /면류/, rule: { kind: 'weight', perUseGram: 90 } },
+    { pattern: /바나나|사과|배|키위|복숭아|자두|감|귤/, rule: { kind: 'count', unit: '개', perUse: 0.5 } },
+    { pattern: /딸기|베리류|제철 과일/, rule: { kind: 'weight', perUseGram: 80 } },
+    { pattern: /고구마/, rule: { kind: 'weight', perUseGram: 100 } },
+    { pattern: /아몬드|호두|견과류/, rule: { kind: 'weight', perUseGram: 15 } },
+    { pattern: /채소믹스|아스파라거스|완두콩|옥수수|레몬/, rule: { kind: 'weight', perUseGram: 80 } },
+];
+
+const HALF_COUNT_UNITS = new Set<CountUnit>(['개', '모', '마리', '송이', '통', '포기']);
 
 function getStoreKey(userId: string) {
     return `${STORAGE_PREFIX}:${userId}`;
@@ -720,6 +771,57 @@ function extractIngredientsFromLabel(label: string) {
     return Array.from(found).filter((ingredient) => !PANTRY_INGREDIENTS.has(ingredient));
 }
 
+function roundToHalf(value: number) {
+    return Math.round(value * 2) / 2;
+}
+
+function formatCountAmount(totalCount: number, unit: CountUnit) {
+    const normalized = HALF_COUNT_UNITS.has(unit)
+        ? Math.max(0.5, roundToHalf(totalCount))
+        : Math.max(1, Math.ceil(totalCount));
+
+    if (HALF_COUNT_UNITS.has(unit) && normalized === 0.5) {
+        return `반 ${unit}`;
+    }
+    if (Number.isInteger(normalized)) {
+        return `${normalized}${unit}`;
+    }
+    return `${normalized}${unit}`;
+}
+
+function formatWeightAmount(totalGram: number, preferKg = false) {
+    const gram = Math.max(10, Math.round(totalGram / 10) * 10);
+    if (preferKg || gram >= 1000) {
+        const kg = Math.max(0.1, Math.round((gram / 1000) * 10) / 10);
+        return `${kg}kg`;
+    }
+    return `${gram}g`;
+}
+
+function formatVolumeAmount(totalMl: number) {
+    const ml = Math.max(100, Math.round(totalMl / 10) * 10);
+    if (ml >= 1000) {
+        const liter = Math.round((ml / 1000) * 10) / 10;
+        return `${liter}L`;
+    }
+    return `${ml}ml`;
+}
+
+function estimatePurchaseAmount(item: string, count: number) {
+    const matched = QUANTITY_RULES.find((rule) => rule.pattern.test(item));
+    if (!matched) {
+        return `${Math.max(1, count)}개`;
+    }
+
+    if (matched.rule.kind === 'count') {
+        return formatCountAmount(matched.rule.perUse * count, matched.rule.unit);
+    }
+    if (matched.rule.kind === 'weight') {
+        return formatWeightAmount(matched.rule.perUseGram * count, matched.rule.preferKg);
+    }
+    return formatVolumeAmount(matched.rule.perUseMl * count);
+}
+
 function collectPlanIngredients(plan: DayPlan) {
     const labels = [
         plan.breakfast.riceType,
@@ -764,7 +866,7 @@ function buildGroceryCategories(plans: DayPlan[]): GroceryCategory[] {
         category,
         items: Array.from(buckets.get(category)?.entries() ?? [])
             .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'))
-            .map(([name, count]) => ({ name, count })),
+            .map(([name, count]) => ({ name, count, amount: estimatePurchaseAmount(name, count) })),
     })).filter((row) => row.items.length > 0);
 }
 
@@ -1064,7 +1166,7 @@ export default function ShoppingPage() {
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">분야별 장볼 목록</h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    식단 메뉴를 실제 구입 재료 기준으로 환산했어요. 괄호 숫자는 사용되는 횟수예요.
+                    식단 메뉴를 실제 구입 재료 기준으로 환산했어요. 재료별 예상 구입량(1인 기준)과 사용 횟수를 함께 보여드려요.
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     {groceryCategories.map((category) => (
@@ -1076,7 +1178,7 @@ export default function ShoppingPage() {
                             <div className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-200">
                                 {category.items.map((item) => (
                                     <p key={`${category.category}-${item.name}`}>
-                                        - {item.name} ({item.count}회)
+                                        - {item.name}: {item.amount} ({item.count}회 사용)
                                     </p>
                                 ))}
                             </div>
