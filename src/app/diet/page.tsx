@@ -2886,21 +2886,51 @@ export default function DietPage() {
                                 key={slot}
                                 className={`mealTileMono ${mealTileAccentClass} h-full`}
                             >
-                                <div className="mealTileMono__header">
-                                    <span className="mealTileMono__iconWrap" aria-hidden="true">
-                                        <MealIcon className="mealTileMono__icon" />
-                                    </span>
-                                    <div className="flex flex-wrap items-start gap-1.5">
-                                        <h2 className="mealTileMono__title text-base font-extrabold tracking-tight">{mealTypeLabel(slot)}</h2>
-                                        {mealTimeBadges.map((badgeText) => (
-                                            <span
-                                                key={`${slot}-${badgeText}`}
-                                                className="-mt-0.5 rounded-full border border-gray-300 bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200"
-                                            >
-                                                {badgeText}
-                                            </span>
-                                        ))}
+                                <div className="mealTileMono__header items-start justify-between gap-2">
+                                    <div className="flex items-start gap-2">
+                                        <span className="mealTileMono__iconWrap" aria-hidden="true">
+                                            <MealIcon className="mealTileMono__icon" />
+                                        </span>
+                                        <div className="flex flex-wrap items-start gap-1.5">
+                                            <h2 className="mealTileMono__title text-base font-extrabold tracking-tight">{mealTypeLabel(slot)}</h2>
+                                            {mealTimeBadges.map((badgeText) => (
+                                                <span
+                                                    key={`${slot}-${badgeText}`}
+                                                    className="-mt-0.5 rounded-full border border-gray-300 bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200"
+                                                >
+                                                    {badgeText}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
+                                    {showMedicationArea && (
+                                        <div className="ml-auto flex max-w-[62%] flex-wrap justify-end gap-1.5">
+                                            <span className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                                식후 복용 약
+                                            </span>
+                                            {mealMedicationList.length === 0 ? (
+                                                <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                                                    복용 약 없음
+                                                </span>
+                                            ) : (
+                                                mealMedicationList.map((medication) => {
+                                                    const taken = viewedTodayMedicationTakenSet.has(medication.id);
+                                                    return (
+                                                        <span
+                                                            key={medication.id}
+                                                            className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${
+                                                                taken
+                                                                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                                                                    : 'border-amber-400 bg-amber-100 text-amber-900 dark:border-amber-500 dark:bg-amber-900/40 dark:text-amber-100'
+                                                            }`}
+                                                        >
+                                                            {taken ? '복용 확인' : '복용 전'} · {medication.name}
+                                                        </span>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="mealTileMono__body">
                                     <p className="text-base font-bold leading-snug">{meal.summary}</p>
@@ -2940,32 +2970,6 @@ export default function DietPage() {
                                         </button>
                                     </div>
                                     {slot !== 'snack' && <MealNutrientBalance nutrient={meal.nutrient} />}
-                                    <div className="mt-auto pt-3">
-                                        {showMedicationArea && (
-                                            <div className="mealTileMono__pillBox">
-                                                <p className="font-semibold">식후 복용 약</p>
-                                                {mealMedicationList.length === 0 ? (
-                                                    <p className="mt-1">복용 약 없음</p>
-                                                ) : (
-                                                    <div className="mt-1 flex flex-wrap gap-1.5">
-                                                        {mealMedicationList.map((medication) => {
-                                                            const taken = viewedTodayMedicationTakenSet.has(medication.id);
-                                                            return (
-                                                                <span
-                                                                    key={medication.id}
-                                                                    className={`rounded-full px-2 py-0.5 font-semibold ${
-                                                                        taken ? 'bg-emerald-600 text-white' : 'bg-amber-200 text-amber-900'
-                                                                    }`}
-                                                                >
-                                                                    {taken ? '복용 확인' : '복용 전'} · {medication.name}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
                                 </div>
                             </article>
                         );
