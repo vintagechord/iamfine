@@ -370,25 +370,25 @@ html {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  color: rgba(15, 23, 42, 0.86);
+  color: rgba(15, 23, 42, 0.92);
   font-size: 14px;
   line-height: 1.45;
 }
 
 /* 시간 텍스트 */
 .mealTileMono__time {
-  color: rgba(15, 23, 42, 0.65);
-  font-size: 13px;
+  color: rgba(15, 23, 42, 0.78);
+  font-size: 14px;
 }
 
 /* 약 복용 박스(기존 노란 박스가 있다면 그 컨테이너에 클래스만 붙여 덮기) */
 .mealTileMono__pillBox {
   border-radius: 14px;
   padding: 10px 12px;
-  background: rgba(15, 23, 42, 0.04);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  color: rgba(15, 23, 42, 0.72);
-  font-size: 13px;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  color: rgba(15, 23, 42, 0.84);
+  font-size: 14px;
 }
 
 /* 공통 CTA 버튼 (모노톤 + accent는 인터랙션에서만) */
@@ -405,7 +405,7 @@ html {
 
   border: 1px solid rgba(15, 23, 42, 0.10);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 250, 252, 0.62));
-  color: rgba(15, 23, 42, 0.86);
+  color: rgba(15, 23, 42, 0.94);
 
   font-weight: 650;
   letter-spacing: -0.2px;
@@ -499,11 +499,11 @@ html {
 }
 
 .dark .mealTileMono__body {
-  color: rgba(226, 232, 240, 0.86);
+  color: rgba(226, 232, 240, 0.94);
 }
 
 .dark .mealTileMono__time {
-  color: rgba(226, 232, 240, 0.62);
+  color: rgba(226, 232, 240, 0.78);
 }
 
 .dark .mealTileMono__iconWrap {
@@ -512,9 +512,9 @@ html {
 }
 
 .dark .mealTileMono__pillBox {
-  background: rgba(226, 232, 240, 0.06);
-  border: 1px solid rgba(226, 232, 240, 0.10);
-  color: rgba(226, 232, 240, 0.78);
+  background: rgba(226, 232, 240, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.14);
+  color: rgba(226, 232, 240, 0.88);
 }
 
 /* 다크 모드 */
@@ -643,7 +643,7 @@ html {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  color: rgba(15, 23, 42, 0.78);
+  color: rgba(15, 23, 42, 0.88);
   line-height: 1.45;
   font-size: 14px;
 }
@@ -678,7 +678,7 @@ html {
 }
 
 .dark .infoTileMono__item {
-  color: rgba(226, 232, 240, 0.78);
+  color: rgba(226, 232, 240, 0.88);
 }
 
 /* 타입별 accent */
@@ -803,7 +803,7 @@ html {
   flex: 1;
   position: relative;
   z-index: 1;
-  color: rgba(15, 23, 42, 0.82);
+  color: rgba(15, 23, 42, 0.92);
   font-weight: 650;
   letter-spacing: -0.2px;
   font-size: 14px;
@@ -818,7 +818,7 @@ html {
   height: 18px;
   position: relative;
   z-index: 1;
-  color: rgba(15, 23, 42, 0.35);
+  color: rgba(15, 23, 42, 0.58);
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
@@ -875,11 +875,11 @@ html {
 }
 
 .dark .finderSearch__text {
-  color: rgba(226, 232, 240, 0.82);
+  color: rgba(226, 232, 240, 0.92);
 }
 
 .dark .finderSearch__chev {
-  color: rgba(226, 232, 240, 0.40);
+  color: rgba(226, 232, 240, 0.70);
 }
 
 .dark .finderSearch:hover {

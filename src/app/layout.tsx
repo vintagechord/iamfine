@@ -55,7 +55,7 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-gray-50 text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100`}
             >
                 <div className="min-h-screen">
-                    <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-950/90">
+                    <header className="sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/96">
                         <div className="mx-auto flex h-14 w-full max-w-4xl items-center justify-between px-4">
                             <Link
                                 href="/"

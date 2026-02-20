@@ -679,7 +679,7 @@ export default function Home() {
                                 <CalendarClock className="h-4 w-4" />
                             </span>
                             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">다음 병원 방문/진료 일정</h2>
-                            <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                            <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                                 총 {visitSchedules.length}건
                             </span>
                         </div>
@@ -739,7 +739,7 @@ export default function Home() {
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">맞춤 알림</h2>
                 <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm text-gray-600 dark:text-gray-300">{customAlertSummary}</p>
-                    <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                    <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
                         {customAlertUpdatedAt ? formatAlertUpdatedAgo(customAlertUpdatedAt) : '업데이트 시간 미확인'}
                     </span>
                 </div>
@@ -790,7 +790,7 @@ export default function Home() {
                                 onClick={() =>
                                     setCustomAlertPage((prev) => (prev - 1 + customAlertPageCount) % customAlertPageCount)
                                 }
-                                className="rounded px-2 py-0.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-default disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                                className="rounded px-2 py-0.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-default disabled:opacity-100 disabled:text-gray-400 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-100 dark:disabled:text-gray-500 dark:disabled:hover:bg-transparent dark:disabled:hover:text-gray-500"
                                 disabled={customAlertPageCount <= 1}
                                 aria-label="이전 알림 5개 보기"
                             >
@@ -802,7 +802,7 @@ export default function Home() {
                             <button
                                 type="button"
                                 onClick={() => setCustomAlertPage((prev) => (prev + 1) % customAlertPageCount)}
-                                className="rounded px-2 py-0.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-default disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                                className="rounded px-2 py-0.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-default disabled:opacity-100 disabled:text-gray-400 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-100 dark:disabled:text-gray-500 dark:disabled:hover:bg-transparent dark:disabled:hover:text-gray-500"
                                 disabled={customAlertPageCount <= 1}
                                 aria-label="다음 알림 5개 보기"
                             >
