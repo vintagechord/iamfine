@@ -1706,8 +1706,8 @@ export default function DietPage() {
                 : Array.from(new Set(medicationSchedules.map((item) => medicationTimingLabel(item.timing)))).join(', ');
 
         return [
-            `기본 건강 정보: 나이 ${ageText} / 성별 ${sexText} / 키 ${heightText} / 몸무게 ${weightText} / 인종·배경 ${ethnicityText}`,
-            `치료 정보: 암 종류 ${cancerTypeText}`,
+            `기본 건강 정보: ${ageText} / ${sexText} / ${heightText} / ${weightText} / ${ethnicityText}`,
+            `치료 정보: ${cancerTypeText}`,
             `치료 단계: ${stageLabel}`,
             `복용 약 정보: ${medicationCount}개 / 복용 시기 ${medicationTimingText}`,
         ];
