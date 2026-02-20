@@ -93,18 +93,6 @@ type DeliveryProvider = {
 };
 
 const USER_METADATA_NAMESPACE = 'iamfine';
-const STAGE_TYPE_LABELS: Record<StageType, string> = {
-    diagnosis: '진단',
-    chemo: '항암치료',
-    chemo_2nd: '항암치료(2차)',
-    radiation: '방사선치료',
-    targeted: '표적치료',
-    immunotherapy: '면역치료',
-    hormone_therapy: '호르몬치료',
-    surgery: '수술',
-    medication: '약물치료',
-    other: '기타',
-};
 
 function parseTreatmentMetaFromUnknown(raw: unknown): TreatmentMeta | null {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -269,8 +257,6 @@ export default function RestaurantsPage() {
     const [loadingRecommendations, setLoadingRecommendations] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [recommendationError, setRecommendationError] = useState('');
-    const [serverPersonalizationApplied, setServerPersonalizationApplied] = useState(false);
-    const [serverPersonalizationFocusTerms, setServerPersonalizationFocusTerms] = useState<string[]>([]);
     const [patientContext, setPatientContext] = useState<FinderPatientContext>({
         mode: 'guest',
         cancerType: '',
@@ -309,31 +295,6 @@ export default function RestaurantsPage() {
         const minutes = String(date.getMinutes()).padStart(2, '0');
         return `${month}/${day} ${hours}:${minutes}`;
     }, [generatedAt]);
-
-    const patientContextKeywords = useMemo(() => {
-        if (patientContext.mode !== 'personalized') {
-            return [];
-        }
-        const keywords: string[] = [];
-        if (patientContext.cancerType.trim()) {
-            keywords.push(patientContext.cancerType.trim());
-        }
-        if (patientContext.activeStageType) {
-            const stageLabel = patientContext.activeStageLabel.trim();
-            keywords.push(stageLabel || STAGE_TYPE_LABELS[patientContext.activeStageType]);
-        }
-        patientContext.additionalConditions
-            .slice(0, 3)
-            .forEach((condition) => keywords.push(`${condition.name}(${condition.code})`));
-        return keywords;
-    }, [patientContext]);
-
-    const displayedPersonalizationKeywords = useMemo(() => {
-        if (serverPersonalizationApplied && serverPersonalizationFocusTerms.length > 0) {
-            return serverPersonalizationFocusTerms;
-        }
-        return patientContextKeywords;
-    }, [patientContextKeywords, serverPersonalizationApplied, serverPersonalizationFocusTerms]);
 
     const fetchRecommendations = useCallback(
         async (context: SearchContext) => {
@@ -382,15 +343,6 @@ export default function RestaurantsPage() {
                 const json = (await response.json()) as RecommendationResponse;
                 setRecommendations(json.items ?? []);
                 setUsedQueries(json.queries ?? []);
-                setServerPersonalizationApplied(Boolean(json.personalizationApplied));
-                setServerPersonalizationFocusTerms(
-                    Array.isArray(json.personalizationFocusTerms)
-                        ? json.personalizationFocusTerms
-                              .filter((item): item is string => typeof item === 'string')
-                              .map((item) => item.trim())
-                              .filter(Boolean)
-                        : []
-                );
                 const nextResolvedRegion = json.region ?? context.region;
                 setResolvedRegion(nextResolvedRegion);
                 if (context.lat !== null && context.lng !== null && nextResolvedRegion.trim()) {
@@ -402,8 +354,6 @@ export default function RestaurantsPage() {
                 setRecommendationError('추천 식당을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
                 setRecommendations([]);
                 setUsedQueries([]);
-                setServerPersonalizationApplied(false);
-                setServerPersonalizationFocusTerms([]);
             } finally {
                 setLoadingRecommendations(false);
             }
@@ -550,34 +500,6 @@ export default function RestaurantsPage() {
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             치료 상황에 맞는 식당을 키워드로 빠르게 찾을 수 있어요.
                         </p>
-                        {patientContext.mode === 'personalized' ? (
-                            <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-950/30">
-                                <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-100">
-                                    로그인 맞춤 추천 모드가 적용됐어요.
-                                </p>
-                                <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
-                                    암 치료 맥락을 우선으로 두고, 치료 단계와 추가 질병 정보를 함께 고려해 더 보수적으로
-                                    추천해요.
-                                </p>
-                                {displayedPersonalizationKeywords.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-1.5">
-                                        {displayedPersonalizationKeywords.map((item) => (
-                                            <span
-                                                key={`patient-keyword-${item}`}
-                                                className="rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100"
-                                            >
-                                                {item}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <p className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-300">
-                                비로그인 상태에서도 바로 사용 가능해요. 로그인하면 치료 정보 기반 맞춤 추천이 더 깊게
-                                적용돼요.
-                            </p>
-                        )}
                     </div>
                     <Link
                         href="/"
