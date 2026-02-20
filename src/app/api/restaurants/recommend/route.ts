@@ -76,6 +76,12 @@ const PLACE_NAME_STOPWORDS = new Set([
 const PLACE_TRAILING_META_MARKERS = [
     '톡톡',
     '쿠폰',
+    '네이버페이',
+    '네이버주문',
+    '스마트주문',
+    '배민',
+    '요기요',
+    '쿠팡이츠',
     '포장',
     '배달',
     '예약',
@@ -139,6 +145,10 @@ function normalizePlaceName(raw: string) {
     return trimmedByToken
         .replace(
             /\s+(?:다이어트|샐러드(?:뷔페)?|채식|카페|도시락|컵밥|비건|포케|브런치|한식|일식|양식|분식|죽|패스트푸드)(?:[,/][^\s]+)*$/u,
+            ''
+        )
+        .replace(
+            /\s*(?:네이버페이|네이버주문|스마트주문|배민(?:1)?|요기요|쿠팡이츠|톡톡|쿠폰|예약하기|포인트적립)\s*$/u,
             ''
         )
         .replace(/\s{2,}/g, ' ')
