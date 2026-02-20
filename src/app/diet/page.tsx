@@ -2208,7 +2208,7 @@ export default function DietPage() {
                                     오늘로
                                 </button>
                             )}
-                            <p className="ml-auto inline-flex shrink-0 rounded-md border border-amber-300 bg-amber-100 px-2.5 py-1 text-sm font-semibold text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100">
+                            <p className="ml-auto inline-flex shrink-0 rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-sm font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">
                                 {viewedTodayDateLabel}
                             </p>
                         </div>
@@ -2222,7 +2222,7 @@ export default function DietPage() {
                     <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
                         <Link
                             href="/diet/report"
-                            className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                            className="rounded-lg border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                         >
                             적용 근거 리포트
                         </Link>
