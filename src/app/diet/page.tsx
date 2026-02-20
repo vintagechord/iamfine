@@ -2328,20 +2328,29 @@ export default function DietPage() {
                                 <div className="mealTileMono__body">
                                     <p className="text-base font-bold leading-snug">{meal.summary}</p>
                                     {slot !== 'snack' && <p className="mt-1 text-sm">반찬: {meal.sides.join(', ')}</p>}
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setOpenPortionGuideContent({
-                                                title: `${mealTypeLabel(slot)} 권장 섭취량(1인 기준)`,
-                                                guide: mealPortionGuideFromPlan(meal, slot),
-                                            })
-                                        }
-                                        className="mt-2 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
-                                    >
-                                        권장 섭취량 보기
-                                    </button>
+                                    <div className="mt-2 grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setOpenPortionGuideContent({
+                                                    title: `${mealTypeLabel(slot)} 권장 섭취량(1인 기준)`,
+                                                    guide: mealPortionGuideFromPlan(meal, slot),
+                                                })
+                                            }
+                                            className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                                        >
+                                            권장 섭취량
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpenRecipeSlot(slot)}
+                                            className="w-full cursor-pointer rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                                        >
+                                            조리법
+                                        </button>
+                                    </div>
                                     {slot !== 'snack' && <MealNutrientBalance nutrient={meal.nutrient} />}
-                                    <div className="mt-auto space-y-2 pt-3">
+                                    <div className="mt-auto pt-3">
                                         {showMedicationArea && (
                                             <div className="mealTileMono__pillBox">
                                                 <p className="font-semibold">식후 복용 약</p>
@@ -2366,15 +2375,6 @@ export default function DietPage() {
                                                 )}
                                             </div>
                                         )}
-                                        <div className="flex justify-center">
-                                            <button
-                                                type="button"
-                                                className="ctaMono"
-                                                onClick={() => setOpenRecipeSlot(slot)}
-                                            >
-                                                조리법 보기
-                                            </button>
-                                        </div>
                                     </div>
                                 </div>
                             </article>
@@ -2726,7 +2726,7 @@ export default function DietPage() {
                                                     }
                                                     className="mt-2 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                                                 >
-                                                    권장 섭취량 보기
+                                                    권장 섭취량
                                                 </button>
                                                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                                                     탄수 {meal.nutrient.carb}% / 단백질 {meal.nutrient.protein}% / 지방 {meal.nutrient.fat}%
