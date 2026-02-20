@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
 import AuthActionButton from '@/components/AuthActionButton';
+import MobileCategoryMenu from '@/components/MobileCategoryMenu';
 import ThemeToggle from '@/components/ThemeToggle';
 import './globals.css';
 
@@ -21,12 +22,10 @@ export const metadata: Metadata = {
 };
 
 const CATEGORY_LINKS = [
-    { href: '/', label: '홈' },
     { href: '/diet', label: '오늘 식단' },
     { href: '/diet?view=record#today-record-section', label: '오늘 기록' },
     { href: '/shopping', label: '장보기' },
     { href: '/restaurants', label: '건강식당' },
-    { href: '/profile', label: '내 정보' },
 ];
 
 const themeInitScript = `(() => {
@@ -69,23 +68,26 @@ export default function RootLayout({
                                     Iam<span className="text-emerald-500 dark:text-emerald-400">Fine</span>
                                 </span>
                             </Link>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 sm:gap-2">
+                                <MobileCategoryMenu items={CATEGORY_LINKS} />
                                 <AuthActionButton showSignUpWhenLoggedOut showProfileWhenLoggedIn />
                                 <ThemeToggle />
                             </div>
                         </div>
-                        <nav className="border-t border-gray-200/70 px-4 dark:border-gray-800/70">
+                        <nav className="hidden border-t border-gray-200/70 px-4 dark:border-gray-800/70 md:block">
                             <div className="mx-auto w-full max-w-4xl">
-                                <div className="flex gap-2 overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                <div className="flex justify-center overflow-x-auto py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                                    <div className="inline-flex min-w-full justify-center gap-2">
                                     {CATEGORY_LINKS.map((item) => (
                                         <Link
                                             key={item.href}
                                             href={item.href}
-                                            className="whitespace-nowrap rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 sm:text-sm"
+                                            className="whitespace-nowrap rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-semibold text-gray-700 shadow-[0_1px_0_rgba(0,0,0,0.03)] transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-[0_6px_14px_rgba(16,185,129,0.18)] active:translate-y-0 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-emerald-500 dark:hover:bg-emerald-900/30 dark:hover:text-emerald-200 dark:hover:shadow-[0_8px_18px_rgba(16,185,129,0.22)] sm:text-sm"
                                         >
                                             {item.label}
                                         </Link>
                                     ))}
+                                    </div>
                                 </div>
                             </div>
                         </nav>
