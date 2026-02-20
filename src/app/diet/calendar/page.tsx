@@ -84,7 +84,7 @@ const DISCLAIMER_TEXT =
 const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const TWO_WEEK_DAYS = 14;
-const NO_REPEAT_DAYS = 7;
+const NO_REPEAT_DAYS = 30;
 
 const PREFERENCE_LABELS = Object.fromEntries(
     PREFERENCE_OPTIONS.map((option) => [option.key, option.label])

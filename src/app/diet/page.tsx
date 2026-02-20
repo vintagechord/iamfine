@@ -117,6 +117,14 @@ type RecipeModalContent = {
     recipeSteps: string[];
 };
 
+type CustomAlertApiItem = {
+    title: string;
+};
+
+type CustomAlertApiResponse = {
+    items?: CustomAlertApiItem[];
+};
+
 type PortionGuideModalContent = {
     title: string;
     guide: ReturnType<typeof mealPortionGuideFromPlan>;
@@ -143,7 +151,7 @@ const PREFERENCE_KEYS = new Set<PreferenceType>(PREFERENCE_OPTIONS.map((option) 
 const SLOT_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 const TWO_WEEK_DAYS = 14;
-const NO_REPEAT_DAYS = 7;
+const NO_REPEAT_DAYS = 30;
 const MEDICATION_TIMING_ORDER: MedicationTiming[] = ['breakfast', 'lunch', 'dinner'];
 
 function medicationTimingLabel(timing: MedicationTiming) {
@@ -899,6 +907,49 @@ function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey
     return suggestions.slice(0, 4);
 }
 
+function recommendPreferencesByExternalSignals(items: CustomAlertApiItem[]) {
+    if (items.length === 0) {
+        return [] as PreferenceType[];
+    }
+
+    const text = items
+        .map((item) => item.title.trim())
+        .filter(Boolean)
+        .slice(0, 20)
+        .join(' ')
+        .toLowerCase();
+
+    if (!text) {
+        return [] as PreferenceType[];
+    }
+
+    const suggestions: PreferenceType[] = [];
+    const add = (value: PreferenceType) => {
+        if (!suggestions.includes(value)) {
+            suggestions.push(value);
+        }
+    };
+
+    if (countKeywords(text, ['생선', '연어', '오메가', '등푸른']) >= 1) {
+        add('fish');
+    }
+    if (countKeywords(text, ['채소', '샐러드', '브로콜리', '과일', '식이섬유']) >= 1) {
+        add('vegetable');
+    }
+    if (countKeywords(text, ['단백질', '두부', '닭가슴살', '달걀', '콩']) >= 1) {
+        add('high_protein');
+    }
+    if (countKeywords(text, ['저염', '염분', '나트륨']) >= 1) {
+        add('low_salt');
+    }
+    if (countKeywords(text, ['식욕저하', '메스꺼움', '소화', '부드러운', '죽', '수프']) >= 1) {
+        add('digestive');
+        add('soft_food');
+    }
+
+    return suggestions.slice(0, 4);
+}
+
 function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, referenceDateKey: string) {
     const lookbackKeys = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => offsetDateKey(referenceDateKey, -(index + 1)));
     const lookbackItems = lookbackKeys
@@ -1084,6 +1135,7 @@ export default function DietPage() {
     const [draftTodayPreferences, setDraftTodayPreferences] = useState<PreferenceType[]>([]);
     const [proposalRequested, setProposalRequested] = useState(false);
     const [showTodayPreferencePanel, setShowTodayPreferencePanel] = useState(false);
+    const [externalSignalPreferences, setExternalSignalPreferences] = useState<PreferenceType[]>([]);
 
     const [selectedDate, setSelectedDate] = useState(todayKey);
     const [todayPlanOffset, setTodayPlanOffset] = useState(0);
@@ -1113,6 +1165,53 @@ export default function DietPage() {
     }, [stages]);
 
     const stageType = activeStage?.stage_type ?? 'other';
+    useEffect(() => {
+        if (!storeReady) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const cancerType = treatmentMeta?.cancerType?.trim() ?? '';
+        const cancerStage = treatmentMeta?.cancerStage?.trim() ?? '';
+
+        const loadExternalSignals = async () => {
+            try {
+                const params = new URLSearchParams();
+                if (cancerType) {
+                    params.set('cancerType', cancerType);
+                }
+                if (cancerStage) {
+                    params.set('cancerStage', cancerStage);
+                }
+                params.set('stageType', stageType);
+
+                const response = await fetch(`/api/custom-alerts?${params.toString()}`, {
+                    cache: 'no-store',
+                    signal: controller.signal,
+                });
+                if (!response.ok) {
+                    setExternalSignalPreferences([]);
+                    return;
+                }
+
+                const json = (await response.json()) as CustomAlertApiResponse;
+                const items = Array.isArray(json.items) ? json.items : [];
+                const recommended = recommendPreferencesByExternalSignals(items);
+                setExternalSignalPreferences(recommended);
+            } catch (loadError) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+                console.error('외부 식단 신호 조회 실패', loadError);
+                setExternalSignalPreferences([]);
+            }
+        };
+
+        void loadExternalSignals();
+
+        return () => controller.abort();
+    }, [storeReady, treatmentMeta?.cancerType, treatmentMeta?.cancerStage, stageType]);
+
     const userDietContext = useMemo<UserDietContext>(() => {
         const nowYear = new Date().getFullYear();
         const age = profile?.birth_year ? Math.max(0, nowYear - profile.birth_year) : undefined;
@@ -1173,12 +1272,15 @@ export default function DietPage() {
                     ...userContextAdjusted.notes,
                     ...medicationAdjusted.notes,
                     ...preferenceAdjusted.notes,
+                    ...(externalSignalPreferences.length > 0
+                        ? ['외부 최신 식단/영양 소식 키워드를 반영해 메뉴 다양성을 보강했어요.']
+                        : []),
                     ...dinnerCarbSafetyAdjusted.notes,
                     ...yesterdayAdjusted.notes,
                 ],
             };
         },
-        [userDietContext, medications, logs, stageType]
+        [userDietContext, medications, logs, stageType, externalSignalPreferences]
     );
     const personalizationSummary = useMemo(() => {
         const ageText =
@@ -1264,8 +1366,8 @@ export default function DietPage() {
         [logs, todayKey]
     );
     const confirmedTodayPreferences = useMemo(
-        () => mergePreferences(adaptiveTodayPreferences, userSelectedTodayPreferences),
-        [adaptiveTodayPreferences, userSelectedTodayPreferences]
+        () => mergePreferences(adaptiveTodayPreferences, userSelectedTodayPreferences, externalSignalPreferences),
+        [adaptiveTodayPreferences, userSelectedTodayPreferences, externalSignalPreferences]
     );
     const todayDietModeChecked = useMemo(
         () => userSelectedTodayPreferences.includes('weight_loss'),
@@ -1292,9 +1394,9 @@ export default function DietPage() {
         (dateKey: string) => {
             const byDate = dailyPreferences[dateKey] ?? [];
             const adaptive = recommendAdaptivePreferencesByRecentLogs(logs, dateKey);
-            return mergePreferences(adaptive, byDate);
+            return mergePreferences(adaptive, byDate, externalSignalPreferences);
         },
-        [dailyPreferences, logs]
+        [dailyPreferences, logs, externalSignalPreferences]
     );
 
     const getAdjustedPlanWithoutNoRepeat = useCallback(

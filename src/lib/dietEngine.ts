@@ -131,15 +131,138 @@ export const STAGE_TYPE_LABELS: Record<StageType, string> = {
 const RICE_TYPES = ['현미밥', '잡곡밥', '귀리밥', '보리밥', '흑미밥', '기장밥'];
 const PROTEIN_MAINS = ['닭가슴살구이', '연어구이', '두부조림', '달걀찜', '흰살생선찜', '콩불고기'];
 const MEAT_MAINS = ['닭안심구이', '저지방 소고기볶음', '돼지안심수육'];
-const SOUPS = ['맑은채소국', '저염 된장국', '단호박수프', '들깨버섯수프', '두부맑은국', '미역국(저염)'];
-const SIDES = ['브로콜리찜', '버섯볶음', '시금치나물', '오이무침', '당근볶음', '애호박볶음'];
+const SOUPS = [
+    '맑은채소국',
+    '저염 된장국',
+    '단호박수프',
+    '들깨버섯수프',
+    '두부맑은국',
+    '미역국(저염)',
+    '양배추수프',
+    '브로콜리수프',
+    '당근수프',
+    '애호박맑은국',
+    '연두부국',
+    '저염 채소수프',
+];
+const SIDES = [
+    '브로콜리찜',
+    '버섯볶음',
+    '시금치나물',
+    '오이무침',
+    '당근볶음',
+    '애호박볶음',
+    '양배추볶음',
+    '구운채소',
+    '저염 나물',
+    '저염 버섯볶음',
+    '담백한 두부무침',
+    '저염 채소무침',
+    '데친브로콜리',
+    '해초무침',
+    '나물모둠',
+    '당근나물',
+    '오이채무침',
+    '애호박무침',
+];
 const SNACKS = ['무가당 요거트', '바나나 반 개', '찐고구마', '두유', '사과 조각', '아몬드 소량'];
 const SNACK_FRUITS = ['사과 조각', '바나나 반 개', '배 조각', '키위', '딸기'];
-const BREAKFAST_MAIN_VARIANTS = ['달걀두부찜', '달걀찜', '두부조림', '닭안심찜', '닭가슴살구이', '연두부덮밥', '흰살생선찜', '부드러운 죽'];
-const LUNCH_MAIN_VARIANTS = ['연어구이', '닭가슴살구이', '두부조림', '닭안심찜', '흰살생선찜', '연두부덮밥', '고등어구이', '두부스테이크'];
-const DINNER_MAIN_VARIANTS = ['닭가슴살구이', '흰살생선찜', '두부조림', '연어구이', '닭안심찜', '부드러운 죽', '달걀두부찜', '고등어구이'];
-const SNACK_MAIN_VARIANTS = ['무가당 요거트', '그릭요거트', '무가당 두유', '찐고구마', '사과 조각', '바나나 반 개', '아몬드 소량', '베리류'];
-const SNACK_SIDE_VARIANTS = ['사과 조각', '바나나 반 개', '베리류', '키위', '딸기', '배 조각', '아몬드 소량', '호두 소량'];
+const BREAKFAST_MAIN_VARIANTS = [
+    '달걀두부찜',
+    '달걀찜',
+    '두부조림',
+    '닭안심찜',
+    '닭가슴살구이',
+    '연두부덮밥',
+    '흰살생선찜',
+    '부드러운 죽',
+    '닭가슴살채소찜',
+    '두부버섯조림',
+    '달걀채소찜',
+    '연어구이(저염)',
+    '고등어찜(저염)',
+    '귀리닭죽',
+    '두부달걀오믈렛',
+    '흰살생선두부찜',
+    '닭안심버섯찜',
+    '연두부달걀찜',
+    '두부채소볶음(저염)',
+    '달걀두부덮밥',
+];
+const LUNCH_MAIN_VARIANTS = [
+    '연어구이',
+    '닭가슴살구이',
+    '두부조림',
+    '닭안심찜',
+    '흰살생선찜',
+    '연두부덮밥',
+    '고등어구이',
+    '두부스테이크',
+    '닭가슴살채소볶음(저염)',
+    '두부버섯덮밥(저염)',
+    '연어채소찜',
+    '흰살생선구이(저염)',
+    '닭안심버섯찜',
+    '두부달걀덮밥',
+    '고등어찜(저염)',
+    '귀리닭죽',
+    '채소두부볶음(저염)',
+    '연두부달걀찜',
+    '닭가슴살오븐구이',
+    '버섯두부스테이크',
+];
+const DINNER_MAIN_VARIANTS = [
+    '닭가슴살구이',
+    '흰살생선찜',
+    '두부조림',
+    '연어구이',
+    '닭안심찜',
+    '부드러운 죽',
+    '달걀두부찜',
+    '고등어구이',
+    '두부버섯조림',
+    '닭가슴살채소찜',
+    '연어채소찜',
+    '흰살생선구이(저염)',
+    '연두부덮밥',
+    '두부달걀오믈렛',
+    '고등어찜(저염)',
+    '닭안심버섯찜',
+    '귀리닭죽',
+    '채소두부볶음(저염)',
+    '연두부달걀찜',
+    '버섯두부스테이크',
+];
+const SNACK_MAIN_VARIANTS = [
+    '무가당 요거트',
+    '그릭요거트',
+    '무가당 두유',
+    '찐고구마',
+    '사과 조각',
+    '바나나 반 개',
+    '아몬드 소량',
+    '베리류',
+    '키위',
+    '배 조각',
+    '딸기',
+    '호두 소량',
+    '제철 과일',
+    '무가당 요거트(저당)',
+];
+const SNACK_SIDE_VARIANTS = [
+    '사과 조각',
+    '바나나 반 개',
+    '베리류',
+    '키위',
+    '딸기',
+    '배 조각',
+    '아몬드 소량',
+    '호두 소량',
+    '제철 과일',
+    '고구마 소량',
+    '귤',
+    '복숭아 조각',
+];
 const SNACK_HYDRATION_VARIANTS = ['물', '따뜻한 물'];
 const MEAL_SIMILARITY_THRESHOLD = 0.72;
 const MEAL_REGEN_MAX_ATTEMPTS = 5;
@@ -523,8 +646,46 @@ function seasonalFromSide(side: string) {
     return token ?? '채소';
 }
 
+function normalizeDaySignatureToken(input: string) {
+    return input
+        .toLowerCase()
+        .replace(/\([^)]*\)/g, '')
+        .replace(/\s+/g, '')
+        .trim();
+}
+
+function dayPlanSignature(plan: DayPlan) {
+    const breakfast = [
+        plan.breakfast.riceType,
+        plan.breakfast.main,
+        plan.breakfast.soup,
+        plan.breakfast.sides[0] ?? '',
+    ];
+    const lunch = [
+        plan.lunch.riceType,
+        plan.lunch.main,
+        plan.lunch.soup,
+        plan.lunch.sides[0] ?? '',
+    ];
+    const dinner = [
+        plan.dinner.riceType,
+        plan.dinner.main,
+        plan.dinner.soup,
+        plan.dinner.sides[0] ?? '',
+    ];
+    const snack = [
+        plan.snack.main,
+        plan.snack.soup,
+        plan.snack.sides[0] ?? '',
+    ];
+
+    return [breakfast, lunch, dinner, snack]
+        .map((part) => part.map((token) => normalizeDaySignatureToken(token)).join('|'))
+        .join('||');
+}
+
 export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[], windowDays = 7) {
-    const recentWindow = clamp(Math.round(windowDays), 1, 14);
+    const recentWindow = clamp(Math.round(windowDays), 1, 30);
     const recent = recentPlans.slice(-recentWindow);
     const optimized = clonePlan(plan);
 
@@ -538,6 +699,8 @@ export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[],
     const changedSlots: MealSlot[] = [];
     const similarityAdjustedSlots: MealSlot[] = [];
     const similarityUnresolvedSlots: MealSlot[] = [];
+    let daySignatureAdjusted = false;
+    let daySignatureUnresolved = false;
     const mainPools: Record<MealSlot, string[]> = {
         breakfast: BREAKFAST_MAIN_VARIANTS,
         lunch: LUNCH_MAIN_VARIANTS,
@@ -652,12 +815,90 @@ export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[],
             similarityUnresolvedSlots.push(slot);
         }
 
-        if (meal.main !== originalMain || meal.soup !== originalSoup) {
-            changedSlots.push(slot);
-        }
+            if (meal.main !== originalMain || meal.soup !== originalSoup) {
+                changedSlots.push(slot);
+            }
     });
 
-    if (changedSlots.length === 0 && similarityAdjustedSlots.length === 0 && similarityUnresolvedSlots.length === 0) {
+    const recentDaySignatures = new Set(recent.map((item) => dayPlanSignature(item)));
+    let currentSignature = dayPlanSignature(optimized);
+    if (recentDaySignatures.has(currentSignature)) {
+        const slotOrder: MealSlot[] = ['dinner', 'lunch', 'breakfast', 'snack'];
+        const maxAttempts = MEAL_REGEN_MAX_ATTEMPTS * slotOrder.length;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+            const slot = slotOrder[(attempt - 1) % slotOrder.length];
+            const meal = mealBySlot(optimized, slot);
+            const originalMain = meal.main;
+            const originalSoup = meal.soup;
+            const originalFirstSide = meal.sides[0] ?? '';
+            const recentMainValues = new Set(recent.map((item) => mealBySlot(item, slot).main));
+            meal.main = pickNextNonRepeatingWithOffset(meal.main, mainPools[slot], recentMainValues, attempt + recentWindow);
+
+            if (slot === 'snack') {
+                const fallbackSide = meal.sides[0] ?? SNACK_SIDE_VARIANTS[0];
+                const recentSideValues = new Set(
+                    recent
+                        .map((item) => item.snack.sides[0] ?? '')
+                        .map((value) => value.trim())
+                        .filter(Boolean)
+                );
+                const recentHydrationValues = new Set(recent.map((item) => item.snack.soup));
+                const nextSide = pickNextNonRepeatingWithOffset(
+                    fallbackSide,
+                    SNACK_SIDE_VARIANTS,
+                    recentSideValues,
+                    attempt + recentWindow
+                );
+                const nextHydration = pickNextNonRepeatingWithOffset(
+                    meal.soup,
+                    SNACK_HYDRATION_VARIANTS,
+                    recentHydrationValues,
+                    attempt + recentWindow
+                );
+                meal.sides = [nextSide];
+                meal.soup = nextHydration;
+                meal.summary = `${meal.main} + ${nextSide} + ${meal.soup}`;
+                const snackRecipe = buildSnackRecipe(meal.main, nextSide, meal.soup);
+                meal.recipeName = snackRecipe.recipeName;
+                meal.recipeSteps = snackRecipe.recipeSteps;
+            } else {
+                const recentSoupValues = new Set(recent.map((item) => mealBySlot(item, slot).soup));
+                meal.soup = pickNextNonRepeatingWithOffset(meal.soup, SOUPS, recentSoupValues, attempt + recentWindow);
+                const firstSide = meal.sides[0] ?? SIDES[0];
+                meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
+                const recipe = buildRecipe(meal.main, meal.soup, firstSide, seasonalFromSide(firstSide));
+                meal.recipeName = recipe.recipeName;
+                meal.recipeSteps = recipe.recipeSteps;
+            }
+
+            if (
+                meal.main !== originalMain ||
+                meal.soup !== originalSoup ||
+                (meal.sides[0] ?? '') !== originalFirstSide
+            ) {
+                changedSlots.push(slot);
+            }
+
+            currentSignature = dayPlanSignature(optimized);
+            if (!recentDaySignatures.has(currentSignature)) {
+                daySignatureAdjusted = true;
+                break;
+            }
+        }
+    }
+
+    if (recentDaySignatures.has(currentSignature)) {
+        daySignatureUnresolved = true;
+    }
+
+    if (
+        changedSlots.length === 0 &&
+        similarityAdjustedSlots.length === 0 &&
+        similarityUnresolvedSlots.length === 0 &&
+        !daySignatureAdjusted &&
+        !daySignatureUnresolved
+    ) {
         return {
             plan: optimized,
             notes: [] as string[],
@@ -681,6 +922,13 @@ export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[],
     if (uniqueSimilarityUnresolved.length > 0) {
         const labels = uniqueSimilarityUnresolved.map((slot) => mealTypeLabel(slot));
         notes.push(`메뉴 풀이 제한적이라 ${labels.join(', ')}은 일부 유사 패턴이 남았어요. 다음 추천에서 후보군을 더 늘려 개선할게요.`);
+    }
+
+    if (daySignatureAdjusted) {
+        notes.push(`최근 ${recentWindow}일과 같은 하루 조합이 나오지 않도록 식단 조합을 추가 분산했어요.`);
+    }
+    if (daySignatureUnresolved) {
+        notes.push(`최근 ${recentWindow}일 내 동일한 하루 조합이 일부 남았어요. 다음 업데이트에서 후보군을 더 확장할게요.`);
     }
 
     return {

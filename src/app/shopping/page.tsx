@@ -113,7 +113,7 @@ const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const SHOPPING_MEMO_PREFIX = 'shopping-memo-v1';
 const TWO_WEEK_DAYS = 14;
-const NO_REPEAT_DAYS = 7;
+const NO_REPEAT_DAYS = 30;
 const PREFERENCE_KEYS = new Set<PreferenceType>([
     'spicy',
     'sweet',
