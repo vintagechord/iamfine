@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Coffee, Moon, Sun, Sunrise } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     applySevenDayNoRepeatRule,
     formatDateKey,
@@ -150,6 +150,41 @@ const DEFAULT_STORE: DietStore = {
 const PREFERENCE_KEYS = new Set<PreferenceType>(PREFERENCE_OPTIONS.map((option) => option.key));
 
 const SLOT_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+const COMMON_MANUAL_FOOD_CANDIDATES = [
+    '현미밥',
+    '잡곡밥',
+    '죽',
+    '오트밀',
+    '닭가슴살',
+    '연어구이',
+    '흰살생선찜',
+    '두부조림',
+    '달걀찜',
+    '브로콜리찜',
+    '당근볶음',
+    '양배추볶음',
+    '버섯볶음',
+    '시금치나물',
+    '오이무침',
+    '채소수프',
+    '된장국',
+    '미역국',
+    '콩나물국',
+    '샐러드',
+    '그릭요거트',
+    '무가당 요거트',
+    '두유',
+    '바나나',
+    '사과',
+    '배',
+    '키위',
+    '오렌지',
+    '오렌지주스',
+    '토마토',
+    '고구마',
+    '감자',
+    '견과류',
+] as const;
 
 const TWO_WEEK_DAYS = 14;
 const NO_REPEAT_DAYS = 30;
@@ -983,13 +1018,15 @@ function searchManualFoodCandidates(query: string, candidates: string[], maxResu
     if (!normalizedQuery) {
         return [];
     }
+    const compactQuery = compactFoodText(normalizedQuery);
+    const minimumScore = compactQuery.length <= 2 ? 0.22 : compactQuery.length <= 3 ? 0.3 : 0.42;
 
     const ranked = candidates
         .map((name) => ({
             name,
             score: foodNameSimilarityScore(normalizedQuery, name),
         }))
-        .filter((item) => item.score >= 0.42)
+        .filter((item) => item.score >= minimumScore)
         .sort((a, b) => b.score - a.score || a.name.length - b.name.length || a.name.localeCompare(b.name, 'ko'))
         .slice(0, maxResults)
         .map((item) => item.name);
@@ -1359,6 +1396,11 @@ export default function DietPage() {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
+    const lastManualAddRef = useRef<{
+        slot: MealSlot;
+        name: string;
+        at: number;
+    } | null>(null);
 
     const openRecordView = searchParams.get('view') === 'record';
 
@@ -1799,6 +1841,8 @@ export default function DietPage() {
             }
             names.add(normalized);
         };
+
+        COMMON_MANUAL_FOOD_CANDIDATES.forEach((name) => addCandidate(name));
 
         const planDateKeys = Array.from({ length: 21 }, (_, index) => offsetDateKey(todayKey, index - 10));
         planDateKeys.forEach((dateKey) => {
@@ -2352,7 +2396,11 @@ export default function DietPage() {
         }));
     };
 
-    const addMealItem = (slot: MealSlot, matchedFoodName?: string) => {
+    const addMealItem = (
+        slot: MealSlot,
+        matchedFoodName?: string,
+        source: 'button' | 'keyboard' | 'chip' = 'button'
+    ) => {
         const suggestedNames = manualMatchCandidatesBySlot[slot];
         const autoMatchedName =
             !matchedFoodName && suggestedNames.length > 0 ? suggestedNames[0] : undefined;
@@ -2364,6 +2412,21 @@ export default function DietPage() {
         if (!normalizedName) {
             return;
         }
+        const now = Date.now();
+        const lastManualAdd = lastManualAddRef.current;
+        if (
+            lastManualAdd &&
+            lastManualAdd.slot === slot &&
+            lastManualAdd.name === normalizedName &&
+            now - lastManualAdd.at < 700
+        ) {
+            return;
+        }
+        lastManualAddRef.current = {
+            slot,
+            name: normalizedName,
+            at: now,
+        };
 
         updateCurrentLog((current) => ({
             ...current,
@@ -2389,7 +2452,9 @@ export default function DietPage() {
             typedRaw &&
             normalizeManualMealName(typedRaw) !== normalizedName
         ) {
-            setMessage(`입력한 "${typedRaw}"을 "${normalizedName}"(으)로 매칭해 기록했어요.`);
+            if (source === 'keyboard' || source === 'button') {
+                setMessage(`입력한 "${typedRaw}"을 "${normalizedName}"(으)로 매칭해 기록했어요.`);
+            }
         }
 
         setNewItemBySlot((prev) => ({
@@ -3241,15 +3306,19 @@ export default function DietPage() {
                                                         if (event.key !== 'Enter') {
                                                             return;
                                                         }
+                                                        if (event.nativeEvent.isComposing || event.repeat) {
+                                                            return;
+                                                        }
                                                         event.preventDefault();
-                                                        addMealItem(slot);
+                                                        event.stopPropagation();
+                                                        addMealItem(slot, undefined, 'keyboard');
                                                     }}
                                                     placeholder="먹은 음식 추가"
                                                     className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                                 />
                                                 <button
                                                     type="button"
-                                                    onClick={() => addMealItem(slot)}
+                                                    onClick={() => addMealItem(slot, undefined, 'button')}
                                                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
                                                 >
                                                     추가
@@ -3266,7 +3335,7 @@ export default function DietPage() {
                                                                 <button
                                                                     key={`${slot}-${candidate}`}
                                                                     type="button"
-                                                                    onClick={() => addMealItem(slot, candidate)}
+                                                                    onClick={() => addMealItem(slot, candidate, 'chip')}
                                                                     className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                                                 >
                                                                     {candidate}
