@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Coffee, Moon, Sun, Sunrise, Utensils } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Moon, Sun, Sunrise, Utensils } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     applySevenDayNoRepeatRule,
@@ -356,11 +356,40 @@ function buildDailyTeaRecommendations(stageType: StageType, plan: DayPlan): TeaR
     return recommendations.slice(0, 3);
 }
 
+function buildDailyCoffeeRecommendations(stageType: StageType, plan: DayPlan): TeaRecommendation[] {
+    const combinedText = [
+        plan.breakfast.summary,
+        plan.lunch.summary,
+        plan.dinner.summary,
+        plan.snack.summary,
+    ].join(' ');
+    const recommendations: TeaRecommendation[] = [];
+    const addRecommendation = (name: string, reason: string) => {
+        if (recommendations.some((item) => item.name === name)) {
+            return;
+        }
+        recommendations.push({ name, reason });
+    };
+
+    // 커피는 필수가 아니라 "원할 때만" 선택할 수 있는 옵션으로만 제안한다.
+    addRecommendation('디카페인 아메리카노(연하게)', '카페인 민감도가 있는 날에 비교적 부담이 적은 선택지예요.');
+
+    if (stageType !== 'chemo' && stageType !== 'chemo_2nd' && stageType !== 'radiation') {
+        addRecommendation('연한 아메리카노(카페인, 소량)', '원할 때만 식후에 반 잔~한 잔 이내로 조심해서 마셔요.');
+    }
+
+    if (combinedText.includes('요거트') || combinedText.includes('두유') || combinedText.includes('수프')) {
+        addRecommendation('디카페인 라떼(무가당, 저지방 우유/두유)', '속이 예민한 날에는 진하지 않게 소량으로 선택해요.');
+    }
+
+    return recommendations.slice(0, 2);
+}
+
 function coffeeGuidanceByStage(stageType: StageType) {
     if (stageType === 'chemo' || stageType === 'chemo_2nd' || stageType === 'radiation') {
-        return '치료 중에는 커피를 필수로 마실 필요가 없고, 몸이 예민한 날은 무카페인 차를 우선해 주세요.';
+        return '치료 중 커피는 필수가 아니며, 몸이 예민한 날은 커피를 쉬고 무카페인 차를 우선해 주세요.';
     }
-    return '커피를 마신다면 식후 1잔 이내로 제한하고, 늦은 오후·저녁에는 피하는 편이 좋아요.';
+    return '커피는 매일 마실 필요가 없고, 원할 때만 식후 1잔 이내로 제한해 늦은 오후·저녁은 피하세요.';
 }
 
 function parseDateKey(dateKey: string) {
@@ -2197,6 +2226,10 @@ export default function DietPage() {
         () => buildDailyTeaRecommendations(stageType, viewedTodayPlan),
         [stageType, viewedTodayPlan]
     );
+    const dailyCoffeeRecommendations = useMemo(
+        () => buildDailyCoffeeRecommendations(stageType, viewedTodayPlan),
+        [stageType, viewedTodayPlan]
+    );
     const snackCoffeeRecommendedTime = useMemo(() => {
         if (stageType === 'chemo' || stageType === 'chemo_2nd') {
             return {
@@ -2216,7 +2249,7 @@ export default function DietPage() {
 
         return {
             snack: '14시~16시',
-            coffee: '9시~11시',
+            coffee: '9시~11시(선택)',
             tea: '9시~18시(무카페인)',
         };
     }, [stageType]);
@@ -2228,14 +2261,17 @@ export default function DietPage() {
 
         if (openRecipeSlot === 'coffee') {
             return {
-                title: '커피/차 가이드',
-                recipeName: '치료 중 커피·차 섭취 방법',
+                title: '선택 커피/차 가이드',
+                recipeName: '치료 중 선택 음료(커피·차) 섭취 방법',
                 recipeSteps: uniqueRecipeSteps([
                     timingGuide.coffee,
                     timingGuide.tea,
                     beverageCaution,
+                    dailyCoffeeRecommendations.length > 0
+                        ? `오늘 선택 커피: ${dailyCoffeeRecommendations.map((item) => item.name).join(', ')}`
+                        : '커피는 필수가 아니며, 원할 때만 소량으로 선택해 주세요.',
                     dailyTeaRecommendations.length > 0
-                        ? `오늘 추천 차: ${dailyTeaRecommendations.map((item) => item.name).join(', ')}`
+                        ? `오늘 선택 차: ${dailyTeaRecommendations.map((item) => item.name).join(', ')}`
                         : '차는 카페인 없는 종류를 우선해 주세요.',
                     '식사 직후보다 1시간 뒤에 드세요.',
                     '가능하면 무가당/저당으로 연하게 드세요.',
@@ -2271,7 +2307,15 @@ export default function DietPage() {
             recipeName: viewedTodayPlan.snack.recipeName,
             recipeSteps: uniqueRecipeSteps(viewedTodayPlan.snack.recipeSteps),
         };
-    }, [openRecipeSlot, timingGuide.coffee, timingGuide.tea, beverageCaution, dailyTeaRecommendations, viewedTodayPlan]);
+    }, [
+        openRecipeSlot,
+        timingGuide.coffee,
+        timingGuide.tea,
+        beverageCaution,
+        dailyCoffeeRecommendations,
+        dailyTeaRecommendations,
+        viewedTodayPlan,
+    ]);
 
     const weeklyScore = useMemo(() => {
         const base = new Date(todayKey);
@@ -3035,7 +3079,7 @@ export default function DietPage() {
                                   ? Sun
                                   : slot === 'dinner'
                                     ? Moon
-                                    : Coffee;
+                                    : Utensils;
                         const mealTimeBadges =
                             slot === 'breakfast'
                                 ? ['7시~9시']
@@ -3043,11 +3087,7 @@ export default function DietPage() {
                                   ? ['12시~1시']
                                   : slot === 'dinner'
                                     ? ['6시~7시']
-                                    : [
-                                          `간식 ${snackCoffeeRecommendedTime.snack}`,
-                                          `커피 ${snackCoffeeRecommendedTime.coffee}`,
-                                          `차 ${snackCoffeeRecommendedTime.tea}`,
-                                      ];
+                                    : [`간식 ${snackCoffeeRecommendedTime.snack}`];
                         const showMedicationArea = slot === 'breakfast' || slot === 'lunch' || slot === 'dinner';
                         const mealMedicationList =
                             showMedicationArea
@@ -3150,31 +3190,44 @@ export default function DietPage() {
                 </div>
 
                 <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">오늘 간식/커피/차 타이밍</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">오늘 간식 타이밍</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 간식 권장 시간: {snackCoffeeRecommendedTime.snack}</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 커피 권장 시간: {snackCoffeeRecommendedTime.coffee}</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 차 권장 시간: {snackCoffeeRecommendedTime.tea}</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.snack}</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.coffee}</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.tea}</p>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {beverageCaution}</p>
-                    {dailyTeaRecommendations.length > 0 && (
-                        <div className="mt-2 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                            <p className="font-semibold text-gray-900 dark:text-gray-100">오늘 추천 무카페인 차</p>
-                            {dailyTeaRecommendations.map((item) => (
-                                <p key={`tea-${item.name}`} className="mt-1">
-                                    - <span className="font-semibold">{item.name}</span>: {item.reason}
-                                </p>
-                            ))}
-                        </div>
-                    )}
+                    <div className="mt-3 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">선택 음료 가이드(필수 아님)</p>
+                        <p className="mt-1">- 커피(원할 때만) 권장 시간: {snackCoffeeRecommendedTime.coffee}</p>
+                        <p className="mt-1">- 차(원할 때만) 권장 시간: {snackCoffeeRecommendedTime.tea}</p>
+                        <p className="mt-1">- {timingGuide.coffee}</p>
+                        <p className="mt-1">- {timingGuide.tea}</p>
+                        <p className="mt-1">- {beverageCaution}</p>
+                        {dailyCoffeeRecommendations.length > 0 && (
+                            <div className="mt-2">
+                                <p className="font-semibold text-gray-900 dark:text-gray-100">오늘 선택 커피(원할 때만)</p>
+                                {dailyCoffeeRecommendations.map((item) => (
+                                    <p key={`coffee-${item.name}`} className="mt-1">
+                                        - <span className="font-semibold">{item.name}</span>: {item.reason}
+                                    </p>
+                                ))}
+                            </div>
+                        )}
+                        {dailyTeaRecommendations.length > 0 && (
+                            <div className="mt-2">
+                                <p className="font-semibold text-gray-900 dark:text-gray-100">오늘 선택 차(원할 때만)</p>
+                                {dailyTeaRecommendations.map((item) => (
+                                    <p key={`tea-${item.name}`} className="mt-1">
+                                        - <span className="font-semibold">{item.name}</span>: {item.reason}
+                                    </p>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                         <button
                             type="button"
                             onClick={() => setOpenRecipeSlot('coffee')}
                             className="cursor-pointer rounded-md border border-black bg-black px-2.5 py-1.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-gray-800"
                         >
-                            커피/차 가이드 보기
+                            선택 커피/차 가이드 보기
                         </button>
                     </div>
                 </div>

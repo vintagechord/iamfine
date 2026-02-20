@@ -1843,23 +1843,23 @@ export function getSnackCoffeeTimingGuide(stageType: StageType) {
     if (stageType === 'chemo' || stageType === 'chemo_2nd') {
         return {
             snack: '간식은 점심 2~3시간 후(14시~16시)에 소량으로 드세요.',
-            coffee: '커피는 필수가 아니며, 필요하면 식후 1시간 뒤 연한 커피로 하루 1잔 이내만 권장해요.',
-            tea: '차는 카페인 없는 종류(카모마일, 루이보스, 보리차)를 우선으로 소량씩 나눠 드세요.',
+            coffee: '커피는 필수가 아니며, 꼭 원할 때만 식후 1시간 뒤 연한 커피로 하루 1잔 이내를 권장해요.',
+            tea: '차도 필수는 아니고, 원할 때 카페인 없는 종류(카모마일, 루이보스, 보리차)를 우선해 소량씩 드세요.',
         };
     }
 
     if (stageType === 'radiation') {
         return {
             snack: '간식은 15시 전후에 수분이 있는 음식으로 드세요.',
-            coffee: '커피는 탈수 위험을 고려해 필요 시 소량만 드시고 물을 함께 보충해 주세요.',
-            tea: '차는 보리차·캐모마일처럼 무카페인 차를 자주 나눠 마셔 수분을 보충해 주세요.',
+            coffee: '커피는 필수가 아니며, 꼭 원할 때 탈수 위험을 고려해 소량만 드시고 물을 함께 보충해 주세요.',
+            tea: '차도 필수는 아니고, 원할 때 보리차·캐모마일 같은 무카페인 차를 선택해 수분을 보충해 주세요.',
         };
     }
 
     return {
         snack: '간식은 오후 3시 전후, 저당 간식 위주로 드세요.',
-        coffee: '커피는 오전/점심 식후에 필요 시 1잔 이내로 마시고 저녁에는 피하세요.',
-        tea: '차는 카페인 없는 종류를 우선하고, 진하지 않게 따뜻한 온도로 드세요.',
+        coffee: '커피는 필수가 아니며, 꼭 원할 때 오전/점심 식후에 1잔 이내로 드시고 저녁에는 피하세요.',
+        tea: '차도 필수는 아니고, 원할 때 카페인 없는 종류를 우선해 진하지 않게 따뜻한 온도로 드세요.',
     };
 }
 
@@ -1918,7 +1918,7 @@ export function mealTypeLabel(slot: MealSlot) {
     if (slot === 'dinner') {
         return '저녁';
     }
-    return '간식/커피/차';
+    return '간식';
 }
 
 export function scoreToPercentile(score: number) {

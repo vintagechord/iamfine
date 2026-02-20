@@ -917,7 +917,7 @@ export default function DietCalendarPage() {
                                         <span className="font-semibold">저녁</span>: {plan.dinner.summary}
                                     </p>
                                     <p>
-                                        <span className="font-semibold">간식/커피</span>: {plan.snack.summary}
+                                        <span className="font-semibold">간식</span>: {plan.snack.summary}
                                     </p>
                                 </div>
                             </article>
