@@ -1699,15 +1699,6 @@ export default function DietPage() {
         const ethnicityText = userDietContext.ethnicity?.trim() ? userDietContext.ethnicity.trim() : '미입력';
         const cancerTypeText = userDietContext.cancerType?.trim() ? userDietContext.cancerType.trim() : '미입력';
         const stageLabel = activeStage?.stage_label?.trim() || '미입력';
-        const stageTypeLabel = activeStage ? STAGE_TYPE_LABELS[activeStage.stage_type] : '미입력';
-        const stageOrderText = activeStage ? String(activeStage.stage_order) : '미입력';
-        const stageStatusText = activeStage
-            ? activeStage.status === 'active'
-                ? '진행중'
-                : activeStage.status === 'completed'
-                  ? '완료'
-                  : '예정'
-            : '미입력';
         const medicationCount = medicationSchedules.length;
         const medicationTimingText =
             medicationCount === 0
@@ -1717,7 +1708,7 @@ export default function DietPage() {
         return [
             `기본 건강 정보: 나이 ${ageText} / 성별 ${sexText} / 키 ${heightText} / 몸무게 ${weightText} / 인종·배경 ${ethnicityText}`,
             `치료 정보: 암 종류 ${cancerTypeText}`,
-            `치료 단계: 유형 ${stageTypeLabel} / 단계명 ${stageLabel} / 상태 ${stageStatusText} / 순서 ${stageOrderText}`,
+            `치료 단계: ${stageLabel}`,
             `복용 약 정보: ${medicationCount}개 / 복용 시기 ${medicationTimingText}`,
         ];
     }, [userDietContext, activeStage, medicationSchedules]);
