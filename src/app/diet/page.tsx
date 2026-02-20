@@ -664,7 +664,6 @@ export default function DietPage() {
 
     const [logs, setLogs] = useState<Record<string, DayLog>>({});
     const [medications, setMedications] = useState<string[]>([]);
-    const [medicationHistory, setMedicationHistory] = useState<MedicationHistory[]>([]);
     const [medicationSchedules, setMedicationSchedules] = useState<MedicationSchedule[]>([]);
     const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
     const [carryPreferences, setCarryPreferences] = useState<PreferenceType[]>([]);
@@ -1260,7 +1259,6 @@ export default function DietPage() {
         const store = parseStore(localStorage.getItem(getStoreKey(uid)));
         setLogs(store.logs);
         setMedications(store.medications);
-        setMedicationHistory(store.medicationHistory);
         setMedicationSchedules(store.medicationSchedules);
         setDailyPreferences(store.dailyPreferences);
         setCarryPreferences([]);
@@ -1283,18 +1281,20 @@ export default function DietPage() {
             return;
         }
 
+        const storeKey = getStoreKey(userId);
+        const latestStored = parseStore(localStorage.getItem(storeKey));
         const payload: DietStore = {
             logs,
-            medications,
-            medicationHistory,
-            medicationSchedules,
-            preferences: [],
+            medications: latestStored.medications,
+            medicationHistory: latestStored.medicationHistory,
+            medicationSchedules: latestStored.medicationSchedules,
+            preferences: latestStored.preferences,
             dailyPreferences,
             carryPreferences,
         };
 
-        localStorage.setItem(getStoreKey(userId), JSON.stringify(payload));
-    }, [storeReady, userId, logs, medications, medicationHistory, medicationSchedules, dailyPreferences, carryPreferences]);
+        localStorage.setItem(storeKey, JSON.stringify(payload));
+    }, [storeReady, userId, logs, dailyPreferences, carryPreferences]);
 
     useEffect(() => {
         if (loading || !openRecordView) {
