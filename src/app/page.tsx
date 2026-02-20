@@ -75,20 +75,56 @@ function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
 }
 
 function formatAlertDate(raw: string) {
+    const parsedDate = parseAlertDate(raw);
+    if (!parsedDate) {
+        return raw || '날짜 미표기';
+    }
+
+    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(parsedDate.getDate()).padStart(2, '0');
+    return `${month}/${day}`;
+}
+
+function parseAlertDate(raw: string) {
     if (!raw) {
-        return '날짜 미표기';
+        return null;
     }
 
     const normalized = raw.replace(/\.\s*/g, '-').replace(/\.\s*$/, '');
     const parsed = Date.parse(normalized);
     if (Number.isNaN(parsed)) {
-        return raw;
+        return null;
     }
 
-    const date = new Date(parsed);
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${month}/${day}`;
+    return new Date(parsed);
+}
+
+function formatAlertUpdatedAgo(raw: string) {
+    const parsedDate = parseAlertDate(raw);
+    if (!parsedDate) {
+        return '업데이트 시간 미확인';
+    }
+
+    const diffMs = Date.now() - parsedDate.getTime();
+    if (diffMs <= 0) {
+        return '방금 업데이트';
+    }
+
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    if (diffMinutes < 1) {
+        return '방금 업데이트';
+    }
+    if (diffMinutes < 60) {
+        return `${diffMinutes}분 전 업데이트`;
+    }
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 48) {
+        return `${diffHours}시간 전 업데이트`;
+    }
+
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}일 전 업데이트`;
 }
 
 export default function Home() {
@@ -401,7 +437,7 @@ export default function Home() {
                                         {customAlertPage * ALERT_PAGE_SIZE + index + 1}. {alertItem.title}
                                     </p>
                                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                        {alertItem.source} · {formatAlertDate(alertItem.publishedAt)}
+                                        {alertItem.source} · {formatAlertDate(alertItem.publishedAt)} · {formatAlertUpdatedAgo(alertItem.publishedAt)}
                                     </p>
                                 </a>
                             ))}
