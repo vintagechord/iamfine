@@ -2355,7 +2355,7 @@ export default function DietPage() {
                                             <div className="mealTileMono__pillBox">
                                                 <p className="font-semibold">식후 복용 약</p>
                                                 {mealMedicationList.length === 0 ? (
-                                                    <p className="mt-1">등록된 약 없음</p>
+                                                    <p className="mt-1">복용 약 없음</p>
                                                 ) : (
                                                     <div className="mt-1 flex flex-wrap gap-1.5">
                                                         {mealMedicationList.map((medication) => {
