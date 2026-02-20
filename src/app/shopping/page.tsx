@@ -89,6 +89,99 @@ const CATEGORY_ORDER: CategoryKey[] = [
     '기타',
 ];
 
+const PANTRY_INGREDIENTS = new Set([
+    '물',
+    '따뜻한 물',
+    '소금',
+    '설탕',
+    '시럽',
+    '식용유',
+    '올리브유',
+    '참기름',
+    '들기름',
+    '카놀라유',
+    '간장',
+    '된장',
+    '고추장',
+    '식초',
+    '고춧가루',
+    '후추',
+    '양념',
+    '소스',
+    '드레싱',
+    '토마토소스',
+]);
+
+const INGREDIENT_RULES: Array<{ pattern: RegExp; ingredient: string }> = [
+    { pattern: /현미밥|현미/, ingredient: '현미' },
+    { pattern: /잡곡밥|잡곡/, ingredient: '잡곡쌀' },
+    { pattern: /귀리밥|귀리/, ingredient: '귀리' },
+    { pattern: /보리밥|보리/, ingredient: '보리' },
+    { pattern: /흑미밥|흑미/, ingredient: '흑미' },
+    { pattern: /기장밥|기장/, ingredient: '기장' },
+    { pattern: /죽/, ingredient: '쌀' },
+    { pattern: /달걀두부|두부달걀/, ingredient: '달걀' },
+    { pattern: /달걀두부|두부달걀/, ingredient: '두부' },
+    { pattern: /닭가슴살/, ingredient: '닭가슴살' },
+    { pattern: /닭안심/, ingredient: '닭안심' },
+    { pattern: /소고기/, ingredient: '소고기' },
+    { pattern: /돼지안심|돼지고기/, ingredient: '돼지안심' },
+    { pattern: /연어/, ingredient: '연어' },
+    { pattern: /흰살생선|생선찜|생선숙회|생선초밥/, ingredient: '흰살생선' },
+    { pattern: /고등어/, ingredient: '고등어' },
+    { pattern: /두부|연두부/, ingredient: '두부' },
+    { pattern: /달걀|계란/, ingredient: '달걀' },
+    { pattern: /콩/, ingredient: '콩류' },
+    { pattern: /요거트|그릭요거트/, ingredient: '무가당 요거트' },
+    { pattern: /두유/, ingredient: '무가당 두유' },
+    { pattern: /브로콜리/, ingredient: '브로콜리' },
+    { pattern: /버섯/, ingredient: '버섯' },
+    { pattern: /시금치/, ingredient: '시금치' },
+    { pattern: /오이/, ingredient: '오이' },
+    { pattern: /당근/, ingredient: '당근' },
+    { pattern: /애호박/, ingredient: '애호박' },
+    { pattern: /단호박/, ingredient: '단호박' },
+    { pattern: /양배추/, ingredient: '양배추' },
+    { pattern: /배추/, ingredient: '배추' },
+    { pattern: /(?:^|\s)무(?:\s|$)|무피클/, ingredient: '무' },
+    { pattern: /미나리/, ingredient: '미나리' },
+    { pattern: /토마토/, ingredient: '토마토' },
+    { pattern: /가지/, ingredient: '가지' },
+    { pattern: /상추/, ingredient: '상추' },
+    { pattern: /아스파라거스/, ingredient: '아스파라거스' },
+    { pattern: /냉이/, ingredient: '냉이' },
+    { pattern: /달래/, ingredient: '달래' },
+    { pattern: /두릅/, ingredient: '두릅' },
+    { pattern: /쑥/, ingredient: '쑥' },
+    { pattern: /완두콩/, ingredient: '완두콩' },
+    { pattern: /옥수수/, ingredient: '옥수수' },
+    { pattern: /레몬/, ingredient: '레몬' },
+    { pattern: /나물/, ingredient: '나물채소' },
+    { pattern: /채소|샐러드|구운채소/, ingredient: '채소믹스' },
+    { pattern: /해초/, ingredient: '해초' },
+    { pattern: /미역/, ingredient: '마른미역' },
+    { pattern: /멸치/, ingredient: '멸치' },
+    { pattern: /또띠아/, ingredient: '통밀 또띠아' },
+    { pattern: /피자/, ingredient: '통밀 또띠아' },
+    { pattern: /피자/, ingredient: '채소믹스' },
+    { pattern: /국수|소면|면|파스타|라면/, ingredient: '면류' },
+    { pattern: /제철 과일|과일/, ingredient: '제철 과일' },
+    { pattern: /바나나/, ingredient: '바나나' },
+    { pattern: /사과/, ingredient: '사과' },
+    { pattern: /배 조각|(?:^|\s)배(?:\s|$)/, ingredient: '배' },
+    { pattern: /키위/, ingredient: '키위' },
+    { pattern: /딸기/, ingredient: '딸기' },
+    { pattern: /베리/, ingredient: '베리류' },
+    { pattern: /복숭아/, ingredient: '복숭아' },
+    { pattern: /자두/, ingredient: '자두' },
+    { pattern: /감/, ingredient: '감' },
+    { pattern: /귤/, ingredient: '귤' },
+    { pattern: /고구마/, ingredient: '고구마' },
+    { pattern: /호두/, ingredient: '호두' },
+    { pattern: /아몬드/, ingredient: '아몬드' },
+    { pattern: /견과/, ingredient: '견과류' },
+];
+
 function getStoreKey(userId: string) {
     return `${STORAGE_PREFIX}:${userId}`;
 }
@@ -233,29 +326,58 @@ function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, 
 }
 
 function classifyItem(item: string): CategoryKey {
-    if (/케이크|쿠키|과자|초콜릿|아이스크림|요거트|두유|견과|바나나|사과|고구마/.test(item)) {
+    if (
+        /요거트|두유|바나나|사과|키위|딸기|베리|고구마|아몬드|견과|복숭아|자두|감|귤/.test(item) ||
+        item === '배' ||
+        item === '제철 과일'
+    ) {
         return '단 음식/간식';
     }
-    if (/현미|잡곡|귀리|보리|흑미|기장|밥/.test(item)) {
+    if (/현미|잡곡쌀|귀리|보리|흑미|기장|쌀/.test(item)) {
         return '곡물/밥';
     }
-    if (/닭|연어|생선|두부|달걀|콩|소고기|돼지|요거트|두유/.test(item)) {
+    if (/닭|소고기|돼지|연어|생선|고등어|두부|달걀|콩/.test(item)) {
         return '단백질 식품';
     }
-    if (/브로콜리|버섯|시금치|오이|당근|애호박|양배추|미나리|채소|샐러드|해초|토마토|가지|상추|과일/.test(item)) {
+    if (
+        /브로콜리|버섯|시금치|오이|당근|애호박|단호박|양배추|배추|무|미나리|채소|해초|토마토|가지|상추|나물|냉이|달래|두릅|아스파라거스|쑥|완두콩|옥수수|레몬/.test(
+            item
+        )
+    ) {
         return '채소/과일';
     }
-    if (/국|수프|된장국|미역국|냉국/.test(item)) {
+    if (/미역|멸치/.test(item)) {
         return '국/수프 재료';
     }
-    if (/피자|면|국수|라면|파스타|또띠아/.test(item)) {
+    if (/면류|또띠아/.test(item)) {
         return '면·간편식';
     }
     return '기타';
 }
 
-function collectPlanItems(plan: DayPlan) {
-    return [
+function extractIngredientsFromLabel(label: string) {
+    const cleaned = label
+        .replace(/[()+,/]/g, ' ')
+        .replace(/저염|저당|무가당|소량|담백한|따뜻한|익힌|부드러운|그린|저지방|저자극|새콤한|매콤한|제철|반\s*개|조각|모둠/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (!cleaned) {
+        return [] as string[];
+    }
+
+    const found = new Set<string>();
+    INGREDIENT_RULES.forEach((rule) => {
+        if (rule.pattern.test(cleaned)) {
+            found.add(rule.ingredient);
+        }
+    });
+
+    return Array.from(found).filter((ingredient) => !PANTRY_INGREDIENTS.has(ingredient));
+}
+
+function collectPlanIngredients(plan: DayPlan) {
+    const labels = [
         plan.breakfast.riceType,
         plan.breakfast.main,
         plan.breakfast.soup,
@@ -270,9 +392,9 @@ function collectPlanItems(plan: DayPlan) {
         ...plan.dinner.sides,
         plan.snack.main,
         ...plan.snack.sides,
-    ]
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
+    ];
+
+    return labels.flatMap((label) => extractIngredientsFromLabel(label));
 }
 
 function buildGroceryCategories(plans: DayPlan[]): GroceryCategory[] {
@@ -283,7 +405,7 @@ function buildGroceryCategories(plans: DayPlan[]): GroceryCategory[] {
     });
 
     plans.forEach((plan) => {
-        const items = collectPlanItems(plan);
+        const items = collectPlanIngredients(plan);
         items.forEach((item) => {
             const category = classifyItem(item);
             const categoryMap = buckets.get(category);
@@ -304,7 +426,7 @@ function buildGroceryCategories(plans: DayPlan[]): GroceryCategory[] {
 
 function buildPerishableWarnings(plans: DayPlan[], days: number) {
     const mergedText = plans
-        .flatMap((plan) => collectPlanItems(plan))
+        .flatMap((plan) => collectPlanIngredients(plan))
         .join(' ');
 
     const warnings: string[] = [];
@@ -518,7 +640,7 @@ export default function ShoppingPage() {
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">분야별 장볼 목록</h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    식단에 나온 음식 기준으로 정리했어요. 괄호 숫자는 사용되는 횟수예요.
+                    식단 메뉴를 실제 구입 재료 기준으로 환산했어요. 괄호 숫자는 사용되는 횟수예요.
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     {groceryCategories.map((category) => (
