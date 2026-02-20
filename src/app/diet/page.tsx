@@ -2290,18 +2290,14 @@ export default function DietPage() {
                                   : slot === 'dinner'
                                     ? Moon
                                     : Coffee;
-                        const mealTimeBadgeText =
+                        const mealTimeBadges =
                             slot === 'breakfast'
-                                ? '7시~9시'
+                                ? ['7시~9시']
                                 : slot === 'lunch'
-                                  ? '12시~1시'
+                                  ? ['12시~1시']
                                   : slot === 'dinner'
-                                    ? '6시~7시'
-                                    : null;
-                        const mealTimeGuideText =
-                            slot === 'snack' ? snackCoffeeRecommendedTime.snack : null;
-                        const coffeeTimeText =
-                            slot === 'snack' ? snackCoffeeRecommendedTime.coffee : null;
+                                    ? ['6시~7시']
+                                    : [`간식 ${snackCoffeeRecommendedTime.snack}`, `커피 ${snackCoffeeRecommendedTime.coffee}`];
                         const showMedicationArea = slot === 'breakfast' || slot === 'lunch' || slot === 'dinner';
                         const mealMedicationList =
                             showMedicationArea
@@ -2317,13 +2313,16 @@ export default function DietPage() {
                                     <span className="mealTileMono__iconWrap" aria-hidden="true">
                                         <MealIcon className="mealTileMono__icon" />
                                     </span>
-                                    <div className="flex items-start gap-2">
+                                    <div className="flex flex-wrap items-start gap-1.5">
                                         <h2 className="mealTileMono__title text-base font-extrabold tracking-tight">{mealTypeLabel(slot)}</h2>
-                                        {mealTimeBadgeText && (
-                                            <span className="-mt-0.5 rounded-full border border-gray-300 bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200">
-                                                {mealTimeBadgeText}
+                                        {mealTimeBadges.map((badgeText) => (
+                                            <span
+                                                key={`${slot}-${badgeText}`}
+                                                className="-mt-0.5 rounded-full border border-gray-300 bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200"
+                                            >
+                                                {badgeText}
                                             </span>
-                                        )}
+                                        ))}
                                     </div>
                                 </div>
                                 <div className="mealTileMono__body">
@@ -2341,8 +2340,6 @@ export default function DietPage() {
                                     >
                                         권장 섭취량 보기
                                     </button>
-                                    {mealTimeGuideText && <p className="mealTileMono__time mt-2 text-sm font-medium">- {mealTimeGuideText}</p>}
-                                    {coffeeTimeText && <p className="mealTileMono__time mt-1 text-sm font-medium">- {coffeeTimeText}</p>}
                                     {slot !== 'snack' && <MealNutrientBalance nutrient={meal.nutrient} />}
                                     <div className="mt-auto space-y-2 pt-3">
                                         {showMedicationArea && (
