@@ -191,6 +191,62 @@ const COMMON_MANUAL_FOOD_CANDIDATES = [
     '고구마',
     '감자',
     '견과류',
+    '치킨',
+    '후라이드치킨',
+    '양념치킨',
+    '간장치킨',
+    '닭강정',
+    '치킨너겟',
+    '피자',
+    '치즈피자',
+    '페퍼로니피자',
+    '불고기피자',
+    '햄버거',
+    '치즈버거',
+    '감자튀김',
+    '핫도그',
+    '떡볶이',
+    '라볶이',
+    '순대',
+    '튀김',
+    '김밥',
+    '참치김밥',
+    '라면',
+    '짜장면',
+    '짬뽕',
+    '우동',
+    '파스타',
+    '스파게티',
+    '돈가스',
+    '제육볶음',
+    '불고기',
+    '삼겹살',
+    '족발',
+    '보쌈',
+    '아이스크림',
+    '초콜릿',
+    '쿠키',
+    '케이크',
+    '도넛',
+    '빵',
+    '크로와상',
+    '와플',
+    '붕어빵',
+    '과자',
+    '젤리',
+    '콜라',
+    '사이다',
+    '탄산음료',
+    '밀크티',
+    '버블티',
+    '커피',
+    '라떼',
+    '카페라떼',
+    '아메리카노',
+    '주스',
+    '맥주',
+    '소주',
+    '와인',
 ] as const;
 const SUBSTITUTE_GROUPS: SubstituteGroup[] = [
     {
@@ -1059,6 +1115,13 @@ function searchManualFoodCandidates(query: string, candidates: string[], maxResu
     }
     const compactQuery = compactFoodText(normalizedQuery);
     const minimumScore = compactQuery.length <= 2 ? 0.22 : compactQuery.length <= 3 ? 0.3 : 0.42;
+    const quickMatches = candidates
+        .filter((name) => {
+            const normalizedCandidate = compactFoodText(name);
+            return normalizedCandidate.includes(compactQuery);
+        })
+        .sort((a, b) => a.length - b.length || a.localeCompare(b, 'ko'))
+        .slice(0, maxResults);
 
     const ranked = candidates
         .map((name) => ({
@@ -1070,7 +1133,7 @@ function searchManualFoodCandidates(query: string, candidates: string[], maxResu
         .slice(0, maxResults)
         .map((item) => item.name);
 
-    return Array.from(new Set(ranked));
+    return Array.from(new Set([...quickMatches, ...ranked])).slice(0, maxResults);
 }
 
 function findSubstituteGroup(foodName: string, slot: MealSlot) {
