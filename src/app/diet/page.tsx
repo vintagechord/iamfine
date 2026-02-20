@@ -2149,7 +2149,7 @@ export default function DietPage() {
                     )}
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     {(['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).map((slot) => {
                         const meal =
                             slot === 'breakfast'
