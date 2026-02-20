@@ -45,6 +45,8 @@ const DAILY_HYMN_VIDEOS: HymnVideo[] = [
 ];
 
 const SHOW_DAILY_HYMN = false;
+const ALERT_PAGE_SIZE = 5;
+const ALERT_AUTO_SLIDE_MS = 6000;
 
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 
@@ -99,6 +101,7 @@ export default function Home() {
     const [stageType, setStageType] = useState<StageType>('medication');
     const [customAlertItems, setCustomAlertItems] = useState<CustomAlertArticle[]>([]);
     const [customAlertLoading, setCustomAlertLoading] = useState(false);
+    const [customAlertPage, setCustomAlertPage] = useState(0);
 
     const startIndex = useMemo(() => {
         const seed = Number(todayKey.replaceAll('-', ''));
@@ -263,7 +266,30 @@ export default function Home() {
         };
     }, [alertContextReady, isLoggedIn, resolvedCancerType, resolvedCancerStage, stageType]);
 
-    const visibleCustomAlerts = customAlertItems.slice(0, 6);
+    useEffect(() => {
+        setCustomAlertPage(0);
+    }, [customAlertItems]);
+
+    const customAlertPageCount = Math.max(1, Math.ceil(customAlertItems.length / ALERT_PAGE_SIZE));
+
+    useEffect(() => {
+        if (customAlertPageCount <= 1) {
+            return;
+        }
+
+        const intervalId = window.setInterval(() => {
+            setCustomAlertPage((prev) => (prev + 1) % customAlertPageCount);
+        }, ALERT_AUTO_SLIDE_MS);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [customAlertPageCount]);
+
+    const visibleCustomAlerts = useMemo(() => {
+        const start = customAlertPage * ALERT_PAGE_SIZE;
+        return customAlertItems.slice(start, start + ALERT_PAGE_SIZE);
+    }, [customAlertItems, customAlertPage]);
 
     return (
         <main className="mx-auto max-w-3xl space-y-4 py-6">
@@ -363,7 +389,7 @@ export default function Home() {
                                     className="block px-3 py-2 transition hover:bg-gray-100 dark:hover:bg-gray-800"
                                 >
                                     <p className="truncate text-sm font-semibold text-gray-700 dark:text-gray-200">
-                                        {index + 1}. {alertItem.title}
+                                        {customAlertPage * ALERT_PAGE_SIZE + index + 1}. {alertItem.title}
                                     </p>
                                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                                         {alertItem.source} · {formatAlertDate(alertItem.publishedAt)}
@@ -371,9 +397,31 @@ export default function Home() {
                                 </a>
                             ))}
                         </div>
-                        <p className="border-t border-gray-200 px-3 py-1 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                            총 {customAlertItems.length}건 중 최신 {visibleCustomAlerts.length}건 표시
-                        </p>
+                        <div className="flex items-center justify-between border-t border-gray-200 px-3 py-1 dark:border-gray-800">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setCustomAlertPage((prev) => (prev - 1 + customAlertPageCount) % customAlertPageCount)
+                                }
+                                className="rounded px-2 py-0.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-default disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                                disabled={customAlertPageCount <= 1}
+                                aria-label="이전 알림 5개 보기"
+                            >
+                                ◀ 이전
+                            </button>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {customAlertPage + 1}/{customAlertPageCount} 페이지 · 총 {customAlertItems.length}건
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => setCustomAlertPage((prev) => (prev + 1) % customAlertPageCount)}
+                                className="rounded px-2 py-0.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-default disabled:opacity-40 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                                disabled={customAlertPageCount <= 1}
+                                aria-label="다음 알림 5개 보기"
+                            >
+                                다음 ▶
+                            </button>
+                        </div>
                     </div>
                 )}
             </section>
