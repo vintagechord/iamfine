@@ -11,14 +11,31 @@ type AlertArticle = {
 const USER_AGENT =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
+const FETCH_REVALIDATE_SECONDS = 60 * 60 * 24;
 const SOURCE_LIMIT = 20;
 const TOTAL_LIMIT = 60;
+const MIN_ALERT_ITEMS = 3;
 const RECENT_DAYS = 30;
+const BACKFILL_DAYS = 180;
 const KEYWORD_SEARCH_SOURCES = new Set([
+    '구글 뉴스(키워드 검색)',
     '국민건강보험 보도자료(키워드 검색)',
     '국가암정보센터 암정보나눔터(키워드 검색)',
     '국가암정보센터 국가지원프로그램(키워드 검색)',
 ]);
+
+const CANCER_PROFILE_KEYWORDS: Array<{ pattern: RegExp; keywords: string[] }> = [
+    { pattern: /유방|breast/, keywords: ['유방암', '유방', 'breast cancer'] },
+    { pattern: /갑상선|thyroid/, keywords: ['갑상선암', '갑상선', 'thyroid cancer'] },
+    { pattern: /신장|신세포|kidney|renal/, keywords: ['신장암', '신장', 'renal cell carcinoma'] },
+    { pattern: /자궁경부|cervical/, keywords: ['자궁경부암', '자궁경부', 'cervical cancer'] },
+    { pattern: /폐|lung/, keywords: ['폐암', '폐', 'lung cancer'] },
+    { pattern: /간|담도|liver|biliary/, keywords: ['간암', '담도암', 'liver cancer'] },
+    { pattern: /대장|결장|직장|colon|colorectal/, keywords: ['대장암', '결장암', 'colorectal cancer'] },
+    { pattern: /위|식도|gastric|esophageal/, keywords: ['위암', '식도암', 'gastric cancer'] },
+    { pattern: /췌장|pancreas|pancreatic/, keywords: ['췌장암', '췌장', 'pancreatic cancer'] },
+    { pattern: /림프|백혈병|골수종|hematologic|lymphoma|leukemia|myeloma/, keywords: ['혈액암', '림프종', '백혈병'] },
+];
 
 function decodeHtml(raw: string) {
     return raw
@@ -121,6 +138,58 @@ function matchKeyword(text: string, keyword: string) {
         return false;
     }
     return normalizedText.includes(normalizedKeyword);
+}
+
+function uniqueNonEmpty(values: string[]) {
+    return Array.from(
+        new Set(
+            values
+                .map((value) => value.trim())
+                .filter((value) => value.length > 0)
+        )
+    );
+}
+
+function buildCancerKeywords(cancerType: string) {
+    const raw = cancerType.trim();
+    const compact = raw.replace(/\s+/g, '');
+    const keywords = [raw, compact];
+
+    if (compact.endsWith('암') && compact.length > 1) {
+        keywords.push(compact.slice(0, -1));
+    }
+
+    const normalized = compact.toLowerCase();
+    CANCER_PROFILE_KEYWORDS.forEach((profile) => {
+        if (profile.pattern.test(normalized)) {
+            keywords.push(...profile.keywords);
+        }
+    });
+
+    return uniqueNonEmpty(keywords);
+}
+
+function buildGoogleNewsQueries(cancerKeywords: string[]) {
+    const queries = new Set<string>();
+    const seedKeywords = cancerKeywords.slice(0, 3);
+
+    seedKeywords.forEach((keyword) => {
+        queries.add(`${keyword} 식단`);
+        queries.add(`${keyword} 음식`);
+        queries.add(`${keyword} 영양`);
+    });
+
+    queries.add('국가암정보센터 암환자 식단');
+    return Array.from(queries).slice(0, 7);
+}
+
+function matchAnyKeyword(text: string, keywords: string[]) {
+    return keywords.some((keyword) => matchKeyword(text, keyword));
+}
+
+function ensureMinimumItems(primary: AlertArticle[], fallback: AlertArticle[], minimum: number) {
+    const merged = dedupeAndSort([...primary, ...fallback]);
+    return merged.slice(0, Math.max(minimum, Math.min(TOTAL_LIMIT, merged.length)));
 }
 
 function dedupeAndSort(items: AlertArticle[]) {
@@ -319,7 +388,7 @@ async function fetchText(url: string) {
             'User-Agent': USER_AGENT,
             Accept: 'text/html,application/xml,text/xml;q=0.9,*/*;q=0.8',
         },
-        next: { revalidate: 1800 },
+        next: { revalidate: FETCH_REVALIDATE_SECONDS },
     });
 
     if (!response.ok) {
@@ -329,7 +398,7 @@ async function fetchText(url: string) {
     return response.text();
 }
 
-async function collectArticles(keyword: string) {
+async function collectArticles(keyword: string, cancerKeywords: string[]) {
     const nhisKeyword = keyword || '유방암';
     const nhisPressSearchUrls = [
         `https://www.nhis.or.kr/nhis/together/wbhaea01600m01.do?mode=list&srSearchKey=article_title_text&srSearchVal=${encodeURIComponent(nhisKeyword)}&article.offset=0&articleLimit=10`,
@@ -352,6 +421,10 @@ async function collectArticles(keyword: string) {
             url: `https://www.cancer.go.kr/RSS/front/Search.jsp?qt=${encodeURIComponent(nhisKeyword)}&menu=${encodeURIComponent('국가지원프로그램')}&st=1&nh=15`,
         },
     ];
+    const googleNewsUrls = buildGoogleNewsQueries(cancerKeywords).map(
+        (query) =>
+            `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`
+    );
 
     const [cancerHtml, nhisHtml, kdcaRss, mfdsRss] = await Promise.allSettled([
         fetchText('https://www.cancer.go.kr/'),
@@ -361,6 +434,7 @@ async function collectArticles(keyword: string) {
     ]);
     const nhisPressSearchResults = await Promise.allSettled(nhisPressSearchUrls.map((url) => fetchText(url)));
     const cancerKeywordSearchResults = await Promise.allSettled(cancerSearchRequests.map((request) => fetchText(request.url)));
+    const googleNewsResults = await Promise.allSettled(googleNewsUrls.map((url) => fetchText(url)));
 
     const allItems: AlertArticle[] = [];
 
@@ -394,6 +468,12 @@ async function collectArticles(keyword: string) {
         const request = cancerSearchRequests[index];
         allItems.push(...parseCancerSearchSection(result.value, request.source, request.sectionName));
     });
+    googleNewsResults.forEach((result) => {
+        if (result.status !== 'fulfilled') {
+            return;
+        }
+        allItems.push(...parseRssItems(result.value, '구글 뉴스(키워드 검색)', 'https://news.google.com'));
+    });
 
     return dedupeAndSort(allItems);
 }
@@ -405,16 +485,22 @@ export async function GET(request: NextRequest) {
     const stageType = (searchParams.get('stageType') || 'medication') as StageType;
     const stageLabel = STAGE_TYPE_LABELS[stageType] ?? STAGE_TYPE_LABELS.medication;
     const keyword = cancerType || '유방암';
+    const cancerKeywords = buildCancerKeywords(keyword);
 
     try {
-        const allItems = await collectArticles(keyword);
+        const allItems = await collectArticles(keyword, cancerKeywords);
         const filtered = allItems.filter(
-            (item) => KEYWORD_SEARCH_SOURCES.has(item.source) || matchKeyword(item.title, keyword)
+            (item) => KEYWORD_SEARCH_SOURCES.has(item.source) || matchAnyKeyword(`${item.title} ${item.source}`, cancerKeywords)
         );
-        const recentOnly = dedupeAndSort(filtered).filter((item) => isWithinRecentDays(item.publishedAt, RECENT_DAYS));
+        const matched = dedupeAndSort(filtered);
+        const recentOnly = matched.filter((item) => isWithinRecentDays(item.publishedAt, RECENT_DAYS));
+        const backfillWindow = matched.filter(
+            (item) => !item.publishedAt || isWithinRecentDays(item.publishedAt, BACKFILL_DAYS)
+        );
+        const prioritized = dedupeAndSort([...recentOnly, ...backfillWindow, ...matched]);
 
         const bySourceCount = new Map<string, number>();
-        const limitedBySource = recentOnly.filter((item) => {
+        const limitedBySource = prioritized.filter((item) => {
             const count = bySourceCount.get(item.source) ?? 0;
             if (count >= SOURCE_LIMIT) {
                 return false;
@@ -424,11 +510,13 @@ export async function GET(request: NextRequest) {
         });
 
         const items = limitedBySource.slice(0, TOTAL_LIMIT);
+        const fallbackPool = dedupeAndSort([...matched, ...allItems]);
+        const ensuredItems = items.length >= MIN_ALERT_ITEMS ? items : ensureMinimumItems(items, fallbackPool, MIN_ALERT_ITEMS);
 
         return NextResponse.json({
             summary: `${keyword} / ${cancerStage} / ${stageLabel} 기준 최근 1개월 소식`,
             keyword,
-            items,
+            items: ensuredItems,
         });
     } catch (error) {
         console.error('custom-alerts api failed', error);

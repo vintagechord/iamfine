@@ -72,6 +72,23 @@ function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
     }
 }
 
+function formatAlertDate(raw: string) {
+    if (!raw) {
+        return '날짜 미표기';
+    }
+
+    const normalized = raw.replace(/\.\s*/g, '-').replace(/\.\s*$/, '');
+    const parsed = Date.parse(normalized);
+    if (Number.isNaN(parsed)) {
+        return raw;
+    }
+
+    const date = new Date(parsed);
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${month}/${day}`;
+}
+
 export default function Home() {
     const todayKey = formatDateKey(new Date());
     const [todayHymnVideo, setTodayHymnVideo] = useState<HymnVideo | null>(null);
@@ -80,8 +97,6 @@ export default function Home() {
     const [stageType, setStageType] = useState<StageType>('medication');
     const [customAlertItems, setCustomAlertItems] = useState<CustomAlertArticle[]>([]);
     const [customAlertLoading, setCustomAlertLoading] = useState(false);
-    const [customAlertIndex, setCustomAlertIndex] = useState(0);
-    const [customAlertSliding, setCustomAlertSliding] = useState(false);
 
     const startIndex = useMemo(() => {
         const seed = Number(todayKey.replaceAll('-', ''));
@@ -218,36 +233,7 @@ export default function Home() {
         };
     }, [resolvedCancerType, resolvedCancerStage, stageType]);
 
-    useEffect(() => {
-        setCustomAlertIndex(0);
-        setCustomAlertSliding(false);
-    }, [customAlertItems]);
-
-    useEffect(() => {
-        if (customAlertItems.length <= 1) {
-            return;
-        }
-
-        let timeoutId: number | null = null;
-        const intervalId = window.setInterval(() => {
-            setCustomAlertSliding(true);
-            timeoutId = window.setTimeout(() => {
-                setCustomAlertIndex((prev) => (prev + 1) % customAlertItems.length);
-                setCustomAlertSliding(false);
-            }, 420);
-        }, 4200);
-
-        return () => {
-            window.clearInterval(intervalId);
-            if (timeoutId !== null) {
-                window.clearTimeout(timeoutId);
-            }
-        };
-    }, [customAlertItems.length]);
-
-    const currentAlert = customAlertItems[customAlertIndex] ?? null;
-    const nextAlert =
-        customAlertItems.length > 1 ? customAlertItems[(customAlertIndex + 1) % customAlertItems.length] : null;
+    const visibleCustomAlerts = customAlertItems.slice(0, 6);
 
     return (
         <main className="mx-auto max-w-3xl space-y-4 py-6">
@@ -336,41 +322,28 @@ export default function Home() {
 
                 {!customAlertLoading && customAlertItems.length > 0 && (
                     <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-800">
-                        <div className="relative h-11 overflow-hidden">
-                            <div
-                                className={`absolute inset-x-0 transition-transform duration-500 ${
-                                    customAlertSliding ? '-translate-y-11' : 'translate-y-0'
-                                }`}
-                            >
-                                {currentAlert && (
-                                    <a
-                                        href={currentAlert.url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        title={currentAlert.title}
-                                        className="flex h-11 items-center px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                                    >
-                                        <span className="block w-full truncate">{currentAlert.title}</span>
-                                    </a>
-                                )}
-                                {nextAlert && (
-                                    <a
-                                        href={nextAlert.url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        title={nextAlert.title}
-                                        className="flex h-11 items-center px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                                    >
-                                        <span className="block w-full truncate">{nextAlert.title}</span>
-                                    </a>
-                                )}
-                            </div>
+                        <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                            {visibleCustomAlerts.map((alertItem, index) => (
+                                <a
+                                    key={`${alertItem.url}-${index}`}
+                                    href={alertItem.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title={alertItem.title}
+                                    className="block px-3 py-2 transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                                >
+                                    <p className="truncate text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                        {index + 1}. {alertItem.title}
+                                    </p>
+                                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                        {alertItem.source} · {formatAlertDate(alertItem.publishedAt)}
+                                    </p>
+                                </a>
+                            ))}
                         </div>
-                        {customAlertItems.length > 1 && (
-                            <p className="border-t border-gray-200 px-3 py-1 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                                {customAlertIndex + 1} / {customAlertItems.length}
-                            </p>
-                        )}
+                        <p className="border-t border-gray-200 px-3 py-1 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                            총 {customAlertItems.length}건 중 최신 {visibleCustomAlerts.length}건 표시
+                        </p>
                     </div>
                 )}
             </section>
