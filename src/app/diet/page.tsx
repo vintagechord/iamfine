@@ -116,6 +116,11 @@ type RecipeModalContent = {
     recipeSteps: string[];
 };
 
+type PortionGuideModalContent = {
+    title: string;
+    guide: ReturnType<typeof mealPortionGuideFromPlan>;
+};
+
 const DISCLAIMER_TEXT =
     '이 서비스는 참고용 식단/기록 도구이며, 치료·약물 관련 결정은 반드시 의료진과 상의하세요.';
 
@@ -1082,6 +1087,7 @@ export default function DietPage() {
     const [selectedDate, setSelectedDate] = useState(todayKey);
     const [todayPlanOffset, setTodayPlanOffset] = useState(0);
     const [openRecipeSlot, setOpenRecipeSlot] = useState<RecipeTarget | null>(null);
+    const [openPortionGuideContent, setOpenPortionGuideContent] = useState<PortionGuideModalContent | null>(null);
     const [showRecordPlanModal, setShowRecordPlanModal] = useState(false);
     const [showNutrients, setShowNutrients] = useState(false);
     const [newItemBySlot, setNewItemBySlot] = useState<Record<MealSlot, string>>({
@@ -2186,7 +2192,6 @@ export default function DietPage() {
                             showMedicationArea
                                 ? medicationSchedulesByTiming[slot]
                                 : [];
-                        const mealPortionGuide = mealPortionGuideFromPlan(meal, slot);
 
                         return (
                             <article
@@ -2209,21 +2214,18 @@ export default function DietPage() {
                                 <div className="mealTileMono__body">
                                     <p className="text-base font-bold leading-snug">{meal.summary}</p>
                                     {slot !== 'snack' && <p className="mt-1 text-sm">반찬: {meal.sides.join(', ')}</p>}
-                                    <div className="mt-2 rounded-lg border border-gray-200 bg-white/80 p-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-200">
-                                        <p className="font-semibold">권장 섭취량(1인 기준)</p>
-                                        <div className="mt-1 space-y-1">
-                                            {mealPortionGuide.items.map((item) => (
-                                                <p key={`${slot}-portion-${item.name}`}>- {item.name}: {item.amount}</p>
-                                            ))}
-                                        </div>
-                                        {mealPortionGuide.notes.length > 0 && (
-                                            <div className="mt-1 space-y-1 text-[11px] text-gray-600 dark:text-gray-300">
-                                                {mealPortionGuide.notes.map((note) => (
-                                                    <p key={`${slot}-portion-note-${note}`}>· {note}</p>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setOpenPortionGuideContent({
+                                                title: `${mealTypeLabel(slot)} 권장 섭취량(1인 기준)`,
+                                                guide: mealPortionGuideFromPlan(meal, slot),
+                                            })
+                                        }
+                                        className="mt-2 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                                    >
+                                        권장 섭취량 보기
+                                    </button>
                                     {mealTimeGuideText && <p className="mealTileMono__time mt-2 text-sm font-medium">- {mealTimeGuideText}</p>}
                                     {coffeeTimeText && <p className="mealTileMono__time mt-1 text-sm font-medium">- {coffeeTimeText}</p>}
                                     {slot !== 'snack' && <MealNutrientBalance nutrient={meal.nutrient} />}
@@ -2324,6 +2326,43 @@ export default function DietPage() {
                             <button
                                 type="button"
                                 onClick={() => setOpenRecipeSlot(null)}
+                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                                닫기
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
+
+            {openPortionGuideContent && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    onClick={() => setOpenPortionGuideContent(null)}
+                >
+                    <section
+                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-800 dark:bg-gray-900"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                            {openPortionGuideContent.title}
+                        </h2>
+                        <div className="mt-3 space-y-2 text-base text-gray-800 dark:text-gray-100">
+                            {openPortionGuideContent.guide.items.map((item) => (
+                                <p key={`portion-modal-${item.name}`}>- {item.name}: {item.amount}</p>
+                            ))}
+                        </div>
+                        {openPortionGuideContent.guide.notes.length > 0 && (
+                            <div className="mt-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                                {openPortionGuideContent.guide.notes.map((note) => (
+                                    <p key={`portion-modal-note-${note}`}>· {note}</p>
+                                ))}
+                            </div>
+                        )}
+                        <div className="mt-4 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setOpenPortionGuideContent(null)}
                                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 닫기
@@ -2555,7 +2594,6 @@ export default function DietPage() {
                                                   : slot === 'dinner'
                                                     ? selectedPlan.dinner
                                                     : selectedPlan.snack;
-                                        const mealPortionGuide = mealPortionGuideFromPlan(meal, slot);
                                         return (
                                             <article
                                                 key={`record-plan-${slot}`}
@@ -2566,14 +2604,18 @@ export default function DietPage() {
                                                 {slot !== 'snack' && (
                                                     <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">반찬: {meal.sides.join(', ')}</p>
                                                 )}
-                                                <div className="mt-2 rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                                                    <p className="font-semibold">권장 섭취량</p>
-                                                    <div className="mt-1 space-y-1">
-                                                        {mealPortionGuide.items.map((item) => (
-                                                            <p key={`record-${slot}-portion-${item.name}`}>- {item.name}: {item.amount}</p>
-                                                        ))}
-                                                    </div>
-                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setOpenPortionGuideContent({
+                                                            title: `${mealTypeLabel(slot)} 권장 섭취량(1인 기준)`,
+                                                            guide: mealPortionGuideFromPlan(meal, slot),
+                                                        })
+                                                    }
+                                                    className="mt-2 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                                                >
+                                                    권장 섭취량 보기
+                                                </button>
                                                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                                                     탄수 {meal.nutrient.carb}% / 단백질 {meal.nutrient.protein}% / 지방 {meal.nutrient.fat}%
                                                 </p>
