@@ -261,7 +261,7 @@ export default function AuthPage() {
 
                         {authMode === 'signup' && (
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                비밀번호 확인(회원가입용)
+                                비밀번호 확인
                                 <input
                                     type="password"
                                     placeholder="비밀번호를 다시 입력해 주세요"
