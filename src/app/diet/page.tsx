@@ -127,7 +127,12 @@ type CustomAlertApiResponse = {
 
 type PortionGuideModalContent = {
     title: string;
+    slot: MealSlot;
     guide: ReturnType<typeof mealPortionGuideFromPlan>;
+    substitutes: Array<{
+        hint: string;
+        options: string[];
+    }>;
 };
 
 type SubstituteGroup = {
@@ -2903,12 +2908,25 @@ export default function DietPage() {
                                     <div className="mt-2 grid grid-cols-2 gap-2">
                                         <button
                                             type="button"
-                                            onClick={() =>
+                                            onClick={() => {
+                                                const guide = mealPortionGuideFromPlan(meal, slot);
                                                 setOpenPortionGuideContent({
                                                     title: `${mealTypeLabel(slot)} 권장 섭취량(1인 기준)`,
-                                                    guide: mealPortionGuideFromPlan(meal, slot),
-                                                })
-                                            }
+                                                    slot,
+                                                    guide,
+                                                    substitutes: guide.items.map((guideItem) => {
+                                                        const substitute = buildSubstituteCandidates(
+                                                            guideItem.name,
+                                                            slot,
+                                                            manualFoodCandidates
+                                                        );
+                                                        return {
+                                                            hint: substitute.hint,
+                                                            options: substitute.options.slice(0, 5),
+                                                        };
+                                                    }),
+                                                });
+                                            }}
                                             className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                                         >
                                             권장 섭취량
@@ -3032,9 +3050,22 @@ export default function DietPage() {
                             {openPortionGuideContent.title}
                         </h2>
                         <div className="mt-3 space-y-2 text-base text-gray-800 dark:text-gray-100">
-                            {openPortionGuideContent.guide.items.map((item) => (
-                                <p key={`portion-modal-${item.name}`}>- {item.name}: {item.amount}</p>
-                            ))}
+                            {openPortionGuideContent.guide.items.map((item, index) => {
+                                const substitute = openPortionGuideContent.substitutes[index];
+                                return (
+                                    <div
+                                        key={`portion-modal-${item.name}-${index}`}
+                                        className="rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-950/40"
+                                    >
+                                        <p>- {item.name}: {item.amount}</p>
+                                        {substitute && substitute.options.length > 0 && (
+                                            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                                대체 가능한 음식({substitute.hint}): {substitute.options.join(', ')}
+                                            </p>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                         {openPortionGuideContent.guide.notes.length > 0 && (
                             <div className="mt-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
