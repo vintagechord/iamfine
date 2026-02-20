@@ -2856,7 +2856,7 @@ export default function DietPage() {
                             <p className="text-xs text-gray-500 dark:text-gray-400">전체 평균</p>
                             <p className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">{totalScore}점</p>
                         </div>
-                        {/* TODO: 예상 순위 카드 임시 비활성화 (나중에 복구 예정)
+                        {/* 예상 순위 카드는 현재 비활성화 상태입니다.
                         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/30">
                             <p className="text-xs text-blue-700 dark:text-blue-300">예상 순위</p>
                             <p className="mt-1 text-xl font-bold text-blue-800 dark:text-blue-200">약 {expectedRank}등 (상위 {expectedPercentile}%)</p>
