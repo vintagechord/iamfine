@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Coffee, Moon, Sun, Sunrise } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Coffee, Moon, Sun, Sunrise, Utensils } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     applySevenDayNoRepeatRule,
@@ -2722,7 +2722,12 @@ export default function DietPage() {
         return (
             <main className="space-y-4">
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">식단 제안</h1>
+                    <div className="flex items-center gap-2">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
+                            <Utensils className="h-5 w-5" />
+                        </span>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">식단 제안</h1>
+                    </div>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">불러오는 중이에요…</p>
                 </section>
             </main>
@@ -2733,7 +2738,12 @@ export default function DietPage() {
         return (
             <main className="space-y-4">
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">식단 제안</h1>
+                    <div className="flex items-center gap-2">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
+                            <Utensils className="h-5 w-5" />
+                        </span>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">식단 제안</h1>
+                    </div>
                     <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                 </section>
                 <section
@@ -2751,7 +2761,12 @@ export default function DietPage() {
         return (
             <main className="space-y-4">
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">식단 제안</h1>
+                    <div className="flex items-center gap-2">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
+                            <Utensils className="h-5 w-5" />
+                        </span>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">식단 제안</h1>
+                    </div>
                     <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                 </section>
                 <section
@@ -2786,6 +2801,9 @@ export default function DietPage() {
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
+                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
+                                <Utensils className="h-5 w-5" />
+                            </span>
                             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{viewedTodayLabel} 식단</h1>
                             <button
                                 type="button"

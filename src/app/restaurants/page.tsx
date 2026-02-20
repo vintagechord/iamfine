@@ -326,7 +326,12 @@ export default function RestaurantsPage() {
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex items-start justify-between gap-3">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">건강식당 찾기</h1>
+                        <div className="flex items-center gap-2">
+                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
+                                <MapPinned className="h-5 w-5" />
+                            </span>
+                            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">건강식당 찾기</h1>
+                        </div>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             치료 상황에 맞는 식당을 키워드로 빠르게 찾을 수 있어요.
                         </p>
