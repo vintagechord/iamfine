@@ -548,19 +548,73 @@ export default function ProfilePage() {
             setUserId(uid);
 
             const metadata = readIamfineMetadata(authData.user.user_metadata);
-            const treatmentMeta =
-                metadata.treatmentMeta ?? parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
+            const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
+            const treatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
             setCancerType(treatmentMeta?.cancerType ?? '');
             setCancerStage(treatmentMeta?.cancerStage === EMPTY_STAGE_LABEL ? '' : (treatmentMeta?.cancerStage ?? ''));
             const rawDietStore = localStorage.getItem(getDietStoreKey(uid));
+            const localStoredSchedules = parseStoredMedicationSchedules(rawDietStore);
+            const localStoredMeds = parseStoredMedications(rawDietStore);
             const storedSchedules =
                 metadata.medicationSchedules.length > 0
                     ? metadata.medicationSchedules
-                    : parseStoredMedicationSchedules(rawDietStore);
+                    : localStoredSchedules;
             const storedMeds =
                 metadata.medications.length > 0
                     ? metadata.medications
-                    : parseStoredMedications(localStorage.getItem(getDietStoreKey(uid)));
+                    : localStoredMeds;
+
+            const syncPatch: Partial<{
+                treatmentMeta: TreatmentMeta;
+                medications: string[];
+                medicationSchedules: MedicationSchedule[];
+            }> = {};
+            if (!metadata.treatmentMeta && localTreatmentMeta) {
+                syncPatch.treatmentMeta = localTreatmentMeta;
+            }
+            if (metadata.medications.length === 0 && localStoredMeds.length > 0) {
+                syncPatch.medications = localStoredMeds;
+            }
+            if (metadata.medicationSchedules.length === 0 && localStoredSchedules.length > 0) {
+                syncPatch.medicationSchedules = localStoredSchedules;
+            }
+            if (Object.keys(syncPatch).length > 0) {
+                const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, syncPatch);
+                await supabase.auth.updateUser({
+                    data: updatedMetadata,
+                });
+            }
+
+            if (!localTreatmentMeta && metadata.treatmentMeta) {
+                localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(metadata.treatmentMeta));
+            }
+            if (
+                (localStoredMeds.length === 0 && metadata.medications.length > 0) ||
+                (localStoredSchedules.length === 0 && metadata.medicationSchedules.length > 0)
+            ) {
+                let currentDietStore: Record<string, unknown> = {};
+                if (rawDietStore) {
+                    try {
+                        const parsed = JSON.parse(rawDietStore) as unknown;
+                        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                            currentDietStore = parsed as Record<string, unknown>;
+                        }
+                    } catch {
+                        currentDietStore = {};
+                    }
+                }
+                localStorage.setItem(
+                    getDietStoreKey(uid),
+                    JSON.stringify({
+                        ...currentDietStore,
+                        medications: metadata.medications.length > 0 ? metadata.medications : localStoredMeds,
+                        medicationSchedules:
+                            metadata.medicationSchedules.length > 0
+                                ? metadata.medicationSchedules
+                                : localStoredSchedules,
+                    })
+                );
+            }
             setMedicationSchedules(
                 storedSchedules.length > 0
                     ? storedSchedules
@@ -861,15 +915,6 @@ export default function ProfilePage() {
                 }
             }
 
-            localStorage.setItem(
-                getDietStoreKey(userId),
-                JSON.stringify({
-                    ...currentDietStore,
-                    medications: nextMedications,
-                    medicationSchedules: nextSchedules,
-                })
-            );
-
             const { data: authData, error: authError } = await supabase.auth.getUser();
             if (authError || !authData.user) {
                 setFeedback({ type: 'error', text: '로그인이 만료되었어요. 다시 로그인해 주세요.' });
@@ -888,6 +933,14 @@ export default function ProfilePage() {
                 return;
             }
 
+            localStorage.setItem(
+                getDietStoreKey(userId),
+                JSON.stringify({
+                    ...currentDietStore,
+                    medications: nextMedications,
+                    medicationSchedules: nextSchedules,
+                })
+            );
             setMedicationSchedules(nextSchedules);
             setMedicationNameDraft('');
             setMedicationCategoryDraft('미분류');
@@ -928,7 +981,6 @@ export default function ProfilePage() {
                 updatedAt: new Date().toISOString(),
             };
 
-            localStorage.setItem(getTreatmentMetaKey(userId), JSON.stringify(treatmentPayload));
             const { data: authData, error: authError } = await supabase.auth.getUser();
             if (authError || !authData.user) {
                 setFeedback({ type: 'error', text: '로그인이 만료되었어요. 다시 로그인해 주세요.' });
@@ -946,6 +998,7 @@ export default function ProfilePage() {
                 return;
             }
 
+            localStorage.setItem(getTreatmentMetaKey(userId), JSON.stringify(treatmentPayload));
             setCancerType(nextCancerType);
             setCancerStage(cancerStage.trim());
             setFeedback({ type: 'success', text: '치료 정보를 저장했어요.' });

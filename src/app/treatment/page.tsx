@@ -703,7 +703,6 @@ export default function TreatmentPage() {
             updatedAt: new Date().toISOString(),
         };
 
-        localStorage.setItem(getTreatmentMetaKey(user.id), JSON.stringify(payload));
         const { data: authData, error: authError } = await supabase.auth.getUser();
         if (authError || !authData.user) {
             setError(LOGIN_REQUIRED_MESSAGE);
@@ -719,6 +718,7 @@ export default function TreatmentPage() {
             return;
         }
 
+        localStorage.setItem(getTreatmentMetaKey(user.id), JSON.stringify(payload));
         setMetaUpdatedAt(payload.updatedAt);
         setMessage('암 정보 저장을 완료했어요.');
     };
