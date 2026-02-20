@@ -165,6 +165,201 @@ function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
 
+type PortionGuideItem = {
+    name: string;
+    amount: string;
+};
+
+type MealPlanItem = DayPlan['breakfast'];
+
+function stripPortionLabel(rawName: string) {
+    const [name] = rawName.split(' · ');
+    return name.trim();
+}
+
+function isFruitName(name: string) {
+    const normalized = name.replace(/\s+/g, '');
+    return (
+        normalized.includes('바나나') ||
+        normalized.includes('사과') ||
+        normalized.includes('배') ||
+        normalized.includes('키위') ||
+        normalized.includes('딸기') ||
+        normalized.includes('베리') ||
+        normalized.includes('과일')
+    );
+}
+
+function baseAmountByFoodName(name: string, slot: MealSlot) {
+    const normalized = name.replace(/\s+/g, '');
+
+    if (normalized.includes('현미밥') || normalized.includes('잡곡밥') || normalized.includes('귀리밥') || normalized.includes('보리밥') || normalized.includes('흑미밥') || normalized.includes('기장밥')) {
+        if (normalized.includes('소량')) {
+            return '반 공기(90~100g)';
+        }
+        return slot === 'dinner' ? '반 공기~2/3공기(100~120g)' : '2/3공기(110~130g)';
+    }
+    if (normalized.includes('죽')) {
+        return '1공기(220~250g)';
+    }
+    if (normalized.includes('덮밥')) {
+        return '2/3공기(180~200g)';
+    }
+    if (normalized.includes('국수')) {
+        return '1공기(180g)';
+    }
+    if (normalized.includes('닭가슴살') || normalized.includes('닭안심')) {
+        return '손바닥 크기 1장(90~100g)';
+    }
+    if (normalized.includes('연어')) {
+        return '한 토막(80~100g)';
+    }
+    if (normalized.includes('고등어')) {
+        return '반 마리(90~100g)';
+    }
+    if (normalized.includes('흰살생선')) {
+        return '한 토막(80~90g)';
+    }
+    if (normalized.includes('생선')) {
+        return '반 마리 또는 한 토막(80~100g)';
+    }
+    if (normalized.includes('소고기')) {
+        return '한 줌(70~80g)';
+    }
+    if (normalized.includes('돼지안심')) {
+        return '한 줌(70~80g)';
+    }
+    if (normalized.includes('두부')) {
+        return normalized.includes('연두부') ? '1/2모(150g)' : '1/3모(100g)';
+    }
+    if (normalized.includes('달걀')) {
+        return '달걀 1~2개 분량(90~120g)';
+    }
+    if (normalized.includes('콩불고기')) {
+        return '1/2컵(80g)';
+    }
+    if (normalized.includes('무가당요거트')) {
+        return '1/2컵(100g)';
+    }
+    if (normalized.includes('그릭요거트')) {
+        return '1/2컵(90g)';
+    }
+    if (normalized.includes('두유')) {
+        return '1팩 또는 1컵(150~190ml)';
+    }
+    if (normalized.includes('아몬드') || normalized.includes('호두') || normalized.includes('견과')) {
+        return '한 줌의 절반(10~15g)';
+    }
+    if (normalized.includes('바나나')) {
+        return '중간 크기 1/2개(50g)';
+    }
+    if (normalized.includes('사과')) {
+        return '중간 크기 1/4개(60g)';
+    }
+    if (normalized.includes('배')) {
+        return '중간 크기 1/4개(70g)';
+    }
+    if (normalized.includes('키위')) {
+        return '1/2개(50g)';
+    }
+    if (normalized.includes('딸기')) {
+        return '3~4개(60g)';
+    }
+    if (normalized.includes('베리')) {
+        return '한 줌(50~60g)';
+    }
+    if (normalized.includes('브로콜리')) {
+        return '작은 송이 5~6개(70g)';
+    }
+    if (normalized.includes('당근볶음')) {
+        return '2~3큰술(40~50g)';
+    }
+    if (normalized.includes('버섯볶음')) {
+        return '작은 접시 1개(50g)';
+    }
+    if (normalized.includes('시금치')) {
+        return '2~3젓가락(40g)';
+    }
+    if (normalized.includes('오이무침')) {
+        return '작은 접시 1개(50g)';
+    }
+    if (normalized.includes('애호박볶음')) {
+        return '작은 접시 1개(50g)';
+    }
+    if (
+        normalized.includes('채소볶음') ||
+        normalized.includes('채소무침') ||
+        normalized.includes('구운채소') ||
+        normalized.includes('나물') ||
+        normalized.includes('샐러드')
+    ) {
+        return '작은 접시 1개(50~60g)';
+    }
+    if (normalized.includes('국') || normalized.includes('수프') || normalized.includes('육수')) {
+        return '1컵(180~200ml)';
+    }
+    if (normalized === '물' || normalized.includes('따뜻한물')) {
+        return '1컵(200ml)';
+    }
+
+    return slot === 'snack' ? '1회 간식 소량(40~80g)' : '작은 반찬 1접시(40~60g)';
+}
+
+function mealPortionGuideFromPlan(meal: MealPlanItem, slot: MealSlot) {
+    const baseNames =
+        slot === 'snack'
+            ? [meal.main, ...meal.sides, meal.soup]
+            : mealItemsFromSuggestion(meal, slot);
+
+    const uniqueNames = Array.from(
+        new Set(
+            baseNames
+                .map((name) => name.trim())
+                .filter((name) => name.length > 0)
+        )
+    );
+
+    const items: PortionGuideItem[] = uniqueNames.map((name) => ({
+        name,
+        amount: baseAmountByFoodName(name, slot),
+    }));
+
+    const notes: string[] = [];
+    const grainIndex = items.findIndex((item) => {
+        const normalized = item.name.replace(/\s+/g, '');
+        return (
+            normalized.includes('밥') || normalized.includes('죽') || normalized.includes('덮밥') || normalized.includes('국수')
+        );
+    });
+
+    if (grainIndex >= 0 && items.some((item) => isFruitName(item.name))) {
+        items[grainIndex] = {
+            ...items[grainIndex],
+            amount: '반 공기(90~100g)',
+        };
+        notes.push('곡류와 과일이 함께 있을 때는 곡류를 반 공기 기준으로 줄여 과식을 방지해요.');
+    }
+
+    if (slot === 'snack') {
+        const fruitCount = items.filter((item) => isFruitName(item.name)).length;
+        if (fruitCount >= 2) {
+            notes.push('간식 과일은 합쳐서 1회(80~100g) 이내로 조절해 당류를 관리해요.');
+        }
+        if (items.some((item) => item.name.includes('요거트') || item.name.includes('두유'))) {
+            notes.push('요거트·두유는 무가당 제품을 우선으로 선택해요.');
+        }
+    } else {
+        notes.push('한 끼는 배부름 80% 수준에서 멈추고 천천히 드세요.');
+    }
+
+    return { items, notes };
+}
+
+function mealTrackNamesWithPortion(meal: MealPlanItem, slot: MealSlot) {
+    const guide = mealPortionGuideFromPlan(meal, slot);
+    return guide.items.map((item) => `${item.name} · ${item.amount}`);
+}
+
 function MealNutrientBalance({ nutrient }: { nutrient: MealNutrient }) {
     const carb = clamp(nutrient.carb, 0, 100);
     const protein = clamp(nutrient.protein, 0, 100);
@@ -325,10 +520,10 @@ function makeTrackItems(dateKey: string, slot: MealSlot, names: string[]) {
 function buildDefaultLog(dateKey: string, plan: DayPlan): DayLog {
     return {
         meals: {
-            breakfast: makeTrackItems(dateKey, 'breakfast', mealItemsFromSuggestion(plan.breakfast, 'breakfast')),
-            lunch: makeTrackItems(dateKey, 'lunch', mealItemsFromSuggestion(plan.lunch, 'lunch')),
-            dinner: makeTrackItems(dateKey, 'dinner', mealItemsFromSuggestion(plan.dinner, 'dinner')),
-            snack: makeTrackItems(dateKey, 'snack', mealItemsFromSuggestion(plan.snack, 'snack')),
+            breakfast: makeTrackItems(dateKey, 'breakfast', mealTrackNamesWithPortion(plan.breakfast, 'breakfast')),
+            lunch: makeTrackItems(dateKey, 'lunch', mealTrackNamesWithPortion(plan.lunch, 'lunch')),
+            dinner: makeTrackItems(dateKey, 'dinner', mealTrackNamesWithPortion(plan.dinner, 'dinner')),
+            snack: makeTrackItems(dateKey, 'snack', mealTrackNamesWithPortion(plan.snack, 'snack')),
         },
         memo: '',
         medicationTakenIds: [],
@@ -365,7 +560,7 @@ function eatenTrackItems(log: DayLog) {
 function countKeywordsByItems(items: Array<Pick<TrackItem, 'name' | 'servings'>>, keywords: string[]) {
     const normalizedKeywords = keywords.map((keyword) => normalizeText(keyword));
     return items.reduce((count, item) => {
-        const normalizedName = normalizeText(item.name).replace(/\(1인분\)\s*$/, '');
+        const normalizedName = normalizeText(stripPortionLabel(item.name)).replace(/\(1인분\)\s*$/, '');
         const matched = normalizedKeywords.some((keyword) => normalizedName.includes(keyword));
         if (!matched) {
             return count;
@@ -418,7 +613,9 @@ function mergePreferences(...lists: Array<PreferenceType[]>) {
 }
 
 function eatenNames(log: DayLog) {
-    return SLOT_ORDER.flatMap((slot) => log.meals[slot].filter((item) => item.eaten).map((item) => item.name));
+    return SLOT_ORDER.flatMap((slot) =>
+        log.meals[slot].filter((item) => item.eaten).map((item) => stripPortionLabel(item.name))
+    );
 }
 
 function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey: string) {
@@ -966,7 +1163,7 @@ export default function DietPage() {
             }
             return eatenTrackItems(log);
         });
-        const eatenText = eatenItems.map((item) => item.name).join(' ');
+        const eatenText = eatenItems.map((item) => stripPortionLabel(item.name)).join(' ');
 
         const combinedText = `${planTexts.join(' ')} ${eatenText}`;
         const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛'];
@@ -1753,6 +1950,7 @@ export default function DietPage() {
                             showMedicationArea
                                 ? medicationSchedulesByTiming[slot]
                                 : [];
+                        const mealPortionGuide = mealPortionGuideFromPlan(meal, slot);
 
                         return (
                             <article
@@ -1775,6 +1973,21 @@ export default function DietPage() {
                                 <div className="mealTileMono__body">
                                     <p className="text-base font-bold leading-snug">{meal.summary}</p>
                                     {slot !== 'snack' && <p className="mt-1 text-sm">반찬: {meal.sides.join(', ')}</p>}
+                                    <div className="mt-2 rounded-lg border border-gray-200 bg-white/80 p-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-200">
+                                        <p className="font-semibold">권장 섭취량(1인 기준)</p>
+                                        <div className="mt-1 space-y-1">
+                                            {mealPortionGuide.items.map((item) => (
+                                                <p key={`${slot}-portion-${item.name}`}>- {item.name}: {item.amount}</p>
+                                            ))}
+                                        </div>
+                                        {mealPortionGuide.notes.length > 0 && (
+                                            <div className="mt-1 space-y-1 text-[11px] text-gray-600 dark:text-gray-300">
+                                                {mealPortionGuide.notes.map((note) => (
+                                                    <p key={`${slot}-portion-note-${note}`}>· {note}</p>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                     {mealTimeGuideText && <p className="mealTileMono__time mt-2 text-sm font-medium">- {mealTimeGuideText}</p>}
                                     {coffeeTimeText && <p className="mealTileMono__time mt-1 text-sm font-medium">- {coffeeTimeText}</p>}
                                     {slot !== 'snack' && <MealNutrientBalance nutrient={meal.nutrient} />}
@@ -2106,6 +2319,7 @@ export default function DietPage() {
                                                   : slot === 'dinner'
                                                     ? selectedPlan.dinner
                                                     : selectedPlan.snack;
+                                        const mealPortionGuide = mealPortionGuideFromPlan(meal, slot);
                                         return (
                                             <article
                                                 key={`record-plan-${slot}`}
@@ -2116,6 +2330,14 @@ export default function DietPage() {
                                                 {slot !== 'snack' && (
                                                     <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">반찬: {meal.sides.join(', ')}</p>
                                                 )}
+                                                <div className="mt-2 rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                                    <p className="font-semibold">권장 섭취량</p>
+                                                    <div className="mt-1 space-y-1">
+                                                        {mealPortionGuide.items.map((item) => (
+                                                            <p key={`record-${slot}-portion-${item.name}`}>- {item.name}: {item.amount}</p>
+                                                        ))}
+                                                    </div>
+                                                </div>
                                                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                                                     탄수 {meal.nutrient.carb}% / 단백질 {meal.nutrient.protein}% / 지방 {meal.nutrient.fat}%
                                                 </p>
