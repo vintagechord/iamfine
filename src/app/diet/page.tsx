@@ -205,7 +205,78 @@ function rebalanceMealNutrient(nutrient: MealNutrient, carbDelta: number, protei
     };
 }
 
-function applyYesterdayIntakeCorrection(dateKey: string, plan: DayPlan, logs: Record<string, DayLog>) {
+type IntakeCorrectionContext = {
+    stageType: StageType;
+    bmi: number | null;
+};
+
+function computeIntakeRecordReliability(log: DayLog) {
+    const allItems = SLOT_ORDER.flatMap((slot) => log.meals[slot]);
+    if (allItems.length === 0) {
+        return 0;
+    }
+    const checkedCount = allItems.filter((item) => item.eaten || item.notEaten).length;
+    return checkedCount / allItems.length;
+}
+
+function stageRiskWeight(stageType: StageType) {
+    if (stageType === 'chemo' || stageType === 'chemo_2nd' || stageType === 'radiation') {
+        return 1.15;
+    }
+    if (stageType === 'surgery') {
+        return 1.1;
+    }
+    if (
+        stageType === 'hormone_therapy' ||
+        stageType === 'medication' ||
+        stageType === 'targeted' ||
+        stageType === 'immunotherapy'
+    ) {
+        return 1.05;
+    }
+    return 1;
+}
+
+function getOvereatCorrectionStrength(context: IntakeCorrectionContext, reliability: number) {
+    let bmiWeight = 1;
+    if (context.bmi !== null) {
+        if (context.bmi >= 30) {
+            bmiWeight = 1.3;
+        } else if (context.bmi >= 25) {
+            bmiWeight = 1.18;
+        } else if (context.bmi < 18.5) {
+            bmiWeight = 0.85;
+        }
+    }
+    const reliabilityWeight = clamp(0.65 + reliability * 0.45, 0.65, 1.1);
+    return clamp(stageRiskWeight(context.stageType) * bmiWeight * reliabilityWeight, 0.65, 1.5);
+}
+
+function getUndereatCorrectionStrength(context: IntakeCorrectionContext, reliability: number) {
+    let bmiWeight = 1;
+    if (context.bmi !== null) {
+        if (context.bmi < 18.5) {
+            bmiWeight = 1.25;
+        } else if (context.bmi >= 25) {
+            bmiWeight = 0.9;
+        }
+    }
+    let stageWeight = 1;
+    if (context.stageType === 'surgery') {
+        stageWeight = 1.15;
+    } else if (context.stageType === 'chemo' || context.stageType === 'chemo_2nd' || context.stageType === 'radiation') {
+        stageWeight = 1.1;
+    }
+    const reliabilityWeight = clamp(0.6 + reliability * 0.5, 0.6, 1.1);
+    return clamp(stageWeight * bmiWeight * reliabilityWeight, 0.7, 1.6);
+}
+
+function applyYesterdayIntakeCorrection(
+    dateKey: string,
+    plan: DayPlan,
+    logs: Record<string, DayLog>,
+    context: IntakeCorrectionContext
+) {
     const yesterdayKey = offsetDateKey(dateKey, -1);
     const yesterdayLog = logs[yesterdayKey];
 
@@ -240,11 +311,19 @@ function applyYesterdayIntakeCorrection(dateKey: string, plan: DayPlan, logs: Re
 
     const adjusted = cloneDayPlan(plan);
     const notes: string[] = [];
+    const reliability = computeIntakeRecordReliability(yesterdayLog);
+    const heavySignalThreshold = reliability >= 0.7 ? 3 : 4;
 
-    if (flourSugarCount + heavyCount >= 3) {
+    if (flourSugarCount + heavyCount >= heavySignalThreshold) {
+        const strength = getOvereatCorrectionStrength(context, reliability);
+        const mealCarbDelta = Math.round(-6 * strength);
+        const mealProteinDelta = Math.round(+4 * strength);
+        const snackCarbDelta = Math.round(-8 * strength);
+        const snackProteinDelta = Math.round(+5 * strength);
+
         (['breakfast', 'lunch', 'dinner'] as MealSlot[]).forEach((slot) => {
             const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
-            meal.nutrient = rebalanceMealNutrient(meal.nutrient, -6, +4);
+            meal.nutrient = rebalanceMealNutrient(meal.nutrient, mealCarbDelta, mealProteinDelta);
             if (
                 (meal.riceType.includes('밥') || meal.riceType.includes('죽') || meal.riceType.includes('덮밥')) &&
                 !meal.riceType.includes('소량')
@@ -258,7 +337,7 @@ function applyYesterdayIntakeCorrection(dateKey: string, plan: DayPlan, logs: Re
         adjusted.snack.sides = ['베리류', '아몬드 소량'];
         adjusted.snack.soup = '물';
         adjusted.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량 + 물';
-        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, -8, +5);
+        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, snackCarbDelta, snackProteinDelta);
         adjusted.snack.recipeName = '전날 과식 보정 간식';
         adjusted.snack.recipeSteps = [
             '그릭요거트를 1회 분량(90g)으로 준비해 주세요.',
@@ -268,17 +347,28 @@ function applyYesterdayIntakeCorrection(dateKey: string, plan: DayPlan, logs: Re
         ];
 
         notes.push('전날 기록을 반영해 오늘은 탄수화물·당류를 낮추고 단백질 중심으로 자동 조정했어요.');
+        notes.push(
+            `보정 강도: ${strength.toFixed(2)}배 (치료 단계 ${STAGE_TYPE_LABELS[context.stageType]}, BMI ${
+                context.bmi ? context.bmi.toFixed(1) : '미입력'
+            }, 기록 신뢰도 ${Math.round(reliability * 100)}%)`
+        );
     } else if (skippedMeals >= 2 || proteinCount === 0) {
+        const strength = getUndereatCorrectionStrength(context, reliability);
+        const mealCarbDelta = Math.round(+2 * strength);
+        const mealProteinDelta = Math.round(+3 * strength);
+        const snackCarbDelta = Math.round(+2 * strength);
+        const snackProteinDelta = Math.round(+4 * strength);
+
         (['breakfast', 'lunch', 'dinner'] as MealSlot[]).forEach((slot) => {
             const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
-            meal.nutrient = rebalanceMealNutrient(meal.nutrient, +2, +3);
+            meal.nutrient = rebalanceMealNutrient(meal.nutrient, mealCarbDelta, mealProteinDelta);
         });
 
         adjusted.snack.main = '무가당 요거트';
         adjusted.snack.sides = ['바나나 반 개'];
         adjusted.snack.soup = '따뜻한 물';
         adjusted.snack.summary = '무가당 요거트 + 바나나 반 개 + 따뜻한 물';
-        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, +2, +4);
+        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, snackCarbDelta, snackProteinDelta);
         adjusted.snack.recipeName = '전날 결식 보정 간식';
         adjusted.snack.recipeSteps = [
             '무가당 요거트를 1회 분량으로 준비해 주세요.',
@@ -287,6 +377,11 @@ function applyYesterdayIntakeCorrection(dateKey: string, plan: DayPlan, logs: Re
         ];
 
         notes.push('전날 섭취 부족 기록을 반영해 오늘은 결식을 막는 회복형 구성을 보강했어요.');
+        notes.push(
+            `보정 강도: ${strength.toFixed(2)}배 (치료 단계 ${STAGE_TYPE_LABELS[context.stageType]}, BMI ${
+                context.bmi ? context.bmi.toFixed(1) : '미입력'
+            }, 기록 신뢰도 ${Math.round(reliability * 100)}%)`
+        );
     }
 
     return {
@@ -1044,7 +1139,16 @@ export default function DietPage() {
                 targetPreferences.length === 0
                     ? { plan: medicationAdjusted.plan, notes: [] as string[] }
                     : optimizePlanByPreference(medicationAdjusted.plan, targetPreferences);
-            const yesterdayAdjusted = applyYesterdayIntakeCorrection(dateKey, preferenceAdjusted.plan, logs);
+            const validHeight = userDietContext.heightCm && userDietContext.heightCm > 0 ? userDietContext.heightCm : null;
+            const validWeight = userDietContext.weightKg && userDietContext.weightKg > 0 ? userDietContext.weightKg : null;
+            const bmi =
+                validHeight && validWeight
+                    ? Number((validWeight / Math.pow(validHeight / 100, 2)).toFixed(1))
+                    : null;
+            const yesterdayAdjusted = applyYesterdayIntakeCorrection(dateKey, preferenceAdjusted.plan, logs, {
+                stageType,
+                bmi,
+            });
             return {
                 plan: yesterdayAdjusted.plan,
                 notes: [
@@ -1055,7 +1159,7 @@ export default function DietPage() {
                 ],
             };
         },
-        [userDietContext, medications, logs]
+        [userDietContext, medications, logs, stageType]
     );
     const personalizationSummary = useMemo(() => {
         const ageText =
