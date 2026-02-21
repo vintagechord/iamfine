@@ -2884,11 +2884,25 @@ export default function DietPage() {
     }, [todayKey, accountStartDateKey]);
 
     const recordDateKeys = useMemo(() => {
-        const keys = [...recentDateKeys];
-        if (selectedDate <= todayKey && !keys.includes(selectedDate)) {
-            keys.push(selectedDate);
+        const yesterdayKey = offsetDateKey(todayKey, -1);
+        const keySet = new Set<string>(recentDateKeys);
+        keySet.add(todayKey);
+        keySet.add(yesterdayKey);
+
+        if (selectedDate <= todayKey) {
+            keySet.add(selectedDate);
         }
-        return keys.sort((a, b) => (a === b ? 0 : a > b ? -1 : 1));
+
+        const sorted = Array.from(keySet).sort((a, b) => (a === b ? 0 : a > b ? -1 : 1));
+        const todayIndex = sorted.indexOf(todayKey);
+        const yesterdayIndex = sorted.indexOf(yesterdayKey);
+        if (todayIndex >= 0 && yesterdayIndex >= 0 && yesterdayIndex !== todayIndex - 1) {
+            sorted.splice(yesterdayIndex, 1);
+            const nextTodayIndex = sorted.indexOf(todayKey);
+            sorted.splice(Math.max(0, nextTodayIndex), 0, yesterdayKey);
+        }
+
+        return sorted;
     }, [recentDateKeys, selectedDate, todayKey]);
 
     const syncDailyLogsToMetadata = useCallback(
@@ -4320,19 +4334,6 @@ export default function DietPage() {
                                 기록할 날짜 선택
                             </h2>
                             <div className="galaxySafeHeader__action flex items-center gap-2">
-                                <label htmlFor="record-date" className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                    직접 선택
-                                </label>
-                                <input
-                                    id="record-date"
-                                    type="date"
-                                    value={selectedDate}
-                                    max={todayKey}
-                                    onChange={(event) => {
-                                        selectRecordDate(event.target.value);
-                                    }}
-                                    className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                                />
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -4351,23 +4352,37 @@ export default function DietPage() {
                                     const isSelected = key === selectedDate;
                                     const isToday = key === todayKey;
                                     return (
-                                        <button
-                                            key={key}
-                                            ref={(node) => {
-                                                recordDateButtonRefs.current[key] = node;
-                                            }}
-                                            type="button"
-                                            onClick={() => {
-                                                selectRecordDate(key);
-                                            }}
-                                            className={`whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                                                isSelected
-                                                    ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
-                                                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                                            }`}
-                                        >
-                                            {formatDateLabel(key)} {isToday ? '· 오늘' : ''}
-                                        </button>
+                                        <div key={key} className="contents">
+                                            <button
+                                                ref={(node) => {
+                                                    recordDateButtonRefs.current[key] = node;
+                                                }}
+                                                type="button"
+                                                onClick={() => {
+                                                    selectRecordDate(key);
+                                                }}
+                                                className={`whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                                                    isSelected
+                                                        ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
+                                                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                                                }`}
+                                            >
+                                                {formatDateLabel(key)} {isToday ? '· 오늘' : ''}
+                                            </button>
+                                            {isToday && (
+                                                <input
+                                                    id="record-date"
+                                                    type="date"
+                                                    value={selectedDate}
+                                                    max={todayKey}
+                                                    onChange={(event) => {
+                                                        selectRecordDate(event.target.value);
+                                                    }}
+                                                    aria-label="기록 날짜 선택"
+                                                    className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                                />
+                                            )}
+                                        </div>
                                     );
                                 })}
                             </div>
