@@ -108,6 +108,11 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
                             open ? 'translate-x-0' : 'translate-x-full'
                         }`}
                     >
+                        <div className="flex justify-end">
+                            <button type="button" onClick={closeMenu} className="popupCloseButton" aria-label="메뉴 닫기">
+                                닫기
+                            </button>
+                        </div>
                         <nav className="grid gap-2 pt-1">
                             {items.map((item) => (
                                 <Link

@@ -4102,23 +4102,25 @@ export default function DietPage() {
                         className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{openRecipeContent.title}</h2>
-                        <p className="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
-                            {openRecipeContent.recipeName}
-                        </p>
+                        <div className="galaxySafeHeader">
+                            <div className="galaxySafeHeader__main">
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{openRecipeContent.title}</h2>
+                                <p className="mt-1 text-sm font-semibold text-gray-800 dark:text-gray-100">
+                                    {openRecipeContent.recipeName}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setOpenRecipeSlot(null)}
+                                className="galaxySafeHeader__action popupCloseButton"
+                            >
+                                닫기
+                            </button>
+                        </div>
                         <div className="mt-3 space-y-1 text-sm text-gray-700 dark:text-gray-200">
                             {openRecipeContent.recipeSteps.map((step, index) => (
                                 <p key={`${openRecipeContent.recipeName}-${index}`}>- {step}</p>
                             ))}
-                        </div>
-                        <div className="mt-4 flex justify-end">
-                            <button
-                                type="button"
-                                onClick={() => setOpenRecipeSlot(null)}
-                                className="whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                                닫기
-                            </button>
                         </div>
                     </section>
                 </div>
@@ -4133,9 +4135,18 @@ export default function DietPage() {
                         className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                            {openPortionGuideContent.title}
-                        </h2>
+                        <div className="galaxySafeHeader">
+                            <h2 className="galaxySafeHeader__main text-xl font-semibold text-gray-900 dark:text-gray-100">
+                                {openPortionGuideContent.title}
+                            </h2>
+                            <button
+                                type="button"
+                                onClick={() => setOpenPortionGuideContent(null)}
+                                className="galaxySafeHeader__action popupCloseButton"
+                            >
+                                닫기
+                            </button>
+                        </div>
                         <div className="mt-3 space-y-2 text-base text-gray-800 dark:text-gray-100">
                             {openPortionGuideContent.guide.items.map((item, index) => {
                                 const substitute = openPortionGuideContent.substitutes[index];
@@ -4163,15 +4174,6 @@ export default function DietPage() {
                                 ))}
                             </div>
                         )}
-                        <div className="mt-4 flex justify-end">
-                            <button
-                                type="button"
-                                onClick={() => setOpenPortionGuideContent(null)}
-                                className="whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                                닫기
-                            </button>
-                        </div>
                     </section>
                 </div>
             )}
@@ -4401,8 +4403,8 @@ export default function DietPage() {
                                 className="mx-auto my-3 w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
                                 onClick={(event) => event.stopPropagation()}
                             >
-                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div>
+                                <div className="galaxySafeHeader">
+                                    <div className="galaxySafeHeader__main">
                                         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                                             {selectedDateLabel} 식단 보기
                                         </h3>
@@ -4416,7 +4418,7 @@ export default function DietPage() {
                                             setShowRecordPlanModal(false);
                                             setOpenRecordPortionSlot(null);
                                         }}
-                                        className="whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                        className="popupCloseButton"
                                     >
                                         닫기
                                     </button>

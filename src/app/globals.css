@@ -972,6 +972,70 @@ body {
   min-width: max-content;
 }
 
+.popupCloseButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.35rem;
+  min-width: 3.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.65rem;
+  border: 1px solid #000;
+  background: #000;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.popupCloseButton:hover {
+  opacity: 0.9;
+}
+
+.popupCloseButton:active {
+  transform: scale(0.98);
+}
+
+.popupCloseButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.22);
+}
+
+button,
+[role="button"] {
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+@media (max-width: 1024px) {
+  .flex.flex-wrap:has(> button),
+  .inline-flex.flex-wrap:has(> button),
+  .flex.flex-wrap:has(> [role="button"]),
+  .inline-flex.flex-wrap:has(> [role="button"]) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .flex.flex-wrap:has(> button)::-webkit-scrollbar,
+  .inline-flex.flex-wrap:has(> button)::-webkit-scrollbar,
+  .flex.flex-wrap:has(> [role="button"])::-webkit-scrollbar,
+  .inline-flex.flex-wrap:has(> [role="button"])::-webkit-scrollbar {
+    display: none;
+  }
+
+  .flex.flex-wrap:has(> button) > button,
+  .inline-flex.flex-wrap:has(> button) > button,
+  .flex.flex-wrap:has(> [role="button"]) > [role="button"],
+  .inline-flex.flex-wrap:has(> [role="button"]) > [role="button"] {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 767px) {
   .galaxySafeActions {
     gap: 6px;

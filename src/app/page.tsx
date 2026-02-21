@@ -1051,7 +1051,7 @@ export default function Home() {
                                     setShowVisitScheduleModal(false);
                                     setVisitFormMessage('');
                                 }}
-                                className="galaxySafeHeader__action shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="galaxySafeHeader__action popupCloseButton"
                             >
                                 닫기
                             </button>
