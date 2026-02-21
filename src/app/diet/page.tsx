@@ -153,6 +153,7 @@ const DISCLAIMER_TEXT =
 
 const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
+const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
 
 const DEFAULT_STORE: DietStore = {
@@ -974,6 +975,42 @@ function parseMedicationSchedulesFromUnknown(raw: unknown) {
         }));
 }
 
+function parseDietSignalsFromUnknown(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return [] as string[];
+    }
+
+    const normalized = raw
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    return Array.from(new Set(normalized)).slice(0, 8);
+}
+
+function normalizePreferenceList(value: unknown) {
+    if (!Array.isArray(value)) {
+        return [] as PreferenceType[];
+    }
+
+    return Array.from(
+        new Set(value.filter((item): item is PreferenceType => PREFERENCE_KEYS.has(item as PreferenceType)))
+    );
+}
+
+function normalizeDailyPreferencesRecord(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {} as Record<string, PreferenceType[]>;
+    }
+
+    return Object.fromEntries(
+        Object.entries(raw as Record<string, unknown>).map(([dateKey, values]) => [
+            dateKey,
+            normalizePreferenceList(values),
+        ])
+    );
+}
+
 function readIamfineMetadata(raw: unknown) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         return {
@@ -981,6 +1018,8 @@ function readIamfineMetadata(raw: unknown) {
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
             additionalConditions: [] as AdditionalCondition[],
+            recentDietSignals: [] as string[],
+            dailyPreferences: {} as Record<string, PreferenceType[]>,
         };
     }
 
@@ -992,6 +1031,8 @@ function readIamfineMetadata(raw: unknown) {
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
             additionalConditions: [] as AdditionalCondition[],
+            recentDietSignals: [] as string[],
+            dailyPreferences: {} as Record<string, PreferenceType[]>,
         };
     }
 
@@ -1001,6 +1042,8 @@ function readIamfineMetadata(raw: unknown) {
         medications: parseMedicationNamesFromUnknown(scoped.medications),
         medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
         additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
+        recentDietSignals: parseDietSignalsFromUnknown(scoped.recentDietSignals),
+        dailyPreferences: normalizeDailyPreferencesRecord(scoped.dailyPreferences),
     };
 }
 
@@ -1011,6 +1054,8 @@ function buildUpdatedUserMetadata(
         medications: string[];
         medicationSchedules: MedicationSchedule[];
         additionalConditions: AdditionalCondition[];
+        recentDietSignals: string[];
+        dailyPreferences: Record<string, PreferenceType[]>;
     }>
 ) {
     const root =
@@ -1092,6 +1137,101 @@ function parseStore(raw: string | null): DietStore {
     } catch {
         return DEFAULT_STORE;
     }
+}
+
+function parseTrackItemsFromUnknown(raw: unknown, slot: MealSlot, dateKey: string) {
+    if (!Array.isArray(raw)) {
+        return [] as TrackItem[];
+    }
+
+    return raw
+        .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+        .map((item, index): TrackItem | null => {
+            const candidate = item as Partial<TrackItem>;
+            const normalizedName = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+            if (!normalizedName) {
+                return null;
+            }
+            return {
+                id:
+                    typeof candidate.id === 'string' && candidate.id.trim()
+                        ? candidate.id
+                        : `${dateKey}-${slot}-server-${index}`,
+                name: normalizedName,
+                eaten: Boolean(candidate.eaten),
+                notEaten: Boolean(candidate.notEaten),
+                isManual: Boolean(candidate.isManual),
+                servings:
+                    typeof candidate.servings === 'number' && Number.isFinite(candidate.servings)
+                        ? Math.max(1, Math.round(candidate.servings))
+                        : 1,
+            } satisfies TrackItem;
+        })
+        .filter((item): item is TrackItem => Boolean(item));
+}
+
+function parseDayLogFromUnknown(raw: unknown, dateKey: string): DayLog | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
+
+    const candidate = raw as Partial<DayLog>;
+    const mealsRaw =
+        candidate.meals && typeof candidate.meals === 'object' && !Array.isArray(candidate.meals)
+            ? (candidate.meals as Partial<Record<MealSlot, unknown>>)
+            : {};
+
+    return {
+        meals: {
+            breakfast: parseTrackItemsFromUnknown(mealsRaw.breakfast, 'breakfast', dateKey),
+            lunch: parseTrackItemsFromUnknown(mealsRaw.lunch, 'lunch', dateKey),
+            dinner: parseTrackItemsFromUnknown(mealsRaw.dinner, 'dinner', dateKey),
+            snack: parseTrackItemsFromUnknown(mealsRaw.snack, 'snack', dateKey),
+        },
+        memo: typeof candidate.memo === 'string' ? candidate.memo : '',
+        medicationTakenIds: Array.isArray(candidate.medicationTakenIds)
+            ? Array.from(
+                  new Set(
+                      candidate.medicationTakenIds
+                          .filter((item): item is string => typeof item === 'string')
+                          .map((item) => item.trim())
+                          .filter(Boolean)
+                  )
+              )
+            : [],
+    };
+}
+
+function parseServerDietLogs(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return {} as Record<string, DayLog>;
+    }
+
+    return raw.reduce(
+        (acc, item) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return acc;
+            }
+
+            const row = item as {
+                date_key?: unknown;
+                log_payload?: unknown;
+            };
+            const dateKey = typeof row.date_key === 'string' ? row.date_key : '';
+            if (!dateKey) {
+                return acc;
+            }
+
+            const parsedLog = parseDayLogFromUnknown(row.log_payload, dateKey);
+            if (!parsedLog) {
+                return acc;
+            }
+
+            acc[dateKey] = parsedLog;
+            return acc;
+        },
+        {} as Record<string, DayLog>
+    );
 }
 
 function makeTrackItems(dateKey: string, slot: MealSlot, names: string[]) {
@@ -1430,6 +1570,44 @@ function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey
     return suggestions.slice(0, 8);
 }
 
+const PREFERENCE_TO_DIET_SIGNAL: Partial<Record<PreferenceType, string>> = {
+    healthy: '건강식',
+    vegetable: '채소 보강',
+    high_protein: '단백질 보강',
+    digestive: '소화 편한 식사',
+    low_salt: '저염식',
+    fish: '생선/해산물',
+    spicy: '매운맛',
+    sweet: '단맛',
+    noodle: '면 요리',
+    pizza: '피자',
+    fried_chicken: '치킨',
+    sandwich: '샌드위치',
+    beef: '소고기',
+    pork: '돼지고기',
+    chicken: '닭고기',
+    duck: '오리고기',
+};
+
+function buildRecentDietSignalsFromLogs(logs: Record<string, DayLog>, referenceDateKey: string) {
+    const hasEatenInLookback = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => {
+        const dateKey = offsetDateKey(referenceDateKey, -index);
+        const log = logs[dateKey];
+        return log ? eatenTrackItems(log).length > 0 : false;
+    }).some(Boolean);
+
+    if (!hasEatenInLookback) {
+        return [] as string[];
+    }
+
+    const preferenceSignals = recommendPreferencesByRecentLogs(logs, referenceDateKey)
+        .map((preference) => PREFERENCE_TO_DIET_SIGNAL[preference] ?? preferenceLabel(preference))
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    return Array.from(new Set(preferenceSignals)).slice(0, 8);
+}
+
 function recommendPreferencesByExternalSignals(items: CustomAlertApiItem[]) {
     if (items.length === 0) {
         return [] as PreferenceType[];
@@ -1682,6 +1860,7 @@ export default function DietPage() {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
+    const syncedLogSignaturesRef = useRef<Record<string, string>>({});
     const lastManualAddRef = useRef<{
         slot: MealSlot;
         name: string;
@@ -2477,15 +2656,60 @@ export default function DietPage() {
         setProfile((profileData as ProfileRow | null) ?? null);
         setStages((stageData as TreatmentStageRow[] | null) ?? []);
 
+        let serverLogs: Record<string, DayLog> = {};
+        const { data: serverLogRows, error: serverLogsError } = await supabase
+            .from(DIET_DAILY_LOGS_TABLE)
+            .select('date_key, log_payload')
+            .eq('user_id', uid)
+            .order('date_key', { ascending: true });
+        if (serverLogsError) {
+            console.error('서버 기록 조회 실패', serverLogsError);
+        } else {
+            serverLogs = parseServerDietLogs(serverLogRows as unknown);
+        }
+
         const store = parseStore(localStorage.getItem(getStoreKey(uid)));
+        const localOnlyLogEntries = Object.entries(store.logs).filter(([dateKey]) => !serverLogs[dateKey]);
+        if (localOnlyLogEntries.length > 0) {
+            const nowIso = new Date().toISOString();
+            const { error: backfillError } = await supabase.from(DIET_DAILY_LOGS_TABLE).upsert(
+                localOnlyLogEntries.map(([dateKey, log]) => ({
+                    user_id: uid,
+                    date_key: dateKey,
+                    log_payload: log,
+                    updated_at: nowIso,
+                })),
+                {
+                    onConflict: 'user_id,date_key',
+                }
+            );
+            if (backfillError) {
+                console.error('기존 로컬 기록 서버 백필 실패', backfillError);
+            } else {
+                localOnlyLogEntries.forEach(([dateKey, log]) => {
+                    serverLogs[dateKey] = log;
+                });
+            }
+        }
+        const mergedLogs = {
+            ...store.logs,
+            ...serverLogs,
+        };
+        const resolvedDailyPreferences =
+            Object.keys(metadata.dailyPreferences).length > 0
+                ? metadata.dailyPreferences
+                : store.dailyPreferences;
         const resolvedMedications = store.medications.length > 0 ? store.medications : metadata.medications;
         const resolvedMedicationSchedules =
             store.medicationSchedules.length > 0 ? store.medicationSchedules : metadata.medicationSchedules;
         const resolvedAdditionalConditions = metadata.additionalConditions;
+        const localRecentDietSignals = buildRecentDietSignalsFromLogs(mergedLogs, todayKey);
         const syncPatch: Partial<{
             treatmentMeta: TreatmentMeta;
             medications: string[];
             medicationSchedules: MedicationSchedule[];
+            recentDietSignals: string[];
+            dailyPreferences: Record<string, PreferenceType[]>;
         }> = {};
         if (!metadata.treatmentMeta && localTreatmentMeta) {
             syncPatch.treatmentMeta = localTreatmentMeta;
@@ -2495,6 +2719,12 @@ export default function DietPage() {
         }
         if (metadata.medicationSchedules.length === 0 && store.medicationSchedules.length > 0) {
             syncPatch.medicationSchedules = store.medicationSchedules;
+        }
+        if (metadata.recentDietSignals.length === 0 && localRecentDietSignals.length > 0) {
+            syncPatch.recentDietSignals = localRecentDietSignals;
+        }
+        if (Object.keys(metadata.dailyPreferences).length === 0 && Object.keys(store.dailyPreferences).length > 0) {
+            syncPatch.dailyPreferences = store.dailyPreferences;
         }
         if (Object.keys(syncPatch).length > 0) {
             const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, syncPatch);
@@ -2520,11 +2750,14 @@ export default function DietPage() {
             );
         }
 
-        setLogs(store.logs);
+        syncedLogSignaturesRef.current = Object.fromEntries(
+            Object.entries(mergedLogs).map(([dateKey, log]) => [dateKey, JSON.stringify(log)])
+        );
+        setLogs(mergedLogs);
         setMedications(resolvedMedications);
         setMedicationSchedules(resolvedMedicationSchedules);
         setAdditionalConditions(resolvedAdditionalConditions);
-        setDailyPreferences(store.dailyPreferences);
+        setDailyPreferences(resolvedDailyPreferences);
         setCarryPreferences([]);
         setDraftTodayPreferences([]);
         setProposalRequested(false);
@@ -2559,6 +2792,124 @@ export default function DietPage() {
 
         localStorage.setItem(storeKey, JSON.stringify(payload));
     }, [storeReady, userId, logs, dailyPreferences, carryPreferences]);
+
+    useEffect(() => {
+        if (!storeReady || !userId || !hasSupabaseEnv || !supabase) {
+            return;
+        }
+
+        const supabaseClient = supabase;
+        const nextSignals = buildRecentDietSignalsFromLogs(logs, todayKey);
+        const timer = window.setTimeout(() => {
+            void (async () => {
+                const { user, error: userError } = await getAuthSessionUser();
+                if (userError || !user) {
+                    return;
+                }
+
+                const metadata = readIamfineMetadata(user.user_metadata);
+                const currentSignals = metadata.recentDietSignals;
+                const isSame =
+                    currentSignals.length === nextSignals.length &&
+                    currentSignals.every((signal, index) => signal === nextSignals[index]);
+                if (isSame) {
+                    return;
+                }
+
+                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
+                    recentDietSignals: nextSignals,
+                });
+                const { error: updateError } = await supabaseClient.auth.updateUser({
+                    data: updatedMetadata,
+                });
+                if (updateError) {
+                    console.error('최근 식단 신호 저장 실패', updateError);
+                }
+            })();
+        }, 700);
+
+        return () => window.clearTimeout(timer);
+    }, [storeReady, userId, logs, todayKey]);
+
+    useEffect(() => {
+        if (!storeReady || !userId || !hasSupabaseEnv || !supabase) {
+            return;
+        }
+
+        const supabaseClient = supabase;
+        const timer = window.setTimeout(() => {
+            void (async () => {
+                const { user, error: userError } = await getAuthSessionUser();
+                if (userError || !user) {
+                    return;
+                }
+
+                const metadata = readIamfineMetadata(user.user_metadata);
+                const currentDaily = metadata.dailyPreferences;
+                const nextDaily = normalizeDailyPreferencesRecord(dailyPreferences);
+                const isSame = JSON.stringify(currentDaily) === JSON.stringify(nextDaily);
+                if (isSame) {
+                    return;
+                }
+
+                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
+                    dailyPreferences: nextDaily,
+                });
+                const { error: updateError } = await supabaseClient.auth.updateUser({
+                    data: updatedMetadata,
+                });
+                if (updateError) {
+                    console.error('일자별 식단 선호 저장 실패', updateError);
+                }
+            })();
+        }, 700);
+
+        return () => window.clearTimeout(timer);
+    }, [storeReady, userId, dailyPreferences]);
+
+    useEffect(() => {
+        if (!storeReady || !userId || !hasSupabaseEnv || !supabase) {
+            return;
+        }
+
+        const currentLog = logs[selectedDate];
+        if (!currentLog) {
+            return;
+        }
+
+        const signature = JSON.stringify(currentLog);
+        if (syncedLogSignaturesRef.current[selectedDate] === signature) {
+            return;
+        }
+
+        const supabaseClient = supabase;
+        const targetUserId = userId;
+        const targetDateKey = selectedDate;
+        const timer = window.setTimeout(() => {
+            void (async () => {
+                const { error: saveError } = await supabaseClient.from(DIET_DAILY_LOGS_TABLE).upsert(
+                    {
+                        user_id: targetUserId,
+                        date_key: targetDateKey,
+                        log_payload: currentLog,
+                        updated_at: new Date().toISOString(),
+                    },
+                    {
+                        onConflict: 'user_id,date_key',
+                    }
+                );
+
+                if (saveError) {
+                    console.error('자동 기록 서버 저장 실패', saveError);
+                    return;
+                }
+
+                syncedLogSignaturesRef.current[targetDateKey] = signature;
+            })();
+        }, 900);
+
+        return () => window.clearTimeout(timer);
+    }, [storeReady, userId, logs, selectedDate]);
 
     useEffect(() => {
         if (loading || !openRecordView) {
@@ -2911,9 +3262,41 @@ export default function DietPage() {
         }
         setSaving(true);
         setError('');
-        await new Promise((resolve) => window.setTimeout(resolve, 150));
+
+        if (!hasSupabaseEnv || !supabase) {
+            setSaving(false);
+            setError('설정이 필요해요. .env.local 파일을 확인해 주세요.');
+            return;
+        }
+
+        if (!userId) {
+            setSaving(false);
+            setError('로그인이 필요해요.');
+            return;
+        }
+
+        const currentLog = logs[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
+        const { error: saveError } = await supabase.from(DIET_DAILY_LOGS_TABLE).upsert(
+            {
+                user_id: userId,
+                date_key: selectedDate,
+                log_payload: currentLog,
+                updated_at: new Date().toISOString(),
+            },
+            {
+                onConflict: 'user_id,date_key',
+            }
+        );
+
         setSaving(false);
-        setMessage('오늘 기록을 저장했어요. 잘하고 있어요.');
+        if (saveError) {
+            console.error('오늘 기록 서버 저장 실패', saveError);
+            setError('서버 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+            return;
+        }
+
+        syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
+        setMessage('오늘 기록을 저장했어요. 같은 계정의 다른 기기에서도 확인할 수 있어요.');
     };
 
     const saveRecord = async (event: FormEvent<HTMLFormElement>) => {

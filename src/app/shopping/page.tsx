@@ -114,6 +114,7 @@ type QuantityRule =
 const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const SHOPPING_MEMO_PREFIX = 'shopping-memo-v1';
+const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
 const TWO_WEEK_DAYS = 14;
 const NO_REPEAT_DAYS = 30;
@@ -359,6 +360,123 @@ function parseMedicationSchedulesFromUnknown(raw: unknown) {
         }));
 }
 
+function normalizePreferenceList(value: unknown) {
+    if (!Array.isArray(value)) {
+        return [] as PreferenceType[];
+    }
+
+    return Array.from(
+        new Set(value.filter((item): item is PreferenceType => PREFERENCE_KEYS.has(item as PreferenceType)))
+    );
+}
+
+function normalizeDailyPreferencesRecord(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {} as Record<string, PreferenceType[]>;
+    }
+
+    return Object.fromEntries(
+        Object.entries(raw as Record<string, unknown>).map(([dateKey, values]) => [
+            dateKey,
+            normalizePreferenceList(values),
+        ])
+    );
+}
+
+function parseTrackItemsFromUnknown(raw: unknown, slot: 'breakfast' | 'lunch' | 'dinner' | 'snack', dateKey: string) {
+    if (!Array.isArray(raw)) {
+        return [] as TrackItem[];
+    }
+
+    return raw
+        .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+        .map((item, index): TrackItem | null => {
+            const candidate = item as Partial<TrackItem>;
+            const normalizedName = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+            if (!normalizedName) {
+                return null;
+            }
+            return {
+                id:
+                    typeof candidate.id === 'string' && candidate.id.trim()
+                        ? candidate.id
+                        : `${dateKey}-${slot}-server-${index}`,
+                name: normalizedName,
+                eaten: Boolean(candidate.eaten),
+                notEaten: Boolean(candidate.notEaten),
+                servings:
+                    typeof candidate.servings === 'number' && Number.isFinite(candidate.servings)
+                        ? Math.max(1, Math.round(candidate.servings))
+                        : 1,
+            } satisfies TrackItem;
+        })
+        .filter((item): item is TrackItem => Boolean(item));
+}
+
+function parseDayLogFromUnknown(raw: unknown, dateKey: string): DayLog | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
+
+    const candidate = raw as Partial<DayLog>;
+    const mealsRaw =
+        candidate.meals && typeof candidate.meals === 'object' && !Array.isArray(candidate.meals)
+            ? (candidate.meals as Partial<Record<'breakfast' | 'lunch' | 'dinner' | 'snack', unknown>>)
+            : {};
+
+    return {
+        meals: {
+            breakfast: parseTrackItemsFromUnknown(mealsRaw.breakfast, 'breakfast', dateKey),
+            lunch: parseTrackItemsFromUnknown(mealsRaw.lunch, 'lunch', dateKey),
+            dinner: parseTrackItemsFromUnknown(mealsRaw.dinner, 'dinner', dateKey),
+            snack: parseTrackItemsFromUnknown(mealsRaw.snack, 'snack', dateKey),
+        },
+        memo: typeof candidate.memo === 'string' ? candidate.memo : '',
+        medicationTakenIds: Array.isArray(candidate.medicationTakenIds)
+            ? Array.from(
+                  new Set(
+                      candidate.medicationTakenIds
+                          .filter((item): item is string => typeof item === 'string')
+                          .map((item) => item.trim())
+                          .filter(Boolean)
+                  )
+              )
+            : [],
+    };
+}
+
+function parseServerDietLogs(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return {} as Record<string, DayLog>;
+    }
+
+    return raw.reduce(
+        (acc, item) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return acc;
+            }
+
+            const row = item as {
+                date_key?: unknown;
+                log_payload?: unknown;
+            };
+            const dateKey = typeof row.date_key === 'string' ? row.date_key : '';
+            if (!dateKey) {
+                return acc;
+            }
+
+            const parsedLog = parseDayLogFromUnknown(row.log_payload, dateKey);
+            if (!parsedLog) {
+                return acc;
+            }
+
+            acc[dateKey] = parsedLog;
+            return acc;
+        },
+        {} as Record<string, DayLog>
+    );
+}
+
 function readIamfineMetadata(raw: unknown) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         return {
@@ -366,6 +484,8 @@ function readIamfineMetadata(raw: unknown) {
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
             additionalConditions: [] as AdditionalCondition[],
+            dailyPreferences: {} as Record<string, PreferenceType[]>,
+            shoppingMemo: '',
         };
     }
 
@@ -377,6 +497,8 @@ function readIamfineMetadata(raw: unknown) {
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
             additionalConditions: [] as AdditionalCondition[],
+            dailyPreferences: {} as Record<string, PreferenceType[]>,
+            shoppingMemo: '',
         };
     }
 
@@ -386,6 +508,34 @@ function readIamfineMetadata(raw: unknown) {
         medications: parseMedicationNamesFromUnknown(scoped.medications),
         medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
         additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
+        dailyPreferences: normalizeDailyPreferencesRecord(scoped.dailyPreferences),
+        shoppingMemo: typeof scoped.shoppingMemo === 'string' ? scoped.shoppingMemo : '',
+    };
+}
+
+function buildUpdatedUserMetadata(
+    raw: unknown,
+    patch: Partial<{
+        shoppingMemo: string;
+        dailyPreferences: Record<string, PreferenceType[]>;
+    }>
+) {
+    const root =
+        raw && typeof raw === 'object' && !Array.isArray(raw)
+            ? (raw as Record<string, unknown>)
+            : ({} as Record<string, unknown>);
+    const existingNamespacedRaw = root[USER_METADATA_NAMESPACE];
+    const existingNamespaced =
+        existingNamespacedRaw && typeof existingNamespacedRaw === 'object' && !Array.isArray(existingNamespacedRaw)
+            ? (existingNamespacedRaw as Record<string, unknown>)
+            : {};
+
+    return {
+        ...root,
+        [USER_METADATA_NAMESPACE]: {
+            ...existingNamespaced,
+            ...patch,
+        },
     };
 }
 
@@ -394,11 +544,7 @@ function getShoppingMemoKey(userId: string | null) {
 }
 
 function normalizePreferences(value: unknown): PreferenceType[] {
-    if (!Array.isArray(value)) {
-        return [];
-    }
-
-    return value.filter((item): item is PreferenceType => PREFERENCE_KEYS.has(item as PreferenceType));
+    return normalizePreferenceList(value);
 }
 
 function parseDietStore(raw: string | null) {
@@ -1096,16 +1242,57 @@ export default function ShoppingPage() {
             setProfile((profileData as ProfileRow | null) ?? null);
 
             const parsed = parseDietStore(localStorage.getItem(getStoreKey(uid)));
+            let serverLogs: Record<string, DayLog> = {};
+            const { data: serverLogRows, error: serverLogsError } = await supabase
+                .from(DIET_DAILY_LOGS_TABLE)
+                .select('date_key, log_payload')
+                .eq('user_id', uid)
+                .order('date_key', { ascending: true });
+            if (serverLogsError) {
+                console.error('서버 기록 조회 실패', serverLogsError);
+            } else {
+                serverLogs = parseServerDietLogs(serverLogRows as unknown);
+            }
+            const mergedLogs = {
+                ...parsed.logs,
+                ...serverLogs,
+            };
             const resolvedMedications = parsed.medications.length > 0 ? parsed.medications : metadata.medications;
             const resolvedMedicationSchedules =
                 parsed.medicationSchedules.length > 0 ? parsed.medicationSchedules : metadata.medicationSchedules;
+            const resolvedDailyPreferences =
+                Object.keys(metadata.dailyPreferences).length > 0
+                    ? metadata.dailyPreferences
+                    : parsed.dailyPreferences;
+            const resolvedMemo = metadata.shoppingMemo.trim() || (localStorage.getItem(getShoppingMemoKey(uid)) ?? '');
+            const syncPatch: Partial<{
+                shoppingMemo: string;
+                dailyPreferences: Record<string, PreferenceType[]>;
+            }> = {};
+            if (!metadata.shoppingMemo.trim() && resolvedMemo.trim()) {
+                syncPatch.shoppingMemo = resolvedMemo;
+            }
+            if (Object.keys(metadata.dailyPreferences).length === 0 && Object.keys(parsed.dailyPreferences).length > 0) {
+                syncPatch.dailyPreferences = parsed.dailyPreferences;
+            }
+            if (Object.keys(syncPatch).length > 0) {
+                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, syncPatch);
+                const { error: updateError } = await supabase.auth.updateUser({
+                    data: updatedMetadata,
+                });
+                if (updateError) {
+                    console.error('장보기 메타데이터 동기화 실패', updateError);
+                }
+            }
 
             if (!localTreatmentMeta && resolvedTreatmentMeta) {
                 localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(resolvedTreatmentMeta));
             }
             if (
                 (parsed.medications.length === 0 && resolvedMedications.length > 0) ||
-                (parsed.medicationSchedules.length === 0 && resolvedMedicationSchedules.length > 0)
+                (parsed.medicationSchedules.length === 0 && resolvedMedicationSchedules.length > 0) ||
+                Object.keys(serverLogs).length > 0 ||
+                Object.keys(metadata.dailyPreferences).length > 0
             ) {
                 localStorage.setItem(
                     getStoreKey(uid),
@@ -1113,14 +1300,16 @@ export default function ShoppingPage() {
                         ...parsed,
                         medications: resolvedMedications,
                         medicationSchedules: resolvedMedicationSchedules,
+                        logs: mergedLogs,
+                        dailyPreferences: resolvedDailyPreferences,
                     } satisfies DietStore)
                 );
             }
-            setDailyPreferences(parsed.dailyPreferences);
+            setDailyPreferences(resolvedDailyPreferences);
             setMedications(resolvedMedications);
             setMedicationSchedules(resolvedMedicationSchedules);
-            setLogs(parsed.logs);
-            setMemo(localStorage.getItem(getShoppingMemoKey(uid)) ?? '');
+            setLogs(mergedLogs);
+            setMemo(resolvedMemo);
             setLoading(false);
         };
 
@@ -1197,18 +1386,46 @@ export default function ShoppingPage() {
 
     const endDateKey = dateKeys[dateKeys.length - 1] ?? startDateKey;
 
-    const saveMemo = () => {
+    const saveMemo = async () => {
         const key = getShoppingMemoKey(userId);
         const value = memo.trim();
         if (value.length === 0) {
             localStorage.removeItem(key);
-            setMemoSavedAt('메모를 비웠어요.');
+            if (hasSupabaseEnv && supabase && userId) {
+                const { user, error: userError } = await getAuthSessionUser();
+                if (!userError && user) {
+                    const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
+                        shoppingMemo: '',
+                    });
+                    const { error: updateError } = await supabase.auth.updateUser({
+                        data: updatedMetadata,
+                    });
+                    if (updateError) {
+                        console.error('장보기 메모 서버 저장 실패', updateError);
+                    }
+                }
+            }
+            setMemoSavedAt('메모를 비웠어요. 계정에도 반영했어요.');
             return;
         }
 
         localStorage.setItem(key, memo);
+        if (hasSupabaseEnv && supabase && userId) {
+            const { user, error: userError } = await getAuthSessionUser();
+            if (!userError && user) {
+                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
+                    shoppingMemo: memo,
+                });
+                const { error: updateError } = await supabase.auth.updateUser({
+                    data: updatedMetadata,
+                });
+                if (updateError) {
+                    console.error('장보기 메모 서버 저장 실패', updateError);
+                }
+            }
+        }
         const now = new Date();
-        setMemoSavedAt(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')} 저장 완료`);
+        setMemoSavedAt(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')} 저장 완료 (계정 동기화)`);
     };
 
     if (loading) {

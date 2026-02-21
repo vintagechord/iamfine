@@ -83,6 +83,7 @@ type FinderPatientContext = {
     activeStageType: StageType | null;
     activeStageLabel: string;
     additionalConditions: AdditionalCondition[];
+    recentDietSignals: string[];
 };
 
 type DeliveryProvider = {
@@ -116,6 +117,7 @@ function readIamfineMetadata(raw: unknown) {
         return {
             treatmentMeta: null as TreatmentMeta | null,
             additionalConditions: [] as AdditionalCondition[],
+            recentDietSignals: [] as string[],
         };
     }
 
@@ -125,13 +127,25 @@ function readIamfineMetadata(raw: unknown) {
         return {
             treatmentMeta: null as TreatmentMeta | null,
             additionalConditions: [] as AdditionalCondition[],
+            recentDietSignals: [] as string[],
         };
     }
 
     const scoped = namespaced as Record<string, unknown>;
+    const recentDietSignals = Array.isArray(scoped.recentDietSignals)
+        ? Array.from(
+              new Set(
+                  scoped.recentDietSignals
+                      .filter((item): item is string => typeof item === 'string')
+                      .map((item) => item.trim())
+                      .filter(Boolean)
+              )
+          ).slice(0, 8)
+        : [];
     return {
         treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
         additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
+        recentDietSignals,
     };
 }
 
@@ -264,6 +278,7 @@ export default function RestaurantsPage() {
         activeStageType: null,
         activeStageLabel: '',
         additionalConditions: [],
+        recentDietSignals: [],
     });
 
     const selected = FINDER_OPTIONS[selectedCategory];
@@ -330,6 +345,9 @@ export default function RestaurantsPage() {
                     }
                     patientContext.additionalConditions.slice(0, 8).forEach((condition) => {
                         params.append('condition', `${condition.name}:${condition.code}`);
+                    });
+                    patientContext.recentDietSignals.slice(0, 8).forEach((signal) => {
+                        params.append('dietSignal', signal);
                     });
                 }
 
@@ -412,6 +430,7 @@ export default function RestaurantsPage() {
                             activeStageType: null,
                             activeStageLabel: '',
                             additionalConditions: [],
+                            recentDietSignals: [],
                         });
                     }
                     return;
@@ -435,6 +454,7 @@ export default function RestaurantsPage() {
                         activeStageType: activeStage?.stage_type ?? null,
                         activeStageLabel: activeStage?.stage_label?.trim() ?? '',
                         additionalConditions: metadata.additionalConditions,
+                        recentDietSignals: metadata.recentDietSignals,
                     });
                 }
             } catch (error) {

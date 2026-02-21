@@ -89,10 +89,12 @@ type DietStore = {
 
 const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
+const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
 const NO_REPEAT_DAYS = 7;
 const TWO_WEEK_DAYS = 14;
 const REPORT_SLOT_ORDER: ReportMealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
+const PREFERENCE_KEYS = new Set<PreferenceType>(PREFERENCE_OPTIONS.map((option) => option.key));
 const DISCLAIMER_TEXT =
     '이 리포트는 규칙 기반 참고 자료입니다. 진단/처방/투약 변경은 반드시 담당 의료진 판단을 우선하세요.';
 
@@ -179,6 +181,26 @@ function parseMedicationSchedulesFromUnknown(raw: unknown) {
         }));
 }
 
+function normalizePreferenceList(value: unknown) {
+    if (!Array.isArray(value)) {
+        return [] as PreferenceType[];
+    }
+
+    return Array.from(
+        new Set(value.filter((item): item is PreferenceType => PREFERENCE_KEYS.has(item as PreferenceType)))
+    );
+}
+
+function normalizeDailyPreferencesRecord(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {} as Record<string, PreferenceType[]>;
+    }
+
+    return Object.fromEntries(
+        Object.entries(raw as Record<string, unknown>).map(([dateKey, values]) => [dateKey, normalizePreferenceList(values)])
+    );
+}
+
 function readIamfineMetadata(raw: unknown) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         return {
@@ -186,6 +208,7 @@ function readIamfineMetadata(raw: unknown) {
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
             additionalConditions: [] as AdditionalCondition[],
+            dailyPreferences: {} as Record<string, PreferenceType[]>,
         };
     }
 
@@ -197,6 +220,7 @@ function readIamfineMetadata(raw: unknown) {
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
             additionalConditions: [] as AdditionalCondition[],
+            dailyPreferences: {} as Record<string, PreferenceType[]>,
         };
     }
 
@@ -206,6 +230,7 @@ function readIamfineMetadata(raw: unknown) {
         medications: parseMedicationNamesFromUnknown(scoped.medications),
         medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
         additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
+        dailyPreferences: normalizeDailyPreferencesRecord(scoped.dailyPreferences),
     };
 }
 
@@ -246,10 +271,7 @@ function parseStore(raw: string | null): DietStore {
         return {
             medications: Array.isArray(parsed.medications) ? parsed.medications : [],
             medicationSchedules,
-            dailyPreferences:
-                parsed.dailyPreferences && typeof parsed.dailyPreferences === 'object'
-                    ? (parsed.dailyPreferences as Record<string, PreferenceType[]>)
-                    : {},
+            dailyPreferences: normalizeDailyPreferencesRecord(parsed.dailyPreferences),
             logs:
                 parsed.logs && typeof parsed.logs === 'object'
                     ? (parsed.logs as Record<string, DayLog>)
@@ -263,6 +285,102 @@ function parseStore(raw: string | null): DietStore {
             logs: {},
         };
     }
+}
+
+function parseTrackItemsFromUnknown(raw: unknown, slot: ReportMealSlot, dateKey: string) {
+    if (!Array.isArray(raw)) {
+        return [] as TrackItem[];
+    }
+
+    return raw
+        .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+        .map((item, index): TrackItem | null => {
+            const candidate = item as Partial<TrackItem>;
+            const normalizedName = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+            if (!normalizedName) {
+                return null;
+            }
+
+            return {
+                id:
+                    typeof candidate.id === 'string' && candidate.id.trim()
+                        ? candidate.id
+                        : `${dateKey}-${slot}-server-${index}`,
+                name: normalizedName,
+                eaten: Boolean(candidate.eaten),
+                notEaten: Boolean(candidate.notEaten),
+                isManual: Boolean(candidate.isManual),
+                servings:
+                    typeof candidate.servings === 'number' && Number.isFinite(candidate.servings)
+                        ? Math.max(1, Math.round(candidate.servings))
+                        : 1,
+            } satisfies TrackItem;
+        })
+        .filter((item): item is TrackItem => Boolean(item));
+}
+
+function parseDayLogFromUnknown(raw: unknown, dateKey: string): DayLog | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return null;
+    }
+
+    const candidate = raw as Partial<DayLog>;
+    const mealsRaw =
+        candidate.meals && typeof candidate.meals === 'object' && !Array.isArray(candidate.meals)
+            ? (candidate.meals as Partial<Record<ReportMealSlot, unknown>>)
+            : {};
+
+    return {
+        meals: {
+            breakfast: parseTrackItemsFromUnknown(mealsRaw.breakfast, 'breakfast', dateKey),
+            lunch: parseTrackItemsFromUnknown(mealsRaw.lunch, 'lunch', dateKey),
+            dinner: parseTrackItemsFromUnknown(mealsRaw.dinner, 'dinner', dateKey),
+            snack: parseTrackItemsFromUnknown(mealsRaw.snack, 'snack', dateKey),
+        },
+        memo: typeof candidate.memo === 'string' ? candidate.memo : '',
+        medicationTakenIds: Array.isArray(candidate.medicationTakenIds)
+            ? Array.from(
+                  new Set(
+                      candidate.medicationTakenIds
+                          .filter((item): item is string => typeof item === 'string')
+                          .map((item) => item.trim())
+                          .filter(Boolean)
+                  )
+              )
+            : [],
+    };
+}
+
+function parseServerDietLogs(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return {} as Record<string, DayLog>;
+    }
+
+    return raw.reduce(
+        (acc, item) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return acc;
+            }
+
+            const row = item as {
+                date_key?: unknown;
+                log_payload?: unknown;
+            };
+            const dateKey = typeof row.date_key === 'string' ? row.date_key : '';
+            if (!dateKey) {
+                return acc;
+            }
+
+            const parsedLog = parseDayLogFromUnknown(row.log_payload, dateKey);
+            if (!parsedLog) {
+                return acc;
+            }
+
+            acc[dateKey] = parsedLog;
+            return acc;
+        },
+        {} as Record<string, DayLog>
+    );
 }
 
 function sexLabel(value: ProfileRow['sex']) {
@@ -876,6 +994,25 @@ export default function DietReportPage() {
         setStages((stageData as TreatmentStageRow[] | null) ?? []);
 
         const store = parseStore(localStorage.getItem(getStoreKey(uid)));
+        let serverLogs: Record<string, DayLog> = {};
+        const { data: serverLogRows, error: serverLogsError } = await supabase
+            .from(DIET_DAILY_LOGS_TABLE)
+            .select('date_key, log_payload')
+            .eq('user_id', uid)
+            .order('date_key', { ascending: true });
+        if (serverLogsError) {
+            console.error('서버 기록 조회 실패', serverLogsError);
+        } else {
+            serverLogs = parseServerDietLogs(serverLogRows as unknown);
+        }
+        const mergedLogs = {
+            ...store.logs,
+            ...serverLogs,
+        };
+        const resolvedDailyPreferences =
+            Object.keys(metadata.dailyPreferences).length > 0
+                ? metadata.dailyPreferences
+                : store.dailyPreferences;
         const resolvedMedications = store.medications.length > 0 ? store.medications : metadata.medications;
         const resolvedMedicationSchedules =
             store.medicationSchedules.length > 0 ? store.medicationSchedules : metadata.medicationSchedules;
@@ -885,7 +1022,9 @@ export default function DietReportPage() {
         }
         if (
             (store.medications.length === 0 && resolvedMedications.length > 0) ||
-            (store.medicationSchedules.length === 0 && resolvedMedicationSchedules.length > 0)
+            (store.medicationSchedules.length === 0 && resolvedMedicationSchedules.length > 0) ||
+            Object.keys(serverLogs).length > 0 ||
+            Object.keys(metadata.dailyPreferences).length > 0
         ) {
             localStorage.setItem(
                 getStoreKey(uid),
@@ -893,14 +1032,16 @@ export default function DietReportPage() {
                     ...store,
                     medications: resolvedMedications,
                     medicationSchedules: resolvedMedicationSchedules,
+                    logs: mergedLogs,
+                    dailyPreferences: resolvedDailyPreferences,
                 } satisfies DietStore)
             );
         }
 
         setMedications(resolvedMedications);
         setMedicationSchedules(resolvedMedicationSchedules);
-        setDailyPreferences(store.dailyPreferences);
-        setLogs(store.logs);
+        setDailyPreferences(resolvedDailyPreferences);
+        setLogs(mergedLogs);
         setLoading(false);
     }, []);
 

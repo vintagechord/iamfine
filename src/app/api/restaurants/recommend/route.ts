@@ -32,6 +32,7 @@ type PersonalizationContext = {
     stageType: string;
     stageLabel: string;
     conditions: string[];
+    dietSignals: string[];
     focusTerms: string[];
 };
 
@@ -198,6 +199,47 @@ function conditionFocusTerms(conditions: string[]) {
     return Array.from(focus).slice(0, 6);
 }
 
+function dietSignalFocusTerms(signals: string[]) {
+    const focus = new Set<string>();
+
+    signals.forEach((rawSignal) => {
+        const signal = cleanText(rawSignal).toLowerCase();
+        if (!signal) {
+            return;
+        }
+
+        if (signal.includes('피자') || signal.includes('샌드위치') || signal.includes('치킨') || signal.includes('면')) {
+            focus.add('저자극 식당');
+            focus.add('채소 반찬');
+        }
+        if (signal.includes('단백질')) {
+            focus.add('단백질 식사');
+        }
+        if (signal.includes('채소')) {
+            focus.add('채소 중심 식당');
+        }
+        if (signal.includes('저염')) {
+            focus.add('저염식 식당');
+        }
+        if (signal.includes('소화')) {
+            focus.add('소화 편한 식사');
+        }
+        if (signal.includes('생선')) {
+            focus.add('생선구이 식당');
+        }
+        if (
+            signal.includes('소고기') ||
+            signal.includes('돼지고기') ||
+            signal.includes('닭고기') ||
+            signal.includes('오리고기')
+        ) {
+            focus.add('기름 적은 단백질 식사');
+        }
+    });
+
+    return Array.from(focus).slice(0, 6);
+}
+
 function parsePersonalizationContext(searchParams: URLSearchParams): PersonalizationContext {
     const enabled = searchParams.get('personalized') === '1';
     const cancerType = cleanText(searchParams.get('cancerType') || '').slice(0, 32);
@@ -205,6 +247,7 @@ function parsePersonalizationContext(searchParams: URLSearchParams): Personaliza
     const stageType = cleanText(searchParams.get('stageType') || '').slice(0, 24);
     const stageLabel = cleanText(searchParams.get('stageLabel') || '').slice(0, 40);
     const conditions = dedupeWords(searchParams.getAll('condition'), 12);
+    const dietSignals = dedupeWords(searchParams.getAll('dietSignal'), 8);
 
     if (!enabled) {
         return {
@@ -214,6 +257,7 @@ function parsePersonalizationContext(searchParams: URLSearchParams): Personaliza
             stageType: '',
             stageLabel: '',
             conditions: [],
+            dietSignals: [],
             focusTerms: [],
         };
     }
@@ -223,6 +267,7 @@ function parsePersonalizationContext(searchParams: URLSearchParams): Personaliza
             ...(cancerType || cancerStage ? ['암환자 식단'] : []),
             ...stageFocusTerms(stageType, stageLabel),
             ...conditionFocusTerms(conditions),
+            ...dietSignalFocusTerms(dietSignals),
         ],
         8
     );
@@ -234,6 +279,7 @@ function parsePersonalizationContext(searchParams: URLSearchParams): Personaliza
         stageType,
         stageLabel,
         conditions,
+        dietSignals,
         focusTerms,
     };
 }
@@ -447,6 +493,7 @@ function scoreRecommendations(
               personalization.cancerStage,
               personalization.stageLabel,
               ...personalization.focusTerms,
+              ...personalization.dietSignals,
               ...personalization.conditions,
           ])
         : [];
