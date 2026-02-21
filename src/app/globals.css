@@ -9,6 +9,16 @@
 
 html {
   font-size: 16.5px;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 .quickTile {
@@ -18,7 +28,8 @@ html {
   align-items: center;
   justify-content: center;
 
-  height: 9rem; /* 기존 min-h-36 높이 유지 */
+  min-height: 9rem;
+  padding: 12px 14px;
   border-radius: 18px;
   text-decoration: none;
   font-weight: 600;
@@ -123,8 +134,8 @@ html {
   gap: 12px;
   justify-content: flex-start;
 
-  height: 92px;
-  padding: 0 16px;
+  min-height: 92px;
+  padding: 12px 16px;
   border-radius: 18px;
   text-decoration: none;
   user-select: none;
@@ -399,8 +410,8 @@ html {
   justify-content: center;
   gap: 8px;
 
-  height: 38px;
-  padding: 0 14px;
+  min-height: 38px;
+  padding: 8px 14px;
   border-radius: 999px;
 
   border: 1px solid rgba(15, 23, 42, 0.10);
@@ -409,6 +420,7 @@ html {
 
   font-weight: 650;
   letter-spacing: -0.2px;
+  line-height: 1.2;
   text-decoration: none;
   cursor: pointer;
 
@@ -893,4 +905,52 @@ html {
 
 .finderSearch--salad {
   --accent: 56, 189, 248;
+}
+
+/* 모바일 대형 글자(갤럭시 포함)에서도 헤더 액션과 버튼 행이 깨지지 않도록 보정 */
+.galaxySafeHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.galaxySafeHeader__main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.galaxySafeHeader__action {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.galaxySafeActions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.galaxySafeActions::-webkit-scrollbar {
+  display: none;
+}
+
+.galaxySafeActions > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .quickTileMono,
+  .quickTile {
+    height: auto;
+  }
+
+  .galaxySafeText {
+    overflow-wrap: anywhere;
+  }
 }

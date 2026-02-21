@@ -904,10 +904,10 @@ export default function Home() {
                         className="mx-auto my-3 w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
+                        <div className="galaxySafeHeader">
+                            <div className="galaxySafeHeader__main">
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">다음 병원 방문/진료 일정</h3>
-                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                                <p className="galaxySafeText mt-1 text-sm text-gray-600 dark:text-gray-300">
                                     방문 일정은 여러 건 저장되며, 카드 형태로 계속 누적됩니다.
                                 </p>
                             </div>
@@ -917,7 +917,7 @@ export default function Home() {
                                     setShowVisitScheduleModal(false);
                                     setVisitFormMessage('');
                                 }}
-                                className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="galaxySafeHeader__action shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 닫기
                             </button>

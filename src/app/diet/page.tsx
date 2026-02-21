@@ -3766,13 +3766,15 @@ export default function DietPage() {
 
             {!openRecordView && (
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">오늘만 이렇게 먹을래요</h2>
+                    <div className="galaxySafeHeader">
+                        <h2 className="galaxySafeHeader__main galaxySafeText text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            오늘만 이렇게 먹을래요
+                        </h2>
                         <button
                             type="button"
                             aria-expanded={showTodayPreferencePanel}
                             onClick={() => setShowTodayPreferencePanel((prev) => !prev)}
-                            className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            className="galaxySafeHeader__action shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                         >
                             {showTodayPreferencePanel ? '닫기' : '펼치기'}
                         </button>
@@ -3897,15 +3899,17 @@ export default function DietPage() {
                         id="today-record-section"
                         className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
                     >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">기록할 날짜 선택</h2>
+                        <div className="galaxySafeHeader">
+                            <h2 className="galaxySafeHeader__main galaxySafeText text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                기록할 날짜 선택
+                            </h2>
                             <button
                                 type="button"
                                 onClick={() => {
                                     setOpenRecordPortionSlot(null);
                                     setShowRecordPlanModal(true);
                                 }}
-                                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="galaxySafeHeader__action rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 식단 보기
                             </button>
@@ -4080,13 +4084,13 @@ export default function DietPage() {
                     </section>
 
                     <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        <div className="galaxySafeHeader">
+                            <h2 className="galaxySafeHeader__main galaxySafeText text-lg font-semibold text-gray-900 dark:text-gray-100">
                                 {selectedDateLabel} 식단 기록
                             </h2>
                             <button
                                 type="button"
-                                className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="galaxySafeHeader__action rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 onClick={() => setShowNutrients((prev) => !prev)}
                             >
                                 {showNutrients ? '영양 비율 숨기기' : '영양 비율 보기'}
