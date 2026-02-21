@@ -102,6 +102,8 @@ type DietStore = {
     carryPreferences: PreferenceType[];
 };
 
+type DailyLogsStorageMode = 'unknown' | 'table' | 'metadata';
+
 type DayAnalysis = {
     matchScore: number;
     dailyScore: number;
@@ -156,6 +158,7 @@ const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const METADATA_DAILY_LOG_LIMIT = 60;
 
 const DEFAULT_STORE: DietStore = {
     logs: {},
@@ -1033,6 +1036,7 @@ function readIamfineMetadata(raw: unknown) {
             additionalConditions: [] as AdditionalCondition[],
             recentDietSignals: [] as string[],
             dailyPreferences: {} as Record<string, PreferenceType[]>,
+            dailyLogs: {} as Record<string, DayLog>,
         };
     }
 
@@ -1046,6 +1050,7 @@ function readIamfineMetadata(raw: unknown) {
             additionalConditions: [] as AdditionalCondition[],
             recentDietSignals: [] as string[],
             dailyPreferences: {} as Record<string, PreferenceType[]>,
+            dailyLogs: {} as Record<string, DayLog>,
         };
     }
 
@@ -1057,6 +1062,7 @@ function readIamfineMetadata(raw: unknown) {
         additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
         recentDietSignals: parseDietSignalsFromUnknown(scoped.recentDietSignals),
         dailyPreferences: normalizeDailyPreferencesRecord(scoped.dailyPreferences),
+        dailyLogs: parseMetadataDailyLogsFromUnknown(scoped.dailyLogs),
     };
 }
 
@@ -1069,6 +1075,7 @@ function buildUpdatedUserMetadata(
         additionalConditions: AdditionalCondition[];
         recentDietSignals: string[];
         dailyPreferences: Record<string, PreferenceType[]>;
+        dailyLogs: Record<string, DayLog>;
     }>
 ) {
     const root =
@@ -1327,6 +1334,94 @@ function parseServerDietLogs(raw: unknown) {
             return acc;
         },
         {} as Record<string, DayLog>
+    );
+}
+
+function compactMetadataDailyLogs(logs: Record<string, DayLog>) {
+    const sortedKeys = Object.keys(logs)
+        .filter((key) => DATE_KEY_PATTERN.test(key))
+        .sort((a, b) => b.localeCompare(a))
+        .slice(0, METADATA_DAILY_LOG_LIMIT);
+
+    return sortedKeys.reduce(
+        (acc, dateKey) => {
+            const value = logs[dateKey];
+            if (value) {
+                acc[dateKey] = value;
+            }
+            return acc;
+        },
+        {} as Record<string, DayLog>
+    );
+}
+
+function parseMetadataDailyLogsFromUnknown(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {} as Record<string, DayLog>;
+    }
+
+    const parsed = Object.entries(raw as Record<string, unknown>).reduce(
+        (acc, [dateKey, value]) => {
+            if (!DATE_KEY_PATTERN.test(dateKey)) {
+                return acc;
+            }
+
+            const parsedLog = parseDayLogFromUnknown(value, dateKey);
+            if (!parsedLog) {
+                return acc;
+            }
+
+            acc[dateKey] = parsedLog;
+            return acc;
+        },
+        {} as Record<string, DayLog>
+    );
+
+    return compactMetadataDailyLogs(parsed);
+}
+
+function areDailyLogsEqual(left: Record<string, DayLog>, right: Record<string, DayLog>) {
+    const leftKeys = Object.keys(left).sort();
+    const rightKeys = Object.keys(right).sort();
+    if (leftKeys.length !== rightKeys.length) {
+        return false;
+    }
+
+    return leftKeys.every((key, index) => {
+        const compareKey = rightKeys[index];
+        if (key !== compareKey) {
+            return false;
+        }
+        return JSON.stringify(left[key]) === JSON.stringify(right[compareKey]);
+    });
+}
+
+function isDietLogTableMissingError(raw: unknown) {
+    if (!raw || typeof raw !== 'object') {
+        return false;
+    }
+
+    const candidate = raw as {
+        code?: string;
+        message?: string;
+        details?: string;
+        hint?: string;
+    };
+
+    if (candidate.code === 'PGRST205') {
+        return true;
+    }
+
+    const message = `${candidate.message ?? ''} ${candidate.details ?? ''} ${candidate.hint ?? ''}`.toLowerCase();
+    if (!message.includes(DIET_DAILY_LOGS_TABLE)) {
+        return false;
+    }
+
+    return (
+        message.includes('not found') ||
+        message.includes('could not find') ||
+        message.includes('relation') ||
+        message.includes('does not exist')
     );
 }
 
@@ -1997,6 +2092,7 @@ export default function DietPage() {
 
     const [loading, setLoading] = useState(true);
     const [storeReady, setStoreReady] = useState(false);
+    const [dailyLogsStorageMode, setDailyLogsStorageMode] = useState<DailyLogsStorageMode>('unknown');
     const [userId, setUserId] = useState<string | null>(null);
     const [accountStartDateKey, setAccountStartDateKey] = useState(todayKey);
     const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -2787,6 +2883,39 @@ export default function DietPage() {
         return keys;
     }, [todayKey, accountStartDateKey]);
 
+    const syncDailyLogsToMetadata = useCallback(
+        async (nextLogs: Record<string, DayLog>) => {
+            if (!hasSupabaseEnv || !supabase) {
+                return false;
+            }
+
+            const { user, error: userError } = await getAuthSessionUser();
+            if (userError || !user) {
+                return false;
+            }
+
+            const metadata = readIamfineMetadata(user.user_metadata);
+            const normalizedLogs = compactMetadataDailyLogs(nextLogs);
+            if (areDailyLogsEqual(metadata.dailyLogs, normalizedLogs)) {
+                return true;
+            }
+
+            const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
+                dailyLogs: normalizedLogs,
+            });
+            const { error: updateError } = await supabase.auth.updateUser({
+                data: updatedMetadata,
+            });
+            if (updateError) {
+                console.error('식단 로그 메타데이터 저장 실패', updateError);
+                return false;
+            }
+
+            return true;
+        },
+        []
+    );
+
     const loadInitial = useCallback(async () => {
         setLoading(true);
         setError('');
@@ -2835,6 +2964,7 @@ export default function DietPage() {
         setProfile((profileData as ProfileRow | null) ?? null);
         setStages((stageData as TreatmentStageRow[] | null) ?? []);
 
+        let tableMode: DailyLogsStorageMode = 'table';
         let serverLogs: Record<string, DayLog> = {};
         const { data: serverLogRows, error: serverLogsError } = await supabase
             .from(DIET_DAILY_LOGS_TABLE)
@@ -2842,14 +2972,24 @@ export default function DietPage() {
             .eq('user_id', uid)
             .order('date_key', { ascending: true });
         if (serverLogsError) {
-            console.error('서버 기록 조회 실패', serverLogsError);
+            if (isDietLogTableMissingError(serverLogsError)) {
+                tableMode = 'metadata';
+                setDailyLogsStorageMode('metadata');
+            } else {
+                console.error('서버 기록 조회 실패', serverLogsError);
+            }
         } else {
             serverLogs = parseServerDietLogs(serverLogRows as unknown);
+            setDailyLogsStorageMode('table');
         }
 
         const store = parseStore(localStorage.getItem(getStoreKey(uid)));
-        const localOnlyLogEntries = Object.entries(store.logs).filter(([dateKey]) => !serverLogs[dateKey]);
-        if (localOnlyLogEntries.length > 0) {
+        const localBaseLogs = {
+            ...metadata.dailyLogs,
+            ...store.logs,
+        };
+        const localOnlyLogEntries = Object.entries(localBaseLogs).filter(([dateKey]) => !serverLogs[dateKey]);
+        if (tableMode === 'table' && localOnlyLogEntries.length > 0) {
             const nowIso = new Date().toISOString();
             const { error: backfillError } = await supabase.from(DIET_DAILY_LOGS_TABLE).upsert(
                 localOnlyLogEntries.map(([dateKey, log]) => ({
@@ -2863,7 +3003,12 @@ export default function DietPage() {
                 }
             );
             if (backfillError) {
-                console.error('기존 로컬 기록 서버 백필 실패', backfillError);
+                if (isDietLogTableMissingError(backfillError)) {
+                    tableMode = 'metadata';
+                    setDailyLogsStorageMode('metadata');
+                } else {
+                    console.error('기존 로컬 기록 서버 백필 실패', backfillError);
+                }
             } else {
                 localOnlyLogEntries.forEach(([dateKey, log]) => {
                     serverLogs[dateKey] = log;
@@ -2871,7 +3016,7 @@ export default function DietPage() {
             }
         }
         const mergedLogs = {
-            ...store.logs,
+            ...localBaseLogs,
             ...serverLogs,
         };
         const resolvedDailyPreferences =
@@ -2889,6 +3034,7 @@ export default function DietPage() {
             medicationSchedules: MedicationSchedule[];
             recentDietSignals: string[];
             dailyPreferences: Record<string, PreferenceType[]>;
+            dailyLogs: Record<string, DayLog>;
         }> = {};
         if (!metadata.treatmentMeta && localTreatmentMeta) {
             syncPatch.treatmentMeta = localTreatmentMeta;
@@ -2904,6 +3050,12 @@ export default function DietPage() {
         }
         if (Object.keys(metadata.dailyPreferences).length === 0 && Object.keys(store.dailyPreferences).length > 0) {
             syncPatch.dailyPreferences = store.dailyPreferences;
+        }
+        if (tableMode === 'metadata') {
+            const nextMetadataLogs = compactMetadataDailyLogs(mergedLogs);
+            if (!areDailyLogsEqual(metadata.dailyLogs, nextMetadataLogs)) {
+                syncPatch.dailyLogs = nextMetadataLogs;
+            }
         }
         if (Object.keys(syncPatch).length > 0) {
             const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, syncPatch);
@@ -3066,6 +3218,18 @@ export default function DietPage() {
         const targetUserId = userId;
         const timer = window.setTimeout(() => {
             void (async () => {
+                if (dailyLogsStorageMode === 'metadata') {
+                    const metadataSyncOk = await syncDailyLogsToMetadata(logs);
+                    if (!metadataSyncOk) {
+                        return;
+                    }
+
+                    dirtyLogEntries.forEach(([dateKey, log]) => {
+                        syncedLogSignaturesRef.current[dateKey] = JSON.stringify(log);
+                    });
+                    return;
+                }
+
                 const nowIso = new Date().toISOString();
                 const { error: saveError } = await supabaseClient.from(DIET_DAILY_LOGS_TABLE).upsert(
                     dirtyLogEntries.map(([dateKey, log]) => ({
@@ -3080,8 +3244,18 @@ export default function DietPage() {
                 );
 
                 if (saveError) {
-                    console.error('자동 기록 서버 저장 실패', saveError);
-                    return;
+                    if (isDietLogTableMissingError(saveError)) {
+                        setDailyLogsStorageMode('metadata');
+                        const metadataSyncOk = await syncDailyLogsToMetadata(logs);
+                        if (!metadataSyncOk) {
+                            return;
+                        }
+                    } else {
+                        console.error('자동 기록 서버 저장 실패', saveError);
+                        return;
+                    }
+                } else if (dailyLogsStorageMode === 'unknown') {
+                    setDailyLogsStorageMode('table');
                 }
 
                 dirtyLogEntries.forEach(([dateKey, log]) => {
@@ -3091,7 +3265,7 @@ export default function DietPage() {
         }, 900);
 
         return () => window.clearTimeout(timer);
-    }, [storeReady, userId, logs]);
+    }, [storeReady, userId, logs, dailyLogsStorageMode, syncDailyLogsToMetadata]);
 
     useEffect(() => {
         if (loading || !openRecordView) {
@@ -3458,6 +3632,24 @@ export default function DietPage() {
         }
 
         const currentLog = logs[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
+        const nextLogs = {
+            ...logs,
+            [selectedDate]: currentLog,
+        };
+
+        if (dailyLogsStorageMode === 'metadata') {
+            const metadataSyncOk = await syncDailyLogsToMetadata(nextLogs);
+            setSaving(false);
+            if (!metadataSyncOk) {
+                setError('서버 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+                return;
+            }
+
+            syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
+            setMessage('오늘 기록을 저장했어요. 같은 계정의 다른 기기에서도 확인할 수 있어요.');
+            return;
+        }
+
         const { error: saveError } = await supabase.from(DIET_DAILY_LOGS_TABLE).upsert(
             {
                 user_id: userId,
@@ -3470,13 +3662,31 @@ export default function DietPage() {
             }
         );
 
-        setSaving(false);
         if (saveError) {
+            if (isDietLogTableMissingError(saveError)) {
+                setDailyLogsStorageMode('metadata');
+                const metadataSyncOk = await syncDailyLogsToMetadata(nextLogs);
+                setSaving(false);
+                if (!metadataSyncOk) {
+                    setError('서버 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+                    return;
+                }
+
+                syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
+                setMessage('오늘 기록을 저장했어요. 같은 계정의 다른 기기에서도 확인할 수 있어요.');
+                return;
+            }
+
+            setSaving(false);
             console.error('오늘 기록 서버 저장 실패', saveError);
             setError('서버 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
             return;
         }
 
+        setSaving(false);
+        if (dailyLogsStorageMode === 'unknown') {
+            setDailyLogsStorageMode('table');
+        }
         syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
         setMessage('오늘 기록을 저장했어요. 같은 계정의 다른 기기에서도 확인할 수 있어요.');
     };

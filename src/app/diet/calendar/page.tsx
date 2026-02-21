@@ -197,6 +197,7 @@ function readIamfineMetadata(raw: unknown) {
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
             dailyPreferences: {} as Record<string, PreferenceType[]>,
+            dailyLogs: {} as Record<string, DayLog>,
         };
     }
 
@@ -208,6 +209,7 @@ function readIamfineMetadata(raw: unknown) {
             medications: [] as string[],
             medicationSchedules: [] as MedicationSchedule[],
             dailyPreferences: {} as Record<string, PreferenceType[]>,
+            dailyLogs: {} as Record<string, DayLog>,
         };
     }
 
@@ -217,6 +219,7 @@ function readIamfineMetadata(raw: unknown) {
         medications: parseMedicationNamesFromUnknown(scoped.medications),
         medicationSchedules: parseMedicationSchedulesFromUnknown(scoped.medicationSchedules),
         dailyPreferences: normalizeDailyPreferencesRecord(scoped.dailyPreferences),
+        dailyLogs: parseMetadataDailyLogsFromUnknown(scoped.dailyLogs),
     };
 }
 
@@ -444,6 +447,27 @@ function parseServerDietLogs(raw: unknown) {
                 return acc;
             }
 
+            acc[dateKey] = parsedLog;
+            return acc;
+        },
+        {} as Record<string, DayLog>
+    );
+}
+
+function parseMetadataDailyLogsFromUnknown(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return {} as Record<string, DayLog>;
+    }
+
+    return Object.entries(raw as Record<string, unknown>).reduce(
+        (acc, [dateKey, value]) => {
+            if (!DATE_KEY_PATTERN.test(dateKey)) {
+                return acc;
+            }
+            const parsedLog = parseDayLogFromUnknown(value, dateKey);
+            if (!parsedLog) {
+                return acc;
+            }
             acc[dateKey] = parsedLog;
             return acc;
         },
@@ -925,6 +949,7 @@ export default function DietCalendarPage() {
                 serverLogs = parseServerDietLogs(serverLogRows as unknown);
             }
             const mergedLogs = {
+                ...metadata.dailyLogs,
                 ...parsed.logs,
                 ...serverLogs,
             };
