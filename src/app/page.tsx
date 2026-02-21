@@ -450,6 +450,7 @@ export default function Home() {
     const [visitPreparationInput, setVisitPreparationInput] = useState('');
     const [visitFormMessage, setVisitFormMessage] = useState('');
     const [visitFormIsError, setVisitFormIsError] = useState(false);
+    const [visitScheduleSaving, setVisitScheduleSaving] = useState(false);
 
     const startIndex = useMemo(() => {
         const seed = Number(todayKey.replaceAll('-', ''));
@@ -737,12 +738,13 @@ export default function Home() {
 
     const syncVisitSchedulesToMetadata = async (nextItems: VisitScheduleItem[]) => {
         if (!isLoggedIn || !supabase) {
-            return;
+            return true;
         }
 
         const { user, error: userError } = await getAuthSessionUser();
         if (userError || !user) {
-            return;
+            console.error('진료 일정 메타데이터 저장 실패(사용자 세션)', userError);
+            return false;
         }
 
         const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, nextItems);
@@ -751,22 +753,29 @@ export default function Home() {
         });
         if (updateError) {
             console.error('진료 일정 메타데이터 저장 실패', updateError);
+            return false;
         }
+
+        return true;
     };
 
-    const persistVisitSchedules = (
+    const persistVisitSchedules = async (
         nextItemsOrUpdater: VisitScheduleItem[] | ((current: VisitScheduleItem[]) => VisitScheduleItem[])
     ) => {
+        let normalized = [] as VisitScheduleItem[];
         setVisitSchedules((current) => {
             const nextItems =
                 typeof nextItemsOrUpdater === 'function' ? nextItemsOrUpdater(current) : nextItemsOrUpdater;
-            const normalized = normalizeVisitScheduleList(nextItems);
-            if (!(isLoggedIn && !authUserId)) {
+            normalized = normalizeVisitScheduleList(nextItems);
+            try {
                 localStorage.setItem(getVisitScheduleKey(authUserId), JSON.stringify(normalized));
+            } catch (storageError) {
+                console.error('진료 일정 로컬 저장 실패', storageError);
             }
-            void syncVisitSchedulesToMetadata(normalized);
             return normalized;
         });
+
+        return await syncVisitSchedulesToMetadata(normalized);
     };
 
     const resetVisitForm = () => {
@@ -777,8 +786,11 @@ export default function Home() {
         setVisitPreparationInput('');
     };
 
-    const handleVisitScheduleSave = (event: FormEvent<HTMLFormElement>) => {
+    const handleVisitScheduleSave = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (visitScheduleSaving) {
+            return;
+        }
         const trimmedTreatment = visitTreatmentInput.trim();
         const trimmedPreparation = visitPreparationInput.trim();
 
@@ -798,14 +810,34 @@ export default function Home() {
             createdAt: new Date().toISOString(),
         };
 
-        persistVisitSchedules((current) => [...current, nextItem]);
-        setVisitFormIsError(false);
-        setVisitFormMessage('진료 일정이 저장되었어요.');
+        setVisitScheduleSaving(true);
+        const synced = await persistVisitSchedules((current) => [...current, nextItem]);
+        setVisitScheduleSaving(false);
+        if (synced) {
+            setVisitFormIsError(false);
+            setVisitFormMessage('진료 일정이 저장되었어요.');
+        } else {
+            setVisitFormIsError(true);
+            setVisitFormMessage('기기에는 저장됐지만 계정 동기화에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        }
         resetVisitForm();
     };
 
-    const handleVisitScheduleDelete = (targetId: string) => {
-        persistVisitSchedules((current) => current.filter((item) => item.id !== targetId));
+    const handleVisitScheduleDelete = async (targetId: string) => {
+        if (visitScheduleSaving) {
+            return;
+        }
+
+        setVisitScheduleSaving(true);
+        const synced = await persistVisitSchedules((current) => current.filter((item) => item.id !== targetId));
+        setVisitScheduleSaving(false);
+        if (synced) {
+            setVisitFormIsError(false);
+            setVisitFormMessage('선택한 일정을 삭제했어요.');
+        } else {
+            setVisitFormIsError(true);
+            setVisitFormMessage('삭제는 반영됐지만 계정 동기화에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        }
     };
 
     return (
@@ -1077,9 +1109,10 @@ export default function Home() {
                             <div className="sm:col-span-2 flex flex-nowrap items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 <button
                                     type="submit"
+                                    disabled={visitScheduleSaving}
                                     className="shrink-0 whitespace-nowrap rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                                 >
-                                    일정 저장
+                                    {visitScheduleSaving ? '저장 중...' : '일정 저장'}
                                 </button>
                                 <button
                                     type="button"
@@ -1087,6 +1120,7 @@ export default function Home() {
                                         resetVisitForm();
                                         setVisitFormMessage('');
                                     }}
+                                    disabled={visitScheduleSaving}
                                     className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
                                     입력 초기화
@@ -1134,7 +1168,8 @@ export default function Home() {
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleVisitScheduleDelete(item.id)}
+                                                    onClick={() => void handleVisitScheduleDelete(item.id)}
+                                                    disabled={visitScheduleSaving}
                                                     className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
                                                 >
                                                     삭제

@@ -2872,9 +2872,9 @@ export default function DietPage() {
     const recentDateKeys = useMemo(() => {
         const base = new Date(todayKey);
         const keys: string[] = [];
-        for (let offset = -3; offset <= 3; offset += 1) {
+        for (let offset = 0; offset <= 6; offset += 1) {
             const date = new Date(base);
-            date.setDate(base.getDate() + offset);
+            date.setDate(base.getDate() - offset);
             const key = formatDateKey(date);
             if (key >= accountStartDateKey) {
                 keys.push(key);
@@ -2882,6 +2882,14 @@ export default function DietPage() {
         }
         return keys;
     }, [todayKey, accountStartDateKey]);
+
+    const recordDateKeys = useMemo(() => {
+        const keys = [...recentDateKeys];
+        if (selectedDate <= todayKey && !keys.includes(selectedDate)) {
+            keys.push(selectedDate);
+        }
+        return keys.sort((a, b) => (a === b ? 0 : a > b ? -1 : 1));
+    }, [recentDateKeys, selectedDate, todayKey]);
 
     const syncDailyLogsToMetadata = useCallback(
         async (nextLogs: Record<string, DayLog>) => {
@@ -3281,6 +3289,7 @@ export default function DietPage() {
 
         return () => window.clearTimeout(timer);
     }, [loading, openRecordView]);
+
     useEffect(() => {
         if (!openRecordView) {
             return;
@@ -3312,7 +3321,22 @@ export default function DietPage() {
         }, 120);
 
         return () => window.clearTimeout(retryTimer);
-    }, [openRecordView, selectedDate, recentDateKeys, loading]);
+    }, [openRecordView, selectedDate, recordDateKeys, loading]);
+
+    const selectRecordDate = (nextDateKey: string) => {
+        const normalizedDateKey = nextDateKey.trim();
+        if (!DATE_KEY_PATTERN.test(normalizedDateKey)) {
+            return;
+        }
+        if (normalizedDateKey > todayKey) {
+            setError('미래 날짜는 선택할 수 없어요.');
+            return;
+        }
+        setError('');
+        setSelectedDate(normalizedDateKey);
+        setOpenSubstituteTarget(null);
+    };
+
     const updateCurrentLog = (updater: (current: DayLog) => DayLog) => {
         setLogs((prev) => {
             const current = prev[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
@@ -4295,20 +4319,35 @@ export default function DietPage() {
                             <h2 className="galaxySafeHeader__main galaxySafeText text-lg font-semibold text-gray-900 dark:text-gray-100">
                                 기록할 날짜 선택
                             </h2>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setOpenRecordPortionSlot(null);
-                                    setShowRecordPlanModal(true);
-                                }}
-                                className="galaxySafeHeader__action rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                                식단 보기
-                            </button>
+                            <div className="galaxySafeHeader__action flex items-center gap-2">
+                                <label htmlFor="record-date" className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                    직접 선택
+                                </label>
+                                <input
+                                    id="record-date"
+                                    type="date"
+                                    value={selectedDate}
+                                    max={todayKey}
+                                    onChange={(event) => {
+                                        selectRecordDate(event.target.value);
+                                    }}
+                                    className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setOpenRecordPortionSlot(null);
+                                        setShowRecordPlanModal(true);
+                                    }}
+                                    className="whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                    식단 보기
+                                </button>
+                            </div>
                         </div>
                         <div ref={recordDateScrollerRef} className="mt-3 overflow-x-auto pb-1">
                             <div className="inline-flex min-w-full gap-2">
-                                {recentDateKeys.map((key) => {
+                                {recordDateKeys.map((key) => {
                                     const isSelected = key === selectedDate;
                                     const isToday = key === todayKey;
                                     return (
@@ -4319,8 +4358,7 @@ export default function DietPage() {
                                             }}
                                             type="button"
                                             onClick={() => {
-                                                setSelectedDate(key);
-                                                setOpenSubstituteTarget(null);
+                                                selectRecordDate(key);
                                             }}
                                             className={`whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition ${
                                                 isSelected

@@ -503,6 +503,35 @@ function parseMetadataDailyLogsFromUnknown(raw: unknown) {
     );
 }
 
+function isDietLogTableMissingError(raw: unknown) {
+    if (!raw || typeof raw !== 'object') {
+        return false;
+    }
+
+    const candidate = raw as {
+        code?: string;
+        message?: string;
+        details?: string;
+        hint?: string;
+    };
+
+    if (candidate.code === 'PGRST205') {
+        return true;
+    }
+
+    const message = `${candidate.message ?? ''} ${candidate.details ?? ''} ${candidate.hint ?? ''}`.toLowerCase();
+    if (!message.includes(DIET_DAILY_LOGS_TABLE)) {
+        return false;
+    }
+
+    return (
+        message.includes('not found') ||
+        message.includes('could not find') ||
+        message.includes('relation') ||
+        message.includes('does not exist')
+    );
+}
+
 function readIamfineMetadata(raw: unknown) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         return {
@@ -1213,6 +1242,7 @@ export default function ShoppingPage() {
     const [rangeDaysInput, setRangeDaysInput] = useState('5');
     const [memo, setMemo] = useState('');
     const [memoSavedAt, setMemoSavedAt] = useState('');
+    const [memoSaving, setMemoSaving] = useState(false);
     const [showPlanSummary, setShowPlanSummary] = useState(false);
     const userDietContext = useMemo<UserDietContext>(() => {
         const nowYear = new Date().getFullYear();
@@ -1314,7 +1344,9 @@ export default function ShoppingPage() {
                 .eq('user_id', uid)
                 .order('date_key', { ascending: true });
             if (serverLogsError) {
-                console.error('서버 기록 조회 실패', serverLogsError);
+                if (!isDietLogTableMissingError(serverLogsError)) {
+                    console.error('서버 기록 조회 실패', serverLogsError);
+                }
             } else {
                 serverLogs = parseServerDietLogs(serverLogRows as unknown);
             }
@@ -1452,46 +1484,87 @@ export default function ShoppingPage() {
 
     const endDateKey = dateKeys[dateKeys.length - 1] ?? startDateKey;
 
+    const syncShoppingMemoToMetadata = async (nextMemo: string) => {
+        if (!(hasSupabaseEnv && supabase && userId)) {
+            return true;
+        }
+
+        const { user, error: userError } = await getAuthSessionUser();
+        if (userError || !user) {
+            console.error('장보기 메모 서버 저장 실패(사용자 세션)', userError);
+            return false;
+        }
+
+        const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
+            shoppingMemo: nextMemo,
+        });
+        const { error: updateError } = await supabase.auth.updateUser({
+            data: updatedMetadata,
+        });
+        if (updateError) {
+            console.error('장보기 메모 서버 저장 실패', updateError);
+            return false;
+        }
+
+        return true;
+    };
+
     const saveMemo = async () => {
+        if (memoSaving) {
+            return;
+        }
+
+        setMemoSaving(true);
         const key = getShoppingMemoKey(userId);
         const value = memo.trim();
+        let savedLocally = true;
+
         if (value.length === 0) {
-            localStorage.removeItem(key);
-            if (hasSupabaseEnv && supabase && userId) {
-                const { user, error: userError } = await getAuthSessionUser();
-                if (!userError && user) {
-                    const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
-                        shoppingMemo: '',
-                    });
-                    const { error: updateError } = await supabase.auth.updateUser({
-                        data: updatedMetadata,
-                    });
-                    if (updateError) {
-                        console.error('장보기 메모 서버 저장 실패', updateError);
-                    }
-                }
+            try {
+                localStorage.removeItem(key);
+            } catch (storageError) {
+                console.error('장보기 메모 로컬 저장 실패', storageError);
+                savedLocally = false;
+            }
+            setMemo('');
+            const synced = await syncShoppingMemoToMetadata('');
+            setMemoSaving(false);
+            if (!savedLocally) {
+                setMemoSavedAt('메모 삭제 중 로컬 저장에 실패했어요. 브라우저 저장공간을 확인해 주세요.');
+                return;
+            }
+            if (!synced) {
+                setMemoSavedAt('메모는 비웠지만 계정 동기화에 실패했어요. 잠시 후 다시 저장해 주세요.');
+                return;
             }
             setMemoSavedAt('메모를 비웠어요. 계정에도 반영했어요.');
             return;
         }
 
-        localStorage.setItem(key, memo);
-        if (hasSupabaseEnv && supabase && userId) {
-            const { user, error: userError } = await getAuthSessionUser();
-            if (!userError && user) {
-                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
-                    shoppingMemo: memo,
-                });
-                const { error: updateError } = await supabase.auth.updateUser({
-                    data: updatedMetadata,
-                });
-                if (updateError) {
-                    console.error('장보기 메모 서버 저장 실패', updateError);
-                }
-            }
+        try {
+            localStorage.setItem(key, value);
+        } catch (storageError) {
+            console.error('장보기 메모 로컬 저장 실패', storageError);
+            savedLocally = false;
         }
+        setMemo(value);
+
+        const synced = await syncShoppingMemoToMetadata(value);
+        setMemoSaving(false);
+
+        if (!savedLocally) {
+            setMemoSavedAt('메모를 저장하지 못했어요. 브라우저 저장공간을 확인해 주세요.');
+            return;
+        }
+
         const now = new Date();
-        setMemoSavedAt(`${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')} 저장 완료 (계정 동기화)`);
+        const timeText = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+        if (!synced) {
+            setMemoSavedAt(`${timeText} 기기 저장 완료 (계정 동기화 실패)`);
+            return;
+        }
+
+        setMemoSavedAt(`${timeText} 저장 완료 (계정 동기화)`);
     };
 
     if (loading) {
@@ -1685,9 +1758,10 @@ export default function ShoppingPage() {
                     <button
                         type="button"
                         onClick={saveMemo}
+                        disabled={memoSaving}
                         className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                     >
-                        메모 저장
+                        {memoSaving ? '저장 중...' : '메모 저장'}
                     </button>
                 </div>
             </section>

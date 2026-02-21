@@ -454,6 +454,35 @@ function parseServerDietLogs(raw: unknown) {
     );
 }
 
+function isDietLogTableMissingError(raw: unknown) {
+    if (!raw || typeof raw !== 'object') {
+        return false;
+    }
+
+    const candidate = raw as {
+        code?: string;
+        message?: string;
+        details?: string;
+        hint?: string;
+    };
+
+    if (candidate.code === 'PGRST205') {
+        return true;
+    }
+
+    const message = `${candidate.message ?? ''} ${candidate.details ?? ''} ${candidate.hint ?? ''}`.toLowerCase();
+    if (!message.includes(DIET_DAILY_LOGS_TABLE)) {
+        return false;
+    }
+
+    return (
+        message.includes('not found') ||
+        message.includes('could not find') ||
+        message.includes('relation') ||
+        message.includes('does not exist')
+    );
+}
+
 function parseMetadataDailyLogsFromUnknown(raw: unknown) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         return {} as Record<string, DayLog>;
@@ -944,7 +973,9 @@ export default function DietCalendarPage() {
                 .eq('user_id', uid)
                 .order('date_key', { ascending: true });
             if (serverLogsError) {
-                console.error('서버 기록 조회 실패', serverLogsError);
+                if (!isDietLogTableMissingError(serverLogsError)) {
+                    console.error('서버 기록 조회 실패', serverLogsError);
+                }
             } else {
                 serverLogs = parseServerDietLogs(serverLogRows as unknown);
             }

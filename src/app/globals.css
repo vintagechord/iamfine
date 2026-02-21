@@ -8,9 +8,34 @@
 }
 
 html {
-  font-size: 16.5px;
+  --ui-text-scale: 1;
+  font-size: calc(17.5px * var(--ui-text-scale));
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+html.ui-text-large {
+  --ui-text-scale: 1.12;
+}
+
+body {
+  line-height: 1.6;
+}
+
+/* 작은 글씨 최소 가독성 보정 */
+.text-xs {
+  font-size: 0.8125rem;
+  line-height: 1.35rem;
+}
+
+:is(button, a, label, summary, [role="button"]).text-xs {
+  font-size: 0.875rem;
+  line-height: 1.4rem;
+}
+
+:is(p, li, td, th).text-sm {
+  font-size: 0.9375rem;
+  line-height: 1.5rem;
 }
 
 @media (max-width: 767px) {

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
 import AuthActionButton from '@/components/AuthActionButton';
 import MobileCategoryMenu from '@/components/MobileCategoryMenu';
+import TextSizeToggle from '@/components/TextSizeToggle';
 import ThemeToggle from '@/components/ThemeToggle';
 import './globals.css';
 
@@ -28,6 +29,8 @@ const CATEGORY_LINKS = [
     { href: '/restaurants', label: '건강식당' },
 ];
 
+const TEXT_SCALE_KEY = 'iamfine:text-scale:v1';
+
 const themeInitScript = `(() => {
   try {
     const storedTheme = localStorage.getItem('theme');
@@ -36,8 +39,16 @@ const themeInitScript = `(() => {
     } else {
       document.documentElement.classList.remove('dark');
     }
+
+    const storedTextScale = localStorage.getItem('${TEXT_SCALE_KEY}');
+    if (storedTextScale === 'large') {
+      document.documentElement.classList.add('ui-text-large');
+    } else {
+      document.documentElement.classList.remove('ui-text-large');
+    }
   } catch (_error) {
     document.documentElement.classList.remove('dark');
+    document.documentElement.classList.remove('ui-text-large');
   }
 })();`;
 
@@ -69,6 +80,7 @@ export default function RootLayout({
                                 </span>
                             </Link>
                             <div className="flex items-center gap-1.5 sm:gap-2">
+                                <TextSizeToggle />
                                 <AuthActionButton showSignUpWhenLoggedOut showProfileWhenLoggedIn />
                                 <div className="hidden md:block">
                                     <ThemeToggle />
