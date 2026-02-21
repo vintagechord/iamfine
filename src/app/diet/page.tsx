@@ -159,6 +159,7 @@ const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const METADATA_DAILY_LOG_LIMIT = 60;
+const RECORD_SAVE_SUCCESS_MESSAGE = '저장하였습니다. 같은 계정의 다른 기기에서도 확인할 수 있어요.';
 
 const DEFAULT_STORE: DietStore = {
     logs: {},
@@ -1449,6 +1450,31 @@ function buildDefaultLog(dateKey: string, plan: DayPlan): DayLog {
     };
 }
 
+function hasMeaningfulDayLog(log: DayLog) {
+    if (log.memo.trim().length > 0) {
+        return true;
+    }
+
+    if ((log.medicationTakenIds ?? []).length > 0) {
+        return true;
+    }
+
+    return SLOT_ORDER.some((slot) =>
+        log.meals[slot].some((item) => {
+            if (item.eaten) {
+                return true;
+            }
+            if (item.notEaten) {
+                return true;
+            }
+            if (item.isManual) {
+                return true;
+            }
+            return typeof item.servings === 'number' && Number.isFinite(item.servings) && item.servings !== 1;
+        })
+    );
+}
+
 function normalizeText(input: string) {
     return input.trim().toLowerCase();
 }
@@ -2131,7 +2157,10 @@ export default function DietPage() {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
+    const [saveSuccessPopupOpen, setSaveSuccessPopupOpen] = useState(false);
+    const [saveSuccessPopupMessage, setSaveSuccessPopupMessage] = useState('');
     const syncedLogSignaturesRef = useRef<Record<string, string>>({});
+    const saveSuccessPopupTimerRef = useRef<number | null>(null);
     const lastManualAddRef = useRef<{
         slot: MealSlot;
         name: string;
@@ -2141,6 +2170,35 @@ export default function DietPage() {
     const recordDateButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
     const openRecordView = searchParams.get('view') === 'record';
+
+    const closeSaveSuccessPopup = useCallback(() => {
+        if (saveSuccessPopupTimerRef.current !== null) {
+            window.clearTimeout(saveSuccessPopupTimerRef.current);
+            saveSuccessPopupTimerRef.current = null;
+        }
+        setSaveSuccessPopupOpen(false);
+    }, []);
+
+    const showSaveSuccessPopup = useCallback((text: string) => {
+        setSaveSuccessPopupMessage(text);
+        setSaveSuccessPopupOpen(true);
+        if (saveSuccessPopupTimerRef.current !== null) {
+            window.clearTimeout(saveSuccessPopupTimerRef.current);
+        }
+        saveSuccessPopupTimerRef.current = window.setTimeout(() => {
+            setSaveSuccessPopupOpen(false);
+            saveSuccessPopupTimerRef.current = null;
+        }, 2600);
+    }, []);
+
+    useEffect(
+        () => () => {
+            if (saveSuccessPopupTimerRef.current !== null) {
+                window.clearTimeout(saveSuccessPopupTimerRef.current);
+            }
+        },
+        []
+    );
 
     const activeStage = useMemo(() => {
         const current = stages.find((stage) => stage.status === 'active');
@@ -2341,7 +2399,7 @@ export default function DietPage() {
         const scores = keys
             .map((key) => {
                 const log = logs[key];
-                if (!log) {
+                if (!log || !hasMeaningfulDayLog(log)) {
                     return null;
                 }
                 const plan = applyRecommendationAdjustments(generatePlanForDate(key, stageType, 70), [], key).plan;
@@ -2811,7 +2869,7 @@ export default function DietPage() {
             date.setDate(base.getDate() - offset);
             const key = formatDateKey(date);
             const log = logs[key];
-            if (!log) {
+            if (!log || !hasMeaningfulDayLog(log)) {
                 continue;
             }
             const plan = getPlanForDate(key);
@@ -2835,7 +2893,7 @@ export default function DietPage() {
         for (let day = 1; day <= lastDay; day += 1) {
             const key = formatDateKey(new Date(year, month, day));
             const log = logs[key];
-            if (!log) {
+            if (!log || !hasMeaningfulDayLog(log)) {
                 continue;
             }
             const plan = getPlanForDate(key);
@@ -2850,14 +2908,14 @@ export default function DietPage() {
     }, [logs, stageType, getPlanForDate]);
 
     const totalScore = useMemo(() => {
-        const keys = Object.keys(logs);
-        if (keys.length === 0) {
+        const meaningfulLogEntries = Object.entries(logs).filter(([, log]) => hasMeaningfulDayLog(log));
+        if (meaningfulLogEntries.length === 0) {
             return 0;
         }
 
-        const scores = keys.map((key) => {
+        const scores = meaningfulLogEntries.map(([key, log]) => {
             const plan = getPlanForDate(key);
-            return analyzeDay(plan, logs[key], stageType).dailyScore;
+            return analyzeDay(plan, log, stageType).dailyScore;
         });
 
         return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
@@ -3684,7 +3742,7 @@ export default function DietPage() {
             }
 
             syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
-            setMessage('오늘 기록을 저장했어요. 같은 계정의 다른 기기에서도 확인할 수 있어요.');
+            showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE);
             return;
         }
 
@@ -3711,7 +3769,7 @@ export default function DietPage() {
                 }
 
                 syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
-                setMessage('오늘 기록을 저장했어요. 같은 계정의 다른 기기에서도 확인할 수 있어요.');
+                showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE);
                 return;
             }
 
@@ -3726,7 +3784,7 @@ export default function DietPage() {
             setDailyLogsStorageMode('table');
         }
         syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
-        setMessage('오늘 기록을 저장했어요. 같은 계정의 다른 기기에서도 확인할 수 있어요.');
+        showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE);
     };
 
     const saveRecord = async (event: FormEvent<HTMLFormElement>) => {
@@ -4194,6 +4252,19 @@ export default function DietPage() {
                 >
                     <p className="text-sm font-semibold">{message}</p>
                 </section>
+            )}
+
+            {saveSuccessPopupOpen && (
+                <div className="fixed inset-x-0 bottom-4 z-[60] px-4">
+                    <section className="mx-auto w-full max-w-lg rounded-xl border border-emerald-300 bg-emerald-600 p-3 text-white shadow-2xl">
+                        <div className="flex items-center gap-2">
+                            <p className="min-w-0 flex-1 text-sm font-semibold">{saveSuccessPopupMessage}</p>
+                            <button type="button" onClick={closeSaveSuccessPopup} className="popupCloseButton px-2.5 py-1 text-xs">
+                                닫기
+                            </button>
+                        </div>
+                    </section>
+                </div>
             )}
 
             {!openRecordView && (
