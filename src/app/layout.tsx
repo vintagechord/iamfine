@@ -70,22 +70,24 @@ export default function RootLayout({
                         <div className="mx-auto flex min-h-14 w-full max-w-4xl items-center justify-between px-4 py-2">
                             <Link
                                 href="/"
-                                className="inline-flex items-center gap-2 no-underline"
+                                className="inline-flex shrink-0 items-center gap-2 no-underline"
                             >
                                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 text-sm font-black text-white shadow-sm">
                                     I
                                 </span>
-                                <span className="text-base font-black tracking-tight text-gray-900 dark:text-gray-100">
+                                <span className="hidden text-base font-black tracking-tight text-gray-900 dark:text-gray-100 min-[360px]:inline">
                                     Iam<span className="text-emerald-500 dark:text-emerald-400">Fine</span>
                                 </span>
                             </Link>
-                            <div className="flex items-center gap-1.5 sm:gap-2">
-                                <TextSizeToggle />
-                                <AuthActionButton showSignUpWhenLoggedOut showProfileWhenLoggedIn />
-                                <div className="hidden md:block">
-                                    <ThemeToggle />
+                            <div className="min-w-0 flex flex-1 items-center justify-end">
+                                <div className="galaxySafeActions max-w-full pl-2">
+                                    <TextSizeToggle />
+                                    <AuthActionButton showSignUpWhenLoggedOut showProfileWhenLoggedIn />
+                                    <div className="hidden md:block">
+                                        <ThemeToggle />
+                                    </div>
+                                    <MobileCategoryMenu items={CATEGORY_LINKS} />
                                 </div>
-                                <MobileCategoryMenu items={CATEGORY_LINKS} />
                             </div>
                         </div>
                         <nav className="hidden border-t border-gray-200/70 px-4 dark:border-gray-800/70 md:block">

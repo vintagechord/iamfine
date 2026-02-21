@@ -4347,7 +4347,7 @@ export default function DietPage() {
                             </div>
                         </div>
                         <div ref={recordDateScrollerRef} className="mt-3 overflow-x-auto pb-1">
-                            <div className="inline-flex min-w-full gap-2">
+                            <div className="galaxySafeActions inline-flex min-w-full gap-2">
                                 {recordDateKeys.map((key) => {
                                     const isSelected = key === selectedDate;
                                     const isToday = key === todayKey;
@@ -4379,7 +4379,7 @@ export default function DietPage() {
                                                         selectRecordDate(event.target.value);
                                                     }}
                                                     aria-label="기록 날짜 선택"
-                                                    className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                                    className="h-10 w-[8.4rem] shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                                 />
                                             )}
                                         </div>
