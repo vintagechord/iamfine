@@ -1377,6 +1377,35 @@ function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey
     const flourCount = countKeywordsByItems(eatenItems, ['빵', '라면', '면', '파스타', '피자', '도넛']);
     const sweetCount = countKeywordsByItems(eatenItems, ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림']);
     const spicyCount = countKeywordsByItems(eatenItems, ['매운', '떡볶이', '불닭', '짬뽕']);
+    const pizzaCount = countKeywordsByItems(eatenItems, ['피자', '치즈피자', '페퍼로니피자', '불고기피자']);
+    const friedChickenCount = countKeywordsByItems(eatenItems, ['치킨', '후라이드치킨', '양념치킨', '간장치킨', '닭강정']);
+    const sandwichCount = countKeywordsByItems(eatenItems, ['샌드위치', '햄버거', '치즈버거', '토스트']);
+    const beefCount = countKeywordsByItems(eatenItems, ['소고기', '불고기', '스테이크', '안심']);
+    const porkCount = countKeywordsByItems(eatenItems, ['돼지고기', '삼겹살', '목살', '제육', '돈가스']);
+    const chickenCount = countKeywordsByItems(eatenItems, ['닭고기', '닭가슴살', '닭다리', '닭안심']);
+    const duckCount = countKeywordsByItems(eatenItems, ['오리고기', '오리', '훈제오리']);
+
+    if (pizzaCount >= 2) {
+        add('pizza');
+    }
+    if (friedChickenCount >= 2) {
+        add('fried_chicken');
+    }
+    if (sandwichCount >= 2) {
+        add('sandwich');
+    }
+    if (beefCount >= 2) {
+        add('beef');
+    }
+    if (porkCount >= 2) {
+        add('pork');
+    }
+    if (chickenCount >= 3 && friedChickenCount < 2) {
+        add('chicken');
+    }
+    if (duckCount >= 2) {
+        add('duck');
+    }
 
     if (proteinCount < 6) {
         add('high_protein');
@@ -1398,7 +1427,7 @@ function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey
         add('warm_food');
     }
 
-    return suggestions.slice(0, 4);
+    return suggestions.slice(0, 8);
 }
 
 function recommendPreferencesByExternalSignals(items: CustomAlertApiItem[]) {
@@ -2084,6 +2113,8 @@ export default function DietPage() {
 
         if (
             (draftTodayPreferences.includes('pizza') ||
+                draftTodayPreferences.includes('fried_chicken') ||
+                draftTodayPreferences.includes('sandwich') ||
                 draftTodayPreferences.includes('noodle') ||
                 draftTodayPreferences.includes('sweet')) &&
             flourSugarCount >= 8
@@ -3251,11 +3282,11 @@ export default function DietPage() {
 
             {openRecipeContent && openRecipeSlot && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-4"
                     onClick={() => setOpenRecipeSlot(null)}
                 >
                     <section
-                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-800 dark:bg-gray-900"
+                        className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{openRecipeContent.title}</h2>
@@ -3271,7 +3302,7 @@ export default function DietPage() {
                             <button
                                 type="button"
                                 onClick={() => setOpenRecipeSlot(null)}
-                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 닫기
                             </button>
@@ -3282,11 +3313,11 @@ export default function DietPage() {
 
             {openPortionGuideContent && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-4"
                     onClick={() => setOpenPortionGuideContent(null)}
                 >
                     <section
-                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-800 dark:bg-gray-900"
+                        className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -3323,7 +3354,7 @@ export default function DietPage() {
                             <button
                                 type="button"
                                 onClick={() => setOpenPortionGuideContent(null)}
-                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 닫기
                             </button>
@@ -3358,7 +3389,7 @@ export default function DietPage() {
                             type="button"
                             aria-expanded={showTodayPreferencePanel}
                             onClick={() => setShowTodayPreferencePanel((prev) => !prev)}
-                            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                         >
                             {showTodayPreferencePanel ? '닫기' : '펼치기'}
                         </button>
@@ -3379,7 +3410,7 @@ export default function DietPage() {
                                 </p>
                             </div>
 
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            <div className="mt-3 flex flex-nowrap gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 {PREFERENCE_OPTIONS.map((option) => {
                                     const selected = draftTodayPreferences.includes(option.key);
                                     const recommended = recentRecordRecommendations.includes(option.key);
@@ -3388,7 +3419,7 @@ export default function DietPage() {
                                             key={option.key}
                                             type="button"
                                             onClick={() => toggleDraftTodayPreference(option.key)}
-                                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                                            className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition ${
                                                 selected
                                                     ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
                                                     : recommended
@@ -3411,25 +3442,25 @@ export default function DietPage() {
                                 )}
                             </div>
 
-                            <div className="mt-4 flex flex-wrap gap-2">
+                            <div className="mt-4 flex flex-nowrap gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 <button
                                     type="button"
                                     onClick={applyRecentRecordRecommendation}
-                                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
                                     추천 적용
                                 </button>
                                 <button
                                     type="button"
                                     onClick={requestTodayProposal}
-                                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
                                     수정 제안 요청
                                 </button>
                                 <button
                                     type="button"
                                     onClick={confirmTodayPlanChange}
-                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                                    className="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
                                 >
                                     오늘 식단 변경 확정
                                 </button>
@@ -3528,17 +3559,17 @@ export default function DietPage() {
 
                     {showRecordPlanModal && (
                         <div
-                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                            className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-4"
                             onClick={() => {
                                 setShowRecordPlanModal(false);
                                 setOpenRecordPortionSlot(null);
                             }}
                         >
                             <section
-                                className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-800 dark:bg-gray-900"
+                                className="mx-auto my-3 w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
                                 onClick={(event) => event.stopPropagation()}
                             >
-                                <div className="flex items-start justify-between gap-3">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div>
                                         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                                             {selectedDateLabel} 식단 보기
@@ -3553,7 +3584,7 @@ export default function DietPage() {
                                             setShowRecordPlanModal(false);
                                             setOpenRecordPortionSlot(null);
                                         }}
-                                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                        className="whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                     >
                                         닫기
                                     </button>

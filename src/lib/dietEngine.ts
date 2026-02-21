@@ -14,7 +14,13 @@ export type PreferenceType =
     | 'spicy'
     | 'sweet'
     | 'meat'
+    | 'beef'
+    | 'pork'
+    | 'chicken'
+    | 'duck'
     | 'pizza'
+    | 'fried_chicken'
+    | 'sandwich'
     | 'healthy'
     | 'fish'
     | 'sashimi'
@@ -36,7 +42,13 @@ export const PREFERENCE_OPTIONS: Array<{ key: PreferenceType; label: string; gui
     { key: 'spicy', label: '매운맛', guide: '자극은 낮추고 매콤한 느낌은 살려서 조정해요.' },
     { key: 'sweet', label: '단맛', guide: '당 부담이 적은 간식으로 바꿔 제안해요.' },
     { key: 'meat', label: '고기', guide: '기름이 적은 고기 메뉴 위주로 반영해요.' },
+    { key: 'beef', label: '소고기', guide: '소고기 중심으로 1끼를 반영하고 나머지 끼니를 가볍게 조정해요.' },
+    { key: 'pork', label: '돼지고기', guide: '돼지고기(안심 등 저지방 부위) 중심으로 1끼를 반영해요.' },
+    { key: 'chicken', label: '닭고기', guide: '닭고기 중심 한 끼를 반영하고 채소·수분을 함께 맞춰요.' },
+    { key: 'duck', label: '오리고기', guide: '오리고기 메뉴를 반영하되 지방·염분 부담을 낮춰요.' },
     { key: 'pizza', label: '피자', guide: '채소 중심의 가벼운 피자형 메뉴로 반영해요.' },
+    { key: 'fried_chicken', label: '치킨', guide: '치킨 1~2조각을 한 끼에 반영하고 다른 끼니 영양을 재분배해요.' },
+    { key: 'sandwich', label: '샌드위치', guide: '샌드위치 1끼를 반영하고 다른 끼니를 단백질·채소 중심으로 맞춰요.' },
     { key: 'healthy', label: '건강식', guide: '잡곡밥, 채소, 저염 반찬 중심으로 맞춰요.' },
     { key: 'fish', label: '생선', guide: '구이·찜 같은 익힌 생선 메뉴를 늘려요.' },
     { key: 'sashimi', label: '회 느낌', guide: '생식 대신 안전한 숙회/익힘 메뉴로 대체해요.' },
@@ -1480,23 +1492,54 @@ export function optimizePlanByPreference(plan: DayPlan, preferences: PreferenceT
         meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
     };
 
-    if (has('pizza')) {
-        optimized.lunch.main = '통밀 또띠아 채소 피자';
-        optimized.lunch.soup = '맑은채소국';
-        optimized.lunch.sides = ['그린샐러드', '저당 피클', '구운채소'];
-        syncSummary(optimized.lunch);
-        optimized.lunch.recipeName = '통밀 또띠아 채소 피자';
-        optimized.lunch.recipeSteps = [
-            '통밀 또띠아 위에 토마토소스를 얇게 펴 주세요.',
-            '채소와 저지방 단백질 토핑을 올려요.',
-            '치즈는 소량만 사용하고 오븐에서 짧게 익혀요.',
-            '맑은채소국과 함께 먹어 자극을 줄여요.',
-        ];
-        optimized.dinner.main = '두부스테이크';
-        optimized.dinner.soup = '버섯수프';
-        syncSummary(optimized.dinner);
-        notes.push('피자 메뉴를 반영했어요. 같은 날 저녁은 가볍게 조정했어요.');
-    }
+    const rebalanceMealNutrient = (nutrient: MealNutrient, carbDelta: number, proteinDelta: number) => {
+        let carb = clamp(Math.round(nutrient.carb + carbDelta), 18, 60);
+        let protein = clamp(Math.round(nutrient.protein + proteinDelta), 20, 60);
+        let fat = 100 - carb - protein;
+
+        if (fat < 18) {
+            const need = 18 - fat;
+            const reducibleProtein = Math.min(need, Math.max(0, protein - 20));
+            protein -= reducibleProtein;
+            const remainingNeed = need - reducibleProtein;
+            carb = Math.max(18, carb - remainingNeed);
+            fat = 100 - carb - protein;
+        }
+
+        if (fat > 42) {
+            const excess = fat - 42;
+            const addProtein = Math.min(excess, 60 - protein);
+            protein += addProtein;
+            const remainingExcess = excess - addProtein;
+            carb = Math.min(60, carb + remainingExcess);
+            fat = 100 - carb - protein;
+        }
+
+        return {
+            carb,
+            protein,
+            fat,
+        };
+    };
+
+    const adjustSlotNutrient = (slot: MealSlot, carbDelta: number, proteinDelta: number) => {
+        const meal = slot === 'breakfast' ? optimized.breakfast : slot === 'lunch' ? optimized.lunch : slot === 'dinner' ? optimized.dinner : optimized.snack;
+        meal.nutrient = rebalanceMealNutrient(meal.nutrient, carbDelta, proteinDelta);
+    };
+
+    const applyIndulgentLunchRebalance = (label: string) => {
+        adjustSlotNutrient('breakfast', -4, 4);
+        adjustSlotNutrient('dinner', -8, 8);
+        adjustSlotNutrient('snack', -5, 4);
+        notes.push(`${label}를 점심에 반영해 아침·저녁·간식은 탄수화물을 낮추고 단백질 중심으로 재분배했어요.`);
+    };
+
+    const applyIndulgentDinnerRebalance = (label: string) => {
+        adjustSlotNutrient('breakfast', -4, 4);
+        adjustSlotNutrient('lunch', -6, 6);
+        adjustSlotNutrient('snack', -5, 4);
+        notes.push(`${label}를 저녁에 반영해 아침·점심·간식은 단백질·채소 중심으로 재분배했어요.`);
+    };
 
     if (has('spicy')) {
         optimized.lunch.sides[0] = '저자극 매콤 두부무침';
@@ -1504,7 +1547,7 @@ export function optimizePlanByPreference(plan: DayPlan, preferences: PreferenceT
         notes.push('매운 맛은 유지하면서 자극은 줄인 양념으로 조정했어요.');
     }
 
-    if (has('meat')) {
+    if (has('meat') && !has('beef') && !has('pork') && !has('chicken') && !has('duck')) {
         optimized.dinner.main = MEAT_MAINS[0];
         syncSummary(optimized.dinner);
         notes.push('고기 메뉴는 기름이 적은 부위로 반영했어요.');
@@ -1705,6 +1748,96 @@ export function optimizePlanByPreference(plan: DayPlan, preferences: PreferenceT
         syncSummary(optimized.lunch);
         syncSummary(optimized.dinner);
         notes.push('체중감량 방향을 반영해 저녁 탄수화물 비율을 더 낮추고 단백질 중심으로 조정했어요.');
+    }
+
+    if (has('beef')) {
+        optimized.dinner.main = '소고기 안심구이(90g)';
+        optimized.dinner.soup = '맑은채소국';
+        optimized.dinner.sides = ['브로콜리찜', '구운채소', '저염 버섯볶음'];
+        optimized.dinner.nutrient = { carb: 30, protein: 42, fat: 28 };
+        syncSummary(optimized.dinner);
+        notes.push('소고기 태그를 반영해 저지방 부위 중심으로 저녁 한 끼를 구성했어요.');
+    }
+
+    if (has('pork')) {
+        optimized.dinner.main = '돼지안심구이(90g)';
+        optimized.dinner.soup = '양배추수프';
+        optimized.dinner.sides = ['데친브로콜리', '저염 나물', '구운채소'];
+        optimized.dinner.nutrient = { carb: 31, protein: 40, fat: 29 };
+        syncSummary(optimized.dinner);
+        notes.push('돼지고기 태그를 반영해 안심 등 저지방 부위를 기준으로 조정했어요.');
+    }
+
+    if (has('chicken')) {
+        optimized.dinner.main = '닭다리살 구이(껍질 제거, 100g)';
+        optimized.dinner.soup = '두부맑은국';
+        optimized.dinner.sides = ['그린샐러드', '오이무침', '구운버섯'];
+        optimized.dinner.nutrient = { carb: 30, protein: 43, fat: 27 };
+        syncSummary(optimized.dinner);
+        notes.push('닭고기 태그를 반영해 닭고기 중심 한 끼로 조정했어요.');
+    }
+
+    if (has('duck')) {
+        optimized.dinner.main = '오리고기 구이(기름 제거, 90g)';
+        optimized.dinner.soup = '미역국(저염)';
+        optimized.dinner.sides = ['양배추찜', '구운채소', '저염 나물'];
+        optimized.dinner.nutrient = { carb: 29, protein: 38, fat: 33 };
+        syncSummary(optimized.dinner);
+        notes.push('오리고기 태그를 반영하되 지방·염분 부담이 커지지 않게 조정했어요.');
+    }
+
+    if (has('pizza')) {
+        optimized.lunch.riceType = '밥 생략(피자 탄수 포함)';
+        optimized.lunch.main = '피자 2조각(얇은 도우)';
+        optimized.lunch.soup = '채소수프(저염)';
+        optimized.lunch.sides = ['그린샐러드', '방울토마토', '플레인요거트 소량'];
+        optimized.lunch.nutrient = { carb: 46, protein: 19, fat: 35 };
+        optimized.lunch.cautionFlour = '피자는 2조각 이내로 제한하고, 트랜스지방·재가열 튀김 토핑은 피하세요.';
+        optimized.lunch.recipeName = '피자 2조각 + 균형 보완 식사';
+        optimized.lunch.recipeSteps = [
+            '피자는 2조각까지만 담고 천천히 드세요.',
+            '도우가 두껍거나 가공육 토핑이 많은 메뉴는 피하세요.',
+            '샐러드와 채소수프를 함께 먹어 포만감을 보완해 주세요.',
+            '트랜스지방 가능성이 높은 튀김 사이드·재가열 기름은 피하세요.',
+        ];
+        syncSummary(optimized.lunch);
+        applyIndulgentLunchRebalance('피자');
+    }
+
+    if (has('sandwich')) {
+        optimized.lunch.riceType = '밥 생략(샌드위치 탄수 포함)';
+        optimized.lunch.main = '샌드위치 1개(통밀빵, 닭/달걀 기반)';
+        optimized.lunch.soup = '맑은채소국';
+        optimized.lunch.sides = ['그린샐러드', '오이스틱', '무가당 요거트 소량'];
+        optimized.lunch.nutrient = { carb: 44, protein: 24, fat: 32 };
+        optimized.lunch.cautionFlour = '샌드위치는 1개 이내로 제한하고, 가공육·마가린·튀김 패티는 피하세요.';
+        optimized.lunch.recipeName = '샌드위치 1끼 + 균형 보완 식사';
+        optimized.lunch.recipeSteps = [
+            '통밀빵 기반 샌드위치를 1개 이내로 준비해 주세요.',
+            '닭가슴살·달걀·채소 중심 속재료를 선택해 주세요.',
+            '마요네즈와 소스는 최소화하고 수프·샐러드를 함께 드세요.',
+            '트랜스지방 가능성이 높은 튀김 패티·가공소스는 피하세요.',
+        ];
+        syncSummary(optimized.lunch);
+        applyIndulgentLunchRebalance('샌드위치');
+    }
+
+    if (has('fried_chicken')) {
+        optimized.dinner.riceType = '현미밥(1/3공기)';
+        optimized.dinner.main = '치킨 2조각(가능하면 껍질/튀김옷 일부 제거)';
+        optimized.dinner.soup = '양배추수프';
+        optimized.dinner.sides = ['양배추샐러드', '방울토마토', '구운버섯'];
+        optimized.dinner.nutrient = { carb: 30, protein: 28, fat: 42 };
+        optimized.dinner.cautionFlour = '치킨은 2조각 이내로 제한하고, 재사용 기름·트랜스지방 가능 메뉴는 피하세요.';
+        optimized.dinner.recipeName = '치킨 2조각 + 저자극 보완 구성';
+        optimized.dinner.recipeSteps = [
+            '치킨은 2조각 이내로 양을 먼저 정해 주세요.',
+            '가능하면 껍질·튀김옷 일부를 덜어 지방 섭취를 낮춰 주세요.',
+            '샐러드와 수프를 먼저 먹고 치킨을 천천히 드세요.',
+            '트랜스지방 위험이 높은 오래된 튀김기름 사용 매장은 피하세요.',
+        ];
+        syncSummary(optimized.dinner);
+        applyIndulgentDinnerRebalance('치킨');
     }
 
     return {

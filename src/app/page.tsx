@@ -227,6 +227,48 @@ function getVisitScheduleKey(userId: string | null) {
     return `${VISIT_SCHEDULE_PREFIX}:${userId ?? 'guest'}`;
 }
 
+function normalizeVisitScheduleList(items: VisitScheduleItem[]) {
+    return [...items]
+        .map((item) => ({
+            ...item,
+            hospitalName: item.hospitalName?.trim() ?? '',
+        }))
+        .sort((a, b) => {
+            const aKey = `${a.visitDate} ${a.visitTime}`;
+            const bKey = `${b.visitDate} ${b.visitTime}`;
+            return aKey.localeCompare(bKey);
+        });
+}
+
+function parseVisitScheduleListFromUnknown(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return [] as VisitScheduleItem[];
+    }
+
+    const parsed = raw
+        .filter((item): item is VisitScheduleItem => {
+            if (!item || typeof item !== 'object') {
+                return false;
+            }
+            const candidate = item as Partial<VisitScheduleItem>;
+            return (
+                typeof candidate.id === 'string' &&
+                typeof candidate.visitDate === 'string' &&
+                typeof candidate.visitTime === 'string' &&
+                (typeof candidate.hospitalName === 'string' || candidate.hospitalName === undefined) &&
+                typeof candidate.treatmentNote === 'string' &&
+                typeof candidate.preparationNote === 'string' &&
+                typeof candidate.createdAt === 'string'
+            );
+        })
+        .map((item) => ({
+            ...item,
+            hospitalName: item.hospitalName?.trim() ?? '',
+        }));
+
+    return normalizeVisitScheduleList(parsed);
+}
+
 function parseVisitScheduleList(raw: string | null) {
     if (!raw) {
         return [] as VisitScheduleItem[];
@@ -234,38 +276,39 @@ function parseVisitScheduleList(raw: string | null) {
 
     try {
         const parsed = JSON.parse(raw) as unknown;
-        if (!Array.isArray(parsed)) {
-            return [] as VisitScheduleItem[];
-        }
-
-        return parsed
-            .filter((item): item is VisitScheduleItem => {
-                if (!item || typeof item !== 'object') {
-                    return false;
-                }
-                const candidate = item as Partial<VisitScheduleItem>;
-                return (
-                    typeof candidate.id === 'string' &&
-                    typeof candidate.visitDate === 'string' &&
-                    typeof candidate.visitTime === 'string' &&
-                    (typeof candidate.hospitalName === 'string' || candidate.hospitalName === undefined) &&
-                    typeof candidate.treatmentNote === 'string' &&
-                    typeof candidate.preparationNote === 'string' &&
-                    typeof candidate.createdAt === 'string'
-                );
-            })
-            .map((item) => ({
-                ...item,
-                hospitalName: item.hospitalName?.trim() ?? '',
-            }))
-            .sort((a, b) => {
-                const aKey = `${a.visitDate} ${a.visitTime}`;
-                const bKey = `${b.visitDate} ${b.visitTime}`;
-                return aKey.localeCompare(bKey);
-            });
+        return parseVisitScheduleListFromUnknown(parsed);
     } catch {
         return [] as VisitScheduleItem[];
     }
+}
+
+function readIamfineVisitSchedules(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return [] as VisitScheduleItem[];
+    }
+
+    const root = raw as Record<string, unknown>;
+    const namespaced = root[USER_METADATA_NAMESPACE];
+    if (!namespaced || typeof namespaced !== 'object' || Array.isArray(namespaced)) {
+        return [] as VisitScheduleItem[];
+    }
+
+    const scoped = namespaced as Record<string, unknown>;
+    return parseVisitScheduleListFromUnknown(scoped.visitSchedules);
+}
+
+function buildUpdatedUserMetadata(raw: unknown, visitSchedules: VisitScheduleItem[]) {
+    const root =
+        raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
+    const namespaced = root[USER_METADATA_NAMESPACE];
+    const scoped =
+        namespaced && typeof namespaced === 'object' && !Array.isArray(namespaced)
+            ? { ...(namespaced as Record<string, unknown>) }
+            : {};
+
+    scoped.visitSchedules = visitSchedules;
+    root[USER_METADATA_NAMESPACE] = scoped;
+    return root;
 }
 
 function formatVisitScheduleDate(rawDate: string) {
@@ -412,11 +455,27 @@ export default function Home() {
             const metadataMeta = readIamfineTreatmentMeta(user.user_metadata);
             const localMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             const meta = metadataMeta ?? localMeta;
+            const metadataVisitSchedules = readIamfineVisitSchedules(user.user_metadata);
+            const localVisitSchedules = parseVisitScheduleList(localStorage.getItem(getVisitScheduleKey(uid)));
+            const resolvedVisitSchedules =
+                metadataVisitSchedules.length > 0 ? metadataVisitSchedules : localVisitSchedules;
             if (!cancelled) {
                 setTreatmentMeta(meta);
+                setVisitSchedules(resolvedVisitSchedules);
             }
             if (!localMeta && meta) {
                 localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(meta));
+            }
+            if (metadataVisitSchedules.length > 0) {
+                localStorage.setItem(getVisitScheduleKey(uid), JSON.stringify(metadataVisitSchedules));
+            } else if (localVisitSchedules.length > 0) {
+                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, localVisitSchedules);
+                const { error: syncError } = await supabase.auth.updateUser({
+                    data: updatedMetadata,
+                });
+                if (syncError) {
+                    console.error('진료 일정 메타데이터 동기화 실패', syncError);
+                }
             }
 
             const { data: stageData } = await supabase
@@ -452,9 +511,13 @@ export default function Home() {
             return;
         }
 
+        if (isLoggedIn && authUserId) {
+            return;
+        }
+
         const key = getVisitScheduleKey(authUserId);
         setVisitSchedules(parseVisitScheduleList(localStorage.getItem(key)));
-    }, [alertContextReady, authUserId]);
+    }, [alertContextReady, authUserId, isLoggedIn]);
 
     useEffect(() => {
         if (!alertContextReady) {
@@ -578,14 +641,30 @@ export default function Home() {
         return upcoming ?? visitSchedules[visitSchedules.length - 1];
     }, [visitSchedules]);
 
-    const persistVisitSchedules = (nextItems: VisitScheduleItem[]) => {
-        const normalized = [...nextItems].sort((a, b) => {
-            const aKey = `${a.visitDate} ${a.visitTime}`;
-            const bKey = `${b.visitDate} ${b.visitTime}`;
-            return aKey.localeCompare(bKey);
+    const syncVisitSchedulesToMetadata = async (nextItems: VisitScheduleItem[]) => {
+        if (!isLoggedIn || !supabase) {
+            return;
+        }
+
+        const { user, error: userError } = await getAuthSessionUser();
+        if (userError || !user) {
+            return;
+        }
+
+        const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, nextItems);
+        const { error: updateError } = await supabase.auth.updateUser({
+            data: updatedMetadata,
         });
+        if (updateError) {
+            console.error('진료 일정 메타데이터 저장 실패', updateError);
+        }
+    };
+
+    const persistVisitSchedules = (nextItems: VisitScheduleItem[]) => {
+        const normalized = normalizeVisitScheduleList(nextItems);
         setVisitSchedules(normalized);
         localStorage.setItem(getVisitScheduleKey(authUserId), JSON.stringify(normalized));
+        void syncVisitSchedulesToMetadata(normalized);
     };
 
     const resetVisitForm = () => {
@@ -815,17 +894,17 @@ export default function Home() {
 
             {showVisitScheduleModal && (
                 <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+                    className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-4"
                     onClick={() => {
                         setShowVisitScheduleModal(false);
                         setVisitFormMessage('');
                     }}
                 >
                     <section
-                        className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-800 dark:bg-gray-900"
+                        className="mx-auto my-3 w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">다음 병원 방문/진료 일정</h3>
                                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
@@ -838,7 +917,7 @@ export default function Home() {
                                     setShowVisitScheduleModal(false);
                                     setVisitFormMessage('');
                                 }}
-                                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                             >
                                 닫기
                             </button>
@@ -893,10 +972,10 @@ export default function Home() {
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
                                 />
                             </label>
-                            <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
+                            <div className="sm:col-span-2 flex flex-nowrap items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                                 <button
                                     type="submit"
-                                    className="rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                                    className="shrink-0 whitespace-nowrap rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
                                 >
                                     일정 저장
                                 </button>
@@ -906,7 +985,7 @@ export default function Home() {
                                         resetVisitForm();
                                         setVisitFormMessage('');
                                     }}
-                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
                                     입력 초기화
                                 </button>
