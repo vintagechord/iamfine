@@ -155,6 +155,7 @@ const STORAGE_PREFIX = 'diet-store-v2';
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const DEFAULT_STORE: DietStore = {
     logs: {},
@@ -912,8 +913,8 @@ function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
         }
 
         return {
-            cancerType: parsed.cancerType,
-            cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage : '',
+            cancerType: parsed.cancerType.trim(),
+            cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage.trim() : '',
             updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
         };
     } catch {
@@ -943,10 +944,13 @@ function parseMedicationNamesFromUnknown(raw: unknown) {
         return [];
     }
 
-    return raw
-        .filter((item): item is string => typeof item === 'string')
-        .map((item) => item.trim())
-        .filter(Boolean);
+    return Array.from(
+        new Set(
+            raw.filter((item): item is string => typeof item === 'string')
+                .map((item) => item.trim())
+                .filter(Boolean)
+        )
+    );
 }
 
 function parseMedicationSchedulesFromUnknown(raw: unknown) {
@@ -954,6 +958,7 @@ function parseMedicationSchedulesFromUnknown(raw: unknown) {
         return [];
     }
 
+    const seen = new Set<string>();
     return raw
         .filter((item): item is MedicationSchedule => {
             if (!item || typeof item !== 'object') {
@@ -972,7 +977,15 @@ function parseMedicationSchedulesFromUnknown(raw: unknown) {
             name: item.name.trim(),
             category: item.category.trim(),
             timing: item.timing,
-        }));
+        }))
+        .filter((item) => {
+            const key = `${item.timing}|${item.category.toLowerCase()}|${item.name.toLowerCase()}`;
+            if (seen.has(key)) {
+                return false;
+            }
+            seen.add(key);
+            return true;
+        });
 }
 
 function parseDietSignalsFromUnknown(raw: unknown) {
@@ -1077,6 +1090,53 @@ function buildUpdatedUserMetadata(
     };
 }
 
+function isRecordObject(raw: unknown): raw is Record<string, unknown> {
+    return Boolean(raw) && typeof raw === 'object' && !Array.isArray(raw);
+}
+
+function normalizeMedicationNames(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return [] as string[];
+    }
+
+    return Array.from(
+        new Set(
+            raw.filter((item): item is string => typeof item === 'string')
+                .map((item) => item.trim())
+                .filter(Boolean)
+        )
+    );
+}
+
+function parseMedicationHistoryFromUnknown(raw: unknown) {
+    if (!Array.isArray(raw)) {
+        return [] as MedicationHistory[];
+    }
+
+    return raw
+        .filter((item): item is MedicationHistory => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return false;
+            }
+            const candidate = item as Partial<MedicationHistory>;
+            if (typeof candidate.name !== 'string' || !candidate.name.trim()) {
+                return false;
+            }
+            if (candidate.action !== 'add' && candidate.action !== 'remove') {
+                return false;
+            }
+            if (typeof candidate.date !== 'string' || !Number.isFinite(Date.parse(candidate.date))) {
+                return false;
+            }
+            return true;
+        })
+        .map((item) => ({
+            name: item.name.trim(),
+            action: item.action,
+            date: item.date,
+        }));
+}
+
 function parseStore(raw: string | null): DietStore {
     if (!raw) {
         return DEFAULT_STORE;
@@ -1124,11 +1184,34 @@ function parseStore(raw: string | null): DietStore {
                       timing: item.timing,
                   }))
             : [];
+        const parsedLogs =
+            parsed.logs && typeof parsed.logs === 'object' && !Array.isArray(parsed.logs)
+                ? Object.entries(parsed.logs as Record<string, unknown>).reduce(
+                      (acc, [dateKey, value]) => {
+                          if (!DATE_KEY_PATTERN.test(dateKey)) {
+                              return acc;
+                          }
+                          const parsedLog = parseDayLogFromUnknown(value, dateKey);
+                          if (!parsedLog) {
+                              return acc;
+                          }
+                          acc[dateKey] = parsedLog;
+                          return acc;
+                      },
+                      {} as Record<string, DayLog>
+                  )
+                : {};
+        const normalizedMedications = normalizeMedicationNames(parsed.medications);
+        const fallbackMedicationNamesFromSchedules = Array.from(
+            new Set(medicationSchedules.map((item) => item.name.trim()).filter(Boolean))
+        );
+        const mergedMedicationNames =
+            normalizedMedications.length > 0 ? normalizedMedications : fallbackMedicationNamesFromSchedules;
 
         return {
-            logs: parsed.logs ?? {},
-            medications: Array.isArray(parsed.medications) ? parsed.medications : [],
-            medicationHistory: Array.isArray(parsed.medicationHistory) ? parsed.medicationHistory : [],
+            logs: parsedLogs,
+            medications: mergedMedicationNames,
+            medicationHistory: parseMedicationHistoryFromUnknown(parsed.medicationHistory),
             medicationSchedules,
             preferences: legacyPreferences,
             dailyPreferences,
@@ -1148,22 +1231,26 @@ function parseTrackItemsFromUnknown(raw: unknown, slot: MealSlot, dateKey: strin
         .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
         .map((item, index): TrackItem | null => {
             const candidate = item as Partial<TrackItem>;
-            const normalizedName = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+            const normalizedName =
+                typeof candidate.name === 'string' ? candidate.name.replace(/\s+/g, ' ').trim() : '';
             if (!normalizedName) {
                 return null;
             }
+            const eaten = Boolean(candidate.eaten);
+            const notEaten = eaten ? false : Boolean(candidate.notEaten);
+
             return {
                 id:
                     typeof candidate.id === 'string' && candidate.id.trim()
                         ? candidate.id
                         : `${dateKey}-${slot}-server-${index}`,
                 name: normalizedName,
-                eaten: Boolean(candidate.eaten),
-                notEaten: Boolean(candidate.notEaten),
+                eaten,
+                notEaten,
                 isManual: Boolean(candidate.isManual),
                 servings:
                     typeof candidate.servings === 'number' && Number.isFinite(candidate.servings)
-                        ? Math.max(1, Math.round(candidate.servings))
+                        ? Math.max(1, Math.min(8, Math.round(candidate.servings)))
                         : 1,
             } satisfies TrackItem;
         })
@@ -1171,13 +1258,22 @@ function parseTrackItemsFromUnknown(raw: unknown, slot: MealSlot, dateKey: strin
 }
 
 function parseDayLogFromUnknown(raw: unknown, dateKey: string): DayLog | null {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    let normalizedRaw = raw;
+    if (typeof normalizedRaw === 'string') {
+        try {
+            normalizedRaw = JSON.parse(normalizedRaw) as unknown;
+        } catch {
+            return null;
+        }
+    }
+
+    if (!isRecordObject(normalizedRaw)) {
         return null;
     }
 
-    const candidate = raw as Partial<DayLog>;
+    const candidate = normalizedRaw as Partial<DayLog>;
     const mealsRaw =
-        candidate.meals && typeof candidate.meals === 'object' && !Array.isArray(candidate.meals)
+        isRecordObject(candidate.meals)
             ? (candidate.meals as Partial<Record<MealSlot, unknown>>)
             : {};
 
@@ -1188,7 +1284,7 @@ function parseDayLogFromUnknown(raw: unknown, dateKey: string): DayLog | null {
             dinner: parseTrackItemsFromUnknown(mealsRaw.dinner, 'dinner', dateKey),
             snack: parseTrackItemsFromUnknown(mealsRaw.snack, 'snack', dateKey),
         },
-        memo: typeof candidate.memo === 'string' ? candidate.memo : '',
+        memo: typeof candidate.memo === 'string' ? candidate.memo.trim() : '',
         medicationTakenIds: Array.isArray(candidate.medicationTakenIds)
             ? Array.from(
                   new Set(
@@ -1197,7 +1293,7 @@ function parseDayLogFromUnknown(raw: unknown, dateKey: string): DayLog | null {
                           .map((item) => item.trim())
                           .filter(Boolean)
                   )
-              )
+              ).slice(0, 200)
             : [],
     };
 }
@@ -1217,8 +1313,8 @@ function parseServerDietLogs(raw: unknown) {
                 date_key?: unknown;
                 log_payload?: unknown;
             };
-            const dateKey = typeof row.date_key === 'string' ? row.date_key : '';
-            if (!dateKey) {
+            const dateKey = typeof row.date_key === 'string' ? row.date_key.trim() : '';
+            if (!DATE_KEY_PATTERN.test(dateKey)) {
                 return acc;
             }
 
@@ -1716,19 +1812,107 @@ function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, 
     return suggestions.slice(0, 4);
 }
 
-function suggestedNames(plan: DayPlan) {
-    return SLOT_ORDER.flatMap((slot) => {
-        if (slot === 'breakfast') {
-            return mealItemsFromSuggestion(plan.breakfast, slot);
+function plannedNamesBySlot(plan: DayPlan, slot: MealSlot) {
+    if (slot === 'breakfast') {
+        return mealItemsFromSuggestion(plan.breakfast, slot);
+    }
+    if (slot === 'lunch') {
+        return mealItemsFromSuggestion(plan.lunch, slot);
+    }
+    if (slot === 'dinner') {
+        return mealItemsFromSuggestion(plan.dinner, slot);
+    }
+    return mealItemsFromSuggestion(plan.snack, slot);
+}
+
+function replacementMatchScore(expectedName: string, eatenName: string, slot: MealSlot) {
+    const normalizedExpected = normalizeManualMealName(stripPortionLabel(expectedName));
+    const normalizedEaten = normalizeManualMealName(stripPortionLabel(eatenName));
+    if (!normalizedExpected || !normalizedEaten) {
+        return 0;
+    }
+
+    let score = foodNameSimilarityScore(normalizedExpected, normalizedEaten);
+    if (normalizedExpected.includes(normalizedEaten) || normalizedEaten.includes(normalizedExpected)) {
+        score = Math.max(score, 0.8);
+    }
+
+    const expectedGroup = findSubstituteGroup(normalizedExpected, slot);
+    const eatenGroup = findSubstituteGroup(normalizedEaten, slot);
+    if (expectedGroup && eatenGroup && expectedGroup.id === eatenGroup.id) {
+        score = Math.max(score, 0.74);
+    }
+
+    return clamp(score, 0, 1);
+}
+
+function countSlotCoveredItems(plan: DayPlan, log: DayLog, slot: MealSlot) {
+    const expectedItems = plannedNamesBySlot(plan, slot).map((name) => stripPortionLabel(name).trim()).filter(Boolean);
+    if (expectedItems.length === 0) {
+        return {
+            covered: 0,
+            total: 0,
+        };
+    }
+
+    const eatenCandidates = log.meals[slot]
+        .filter((item) => item.eaten)
+        .map((item) => stripPortionLabel(item.name).trim())
+        .filter(Boolean);
+    const usedCandidateIndexes = new Set<number>();
+    let covered = 0;
+
+    expectedItems.forEach((expectedItem) => {
+        let bestCandidateIndex = -1;
+        let bestScore = 0;
+
+        eatenCandidates.forEach((candidate, index) => {
+            if (usedCandidateIndexes.has(index)) {
+                return;
+            }
+
+            const score = replacementMatchScore(expectedItem, candidate, slot);
+            if (score > bestScore) {
+                bestScore = score;
+                bestCandidateIndex = index;
+            }
+        });
+
+        if (bestCandidateIndex >= 0 && bestScore >= 0.68) {
+            usedCandidateIndexes.add(bestCandidateIndex);
+            covered += 1;
         }
-        if (slot === 'lunch') {
-            return mealItemsFromSuggestion(plan.lunch, slot);
-        }
-        if (slot === 'dinner') {
-            return mealItemsFromSuggestion(plan.dinner, slot);
-        }
-        return mealItemsFromSuggestion(plan.snack, slot);
     });
+
+    return {
+        covered,
+        total: expectedItems.length,
+    };
+}
+
+function computePlanCoverage(plan: DayPlan, log: DayLog) {
+    let covered = 0;
+    let total = 0;
+    const bySlot = {
+        breakfast: 0,
+        lunch: 0,
+        dinner: 0,
+        snack: 0,
+    } satisfies Record<MealSlot, number>;
+
+    SLOT_ORDER.forEach((slot) => {
+        const slotCoverage = countSlotCoveredItems(plan, log, slot);
+        covered += slotCoverage.covered;
+        total += slotCoverage.total;
+        bySlot[slot] = slotCoverage.total === 0 ? 0 : Math.round((slotCoverage.covered / slotCoverage.total) * 100);
+    });
+
+    return {
+        covered,
+        total,
+        percent: total === 0 ? 0 : Math.round((covered / total) * 100),
+        bySlot,
+    };
 }
 
 function calcMatchScore(plan: DayPlan, log: DayLog) {
@@ -1737,17 +1921,8 @@ function calcMatchScore(plan: DayPlan, log: DayLog) {
         return 0;
     }
 
-    const eatenText = normalizeText(eaten.join(' '));
-    const suggestedTokens = suggestedNames(plan)
-        .join(' ')
-        .replace(/[+(),]/g, ' ')
-        .split(/\s+/)
-        .map((token) => token.trim())
-        .filter((token) => token.length >= 2);
-
-    const matched = suggestedTokens.filter((token) => eatenText.includes(token.toLowerCase())).length;
-    const raw = suggestedTokens.length === 0 ? 0 : Math.round((matched / suggestedTokens.length) * 100);
-    return clamp(raw, 0, 100);
+    const coverage = computePlanCoverage(plan, log);
+    return clamp(coverage.percent, 0, 100);
 }
 
 function analyzeDay(plan: DayPlan, log: DayLog, stageType: StageType): DayAnalysis {
@@ -2424,6 +2599,10 @@ export default function DietPage() {
     const selectedAnalysis = useMemo(
         () => analyzeDay(selectedPlan, selectedLog, stageType),
         [selectedPlan, selectedLog, stageType]
+    );
+    const selectedSlotProgress = useMemo(
+        () => computePlanCoverage(selectedPlan, selectedLog).bySlot,
+        [selectedPlan, selectedLog]
     );
     const todayScore = useMemo(() => {
         const todayLog = logs[todayKey] ?? buildDefaultLog(todayKey, todayPlan);
@@ -4113,8 +4292,7 @@ export default function DietPage() {
                             <div className="grid gap-3 lg:grid-cols-2">
                                 {SLOT_ORDER.map((slot) => {
                                     const items = selectedLog.meals[slot];
-                                    const eatenCount = items.filter((item) => item.eaten).length;
-                                    const progress = items.length === 0 ? 0 : Math.round((eatenCount / items.length) * 100);
+                                    const progress = selectedSlotProgress[slot];
 
                                     return (
                                         <article

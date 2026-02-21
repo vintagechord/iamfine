@@ -117,6 +117,7 @@ const TREATMENT_META_PREFIX = 'treatment-meta-v1';
 const SHOPPING_MEMO_PREFIX = 'shopping-memo-v1';
 const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
+const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TWO_WEEK_DAYS = 14;
 const NO_REPEAT_DAYS = 30;
 const PREFERENCE_KEYS = new Set<PreferenceType>(PREFERENCE_OPTIONS.map((option) => option.key));
@@ -277,8 +278,8 @@ function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
         }
 
         return {
-            cancerType: parsed.cancerType,
-            cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage : '',
+            cancerType: parsed.cancerType.trim(),
+            cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage.trim() : '',
             updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
         };
     } catch {
@@ -308,10 +309,13 @@ function parseMedicationNamesFromUnknown(raw: unknown) {
         return [];
     }
 
-    return raw
-        .filter((item): item is string => typeof item === 'string')
-        .map((item) => item.trim())
-        .filter(Boolean);
+    return Array.from(
+        new Set(
+            raw.filter((item): item is string => typeof item === 'string')
+                .map((item) => item.trim())
+                .filter(Boolean)
+        )
+    );
 }
 
 function parseMedicationSchedulesFromUnknown(raw: unknown) {
@@ -319,6 +323,7 @@ function parseMedicationSchedulesFromUnknown(raw: unknown) {
         return [];
     }
 
+    const seen = new Set<string>();
     return raw
         .filter((item): item is MedicationSchedule => {
             if (!item || typeof item !== 'object') {
@@ -337,7 +342,15 @@ function parseMedicationSchedulesFromUnknown(raw: unknown) {
             name: item.name.trim(),
             category: item.category.trim(),
             timing: item.timing,
-        }));
+        }))
+        .filter((item) => {
+            const key = `${item.timing}|${item.category.toLowerCase()}|${item.name.toLowerCase()}`;
+            if (seen.has(key)) {
+                return false;
+            }
+            seen.add(key);
+            return true;
+        });
 }
 
 function normalizePreferenceList(value: unknown) {
@@ -372,21 +385,24 @@ function parseTrackItemsFromUnknown(raw: unknown, slot: 'breakfast' | 'lunch' | 
         .filter((item) => item && typeof item === 'object' && !Array.isArray(item))
         .map((item, index): TrackItem | null => {
             const candidate = item as Partial<TrackItem>;
-            const normalizedName = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+            const normalizedName =
+                typeof candidate.name === 'string' ? candidate.name.replace(/\s+/g, ' ').trim() : '';
             if (!normalizedName) {
                 return null;
             }
+            const eaten = Boolean(candidate.eaten);
+            const notEaten = eaten ? false : Boolean(candidate.notEaten);
             return {
                 id:
                     typeof candidate.id === 'string' && candidate.id.trim()
                         ? candidate.id
                         : `${dateKey}-${slot}-server-${index}`,
                 name: normalizedName,
-                eaten: Boolean(candidate.eaten),
-                notEaten: Boolean(candidate.notEaten),
+                eaten,
+                notEaten,
                 servings:
                     typeof candidate.servings === 'number' && Number.isFinite(candidate.servings)
-                        ? Math.max(1, Math.round(candidate.servings))
+                        ? Math.max(1, Math.min(8, Math.round(candidate.servings)))
                         : 1,
             } satisfies TrackItem;
         })
@@ -394,11 +410,20 @@ function parseTrackItemsFromUnknown(raw: unknown, slot: 'breakfast' | 'lunch' | 
 }
 
 function parseDayLogFromUnknown(raw: unknown, dateKey: string): DayLog | null {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    let normalizedRaw = raw;
+    if (typeof normalizedRaw === 'string') {
+        try {
+            normalizedRaw = JSON.parse(normalizedRaw) as unknown;
+        } catch {
+            return null;
+        }
+    }
+
+    if (!normalizedRaw || typeof normalizedRaw !== 'object' || Array.isArray(normalizedRaw)) {
         return null;
     }
 
-    const candidate = raw as Partial<DayLog>;
+    const candidate = normalizedRaw as Partial<DayLog>;
     const mealsRaw =
         candidate.meals && typeof candidate.meals === 'object' && !Array.isArray(candidate.meals)
             ? (candidate.meals as Partial<Record<'breakfast' | 'lunch' | 'dinner' | 'snack', unknown>>)
@@ -411,7 +436,7 @@ function parseDayLogFromUnknown(raw: unknown, dateKey: string): DayLog | null {
             dinner: parseTrackItemsFromUnknown(mealsRaw.dinner, 'dinner', dateKey),
             snack: parseTrackItemsFromUnknown(mealsRaw.snack, 'snack', dateKey),
         },
-        memo: typeof candidate.memo === 'string' ? candidate.memo : '',
+        memo: typeof candidate.memo === 'string' ? candidate.memo.trim() : '',
         medicationTakenIds: Array.isArray(candidate.medicationTakenIds)
             ? Array.from(
                   new Set(
@@ -420,7 +445,7 @@ function parseDayLogFromUnknown(raw: unknown, dateKey: string): DayLog | null {
                           .map((item) => item.trim())
                           .filter(Boolean)
                   )
-              )
+              ).slice(0, 200)
             : [],
     };
 }
@@ -440,8 +465,8 @@ function parseServerDietLogs(raw: unknown) {
                 date_key?: unknown;
                 log_payload?: unknown;
             };
-            const dateKey = typeof row.date_key === 'string' ? row.date_key : '';
-            if (!dateKey) {
+            const dateKey = typeof row.date_key === 'string' ? row.date_key.trim() : '';
+            if (!DATE_KEY_PATTERN.test(dateKey)) {
                 return acc;
             }
 
@@ -527,6 +552,20 @@ function normalizePreferences(value: unknown): PreferenceType[] {
     return normalizePreferenceList(value);
 }
 
+function normalizeMedicationNames(value: unknown) {
+    if (!Array.isArray(value)) {
+        return [] as string[];
+    }
+
+    return Array.from(
+        new Set(
+            value.filter((item): item is string => typeof item === 'string')
+                .map((item) => item.trim())
+                .filter(Boolean)
+        )
+    );
+}
+
 function parseDietStore(raw: string | null) {
     if (!raw) {
         return {
@@ -573,13 +612,34 @@ function parseDietStore(raw: string | null) {
                       timing: item.timing,
                   }))
             : [];
+        const parsedLogs =
+            parsed.logs && typeof parsed.logs === 'object' && !Array.isArray(parsed.logs)
+                ? Object.entries(parsed.logs as Record<string, unknown>).reduce(
+                      (acc, [dateKey, value]) => {
+                          if (!DATE_KEY_PATTERN.test(dateKey)) {
+                              return acc;
+                          }
+                          const parsedLog = parseDayLogFromUnknown(value, dateKey);
+                          if (!parsedLog) {
+                              return acc;
+                          }
+                          acc[dateKey] = parsedLog;
+                          return acc;
+                      },
+                      {} as Record<string, DayLog>
+                  )
+                : {};
+        const normalizedMedications = normalizeMedicationNames(parsed.medications);
+        const fallbackMedications = Array.from(
+            new Set(medicationSchedules.map((item) => item.name.trim()).filter(Boolean))
+        );
 
         return {
             dailyPreferences,
             carryPreferences: carryPreferences.length > 0 ? carryPreferences : legacyPreferences,
-            medications: Array.isArray(parsed.medications) ? parsed.medications : [],
+            medications: normalizedMedications.length > 0 ? normalizedMedications : fallbackMedications,
             medicationSchedules,
-            logs: parsed.logs && typeof parsed.logs === 'object' ? (parsed.logs as Record<string, DayLog>) : {},
+            logs: parsedLogs,
         };
     } catch {
         return {
