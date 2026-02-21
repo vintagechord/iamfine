@@ -1145,7 +1145,8 @@ export default function ShoppingPage() {
     const [logs, setLogs] = useState<Record<string, DayLog>>({});
 
     const [startDateKey, setStartDateKey] = useState(todayKey);
-    const [rangeDays, setRangeDays] = useState(3);
+    const [rangeDays, setRangeDays] = useState(5);
+    const [rangeDaysInput, setRangeDaysInput] = useState('5');
     const [memo, setMemo] = useState('');
     const [memoSavedAt, setMemoSavedAt] = useState('');
     const [showPlanSummary, setShowPlanSummary] = useState(false);
@@ -1528,13 +1529,36 @@ export default function ShoppingPage() {
                             type="number"
                             min={1}
                             max={30}
-                            value={rangeDays}
+                            step={1}
+                            value={rangeDaysInput}
                             onChange={(event) => {
-                                const next = Number(event.target.value);
+                                const raw = event.target.value;
+                                setRangeDaysInput(raw);
+                                if (!raw.trim()) {
+                                    return;
+                                }
+                                const next = Number(raw);
                                 if (!Number.isFinite(next)) {
                                     return;
                                 }
-                                setRangeDays(Math.max(1, Math.min(30, next)));
+                                setRangeDays(Math.max(1, Math.min(30, Math.round(next))));
+                            }}
+                            onBlur={() => {
+                                const raw = rangeDaysInput.trim();
+                                if (!raw) {
+                                    setRangeDaysInput(String(rangeDays));
+                                    return;
+                                }
+
+                                const next = Number(raw);
+                                if (!Number.isFinite(next)) {
+                                    setRangeDaysInput(String(rangeDays));
+                                    return;
+                                }
+
+                                const normalized = Math.max(1, Math.min(30, Math.round(next)));
+                                setRangeDays(normalized);
+                                setRangeDaysInput(String(normalized));
                             }}
                             className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                         />
