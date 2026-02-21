@@ -2872,28 +2872,26 @@ export default function DietPage() {
             return;
         }
 
-        const currentLog = logs[selectedDate];
-        if (!currentLog) {
-            return;
-        }
-
-        const signature = JSON.stringify(currentLog);
-        if (syncedLogSignaturesRef.current[selectedDate] === signature) {
+        const dirtyLogEntries = Object.entries(logs).filter(([dateKey, log]) => {
+            const signature = JSON.stringify(log);
+            return syncedLogSignaturesRef.current[dateKey] !== signature;
+        });
+        if (dirtyLogEntries.length === 0) {
             return;
         }
 
         const supabaseClient = supabase;
         const targetUserId = userId;
-        const targetDateKey = selectedDate;
         const timer = window.setTimeout(() => {
             void (async () => {
+                const nowIso = new Date().toISOString();
                 const { error: saveError } = await supabaseClient.from(DIET_DAILY_LOGS_TABLE).upsert(
-                    {
+                    dirtyLogEntries.map(([dateKey, log]) => ({
                         user_id: targetUserId,
-                        date_key: targetDateKey,
-                        log_payload: currentLog,
-                        updated_at: new Date().toISOString(),
-                    },
+                        date_key: dateKey,
+                        log_payload: log,
+                        updated_at: nowIso,
+                    })),
                     {
                         onConflict: 'user_id,date_key',
                     }
@@ -2904,12 +2902,14 @@ export default function DietPage() {
                     return;
                 }
 
-                syncedLogSignaturesRef.current[targetDateKey] = signature;
+                dirtyLogEntries.forEach(([dateKey, log]) => {
+                    syncedLogSignaturesRef.current[dateKey] = JSON.stringify(log);
+                });
             })();
         }, 900);
 
         return () => window.clearTimeout(timer);
-    }, [storeReady, userId, logs, selectedDate]);
+    }, [storeReady, userId, logs]);
 
     useEffect(() => {
         if (loading || !openRecordView) {

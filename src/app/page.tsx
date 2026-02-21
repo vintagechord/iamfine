@@ -240,6 +240,50 @@ function normalizeVisitScheduleList(items: VisitScheduleItem[]) {
         });
 }
 
+function visitScheduleTimestamp(raw: string) {
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function mergeVisitScheduleLists(...lists: VisitScheduleItem[][]) {
+    const byId = new Map<string, VisitScheduleItem>();
+
+    lists.forEach((list) => {
+        list.forEach((item) => {
+            const current = byId.get(item.id);
+            if (!current) {
+                byId.set(item.id, item);
+                return;
+            }
+
+            if (visitScheduleTimestamp(item.createdAt) >= visitScheduleTimestamp(current.createdAt)) {
+                byId.set(item.id, item);
+            }
+        });
+    });
+
+    return normalizeVisitScheduleList(Array.from(byId.values()));
+}
+
+function areVisitScheduleListsSame(left: VisitScheduleItem[], right: VisitScheduleItem[]) {
+    if (left.length !== right.length) {
+        return false;
+    }
+
+    return left.every((item, index) => {
+        const compare = right[index];
+        return (
+            item.id === compare.id &&
+            item.visitDate === compare.visitDate &&
+            item.visitTime === compare.visitTime &&
+            item.hospitalName === compare.hospitalName &&
+            item.treatmentNote === compare.treatmentNote &&
+            item.preparationNote === compare.preparationNote &&
+            item.createdAt === compare.createdAt
+        );
+    });
+}
+
 function parseVisitScheduleListFromUnknown(raw: unknown) {
     if (!Array.isArray(raw)) {
         return [] as VisitScheduleItem[];
@@ -455,10 +499,10 @@ export default function Home() {
             const metadataMeta = readIamfineTreatmentMeta(user.user_metadata);
             const localMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             const meta = metadataMeta ?? localMeta;
+            const visitStorageKey = getVisitScheduleKey(uid);
             const metadataVisitSchedules = readIamfineVisitSchedules(user.user_metadata);
-            const localVisitSchedules = parseVisitScheduleList(localStorage.getItem(getVisitScheduleKey(uid)));
-            const resolvedVisitSchedules =
-                metadataVisitSchedules.length > 0 ? metadataVisitSchedules : localVisitSchedules;
+            const localVisitSchedules = parseVisitScheduleList(localStorage.getItem(visitStorageKey));
+            const resolvedVisitSchedules = mergeVisitScheduleLists(metadataVisitSchedules, localVisitSchedules);
             if (!cancelled) {
                 setTreatmentMeta(meta);
                 setVisitSchedules(resolvedVisitSchedules);
@@ -466,10 +510,11 @@ export default function Home() {
             if (!localMeta && meta) {
                 localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(meta));
             }
-            if (metadataVisitSchedules.length > 0) {
-                localStorage.setItem(getVisitScheduleKey(uid), JSON.stringify(metadataVisitSchedules));
-            } else if (localVisitSchedules.length > 0) {
-                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, localVisitSchedules);
+            if (!areVisitScheduleListsSame(localVisitSchedules, resolvedVisitSchedules)) {
+                localStorage.setItem(visitStorageKey, JSON.stringify(resolvedVisitSchedules));
+            }
+            if (!areVisitScheduleListsSame(metadataVisitSchedules, resolvedVisitSchedules)) {
+                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, resolvedVisitSchedules);
                 const { error: syncError } = await supabase.auth.updateUser({
                     data: updatedMetadata,
                 });
