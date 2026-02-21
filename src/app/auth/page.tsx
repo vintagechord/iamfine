@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type AuthMode = 'login' | 'signup';
 
@@ -45,16 +45,16 @@ export default function AuthPage() {
         }
 
         setCheckingAuth(true);
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+        const { user, error: userError } = await getAuthSessionUser();
 
-        if (userError || !userData.user) {
+        if (userError || !user) {
             setLoggedInUserId(null);
             setNickname('');
             setCheckingAuth(false);
             return;
         }
 
-        const uid = userData.user.id;
+        const uid = user.id;
         setLoggedInUserId(uid);
 
         const { data: profileData, error: profileError } = await supabase

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { MapPinned, Search, Truck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
-import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type FinderCategory = 'healthy' | 'veggie' | 'protein' | 'soft';
 
@@ -402,8 +402,8 @@ export default function RestaurantsPage() {
             }
 
             try {
-                const { data: userData, error: userError } = await supabase.auth.getUser();
-                if (userError || !userData.user) {
+                const { user, error: userError } = await getAuthSessionUser();
+                if (userError || !user) {
                     if (!cancelled) {
                         setPatientContext({
                             mode: 'guest',
@@ -417,11 +417,11 @@ export default function RestaurantsPage() {
                     return;
                 }
 
-                const metadata = readIamfineMetadata(userData.user.user_metadata);
+                const metadata = readIamfineMetadata(user.user_metadata);
                 const { data: stageData } = await supabase
                     .from('treatment_stages')
                     .select('stage_type, stage_label, stage_order, status, created_at')
-                    .eq('user_id', userData.user.id)
+                    .eq('user_id', user.id)
                     .order('stage_order', { ascending: true })
                     .order('created_at', { ascending: true });
                 const stages = (stageData as TreatmentStageRow[] | null) ?? [];

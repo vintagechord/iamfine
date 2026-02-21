@@ -20,7 +20,7 @@ import {
     type UserMedicationSchedule,
 } from '@/lib/dietEngine';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
-import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type StageStatus = 'planned' | 'active' | 'completed';
 
@@ -842,15 +842,15 @@ export default function DietReportPage() {
             return;
         }
 
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) {
+        const { user, error: userError } = await getAuthSessionUser();
+        if (userError || !user) {
             setLoading(false);
             return;
         }
 
-        const uid = userData.user.id;
+        const uid = user.id;
         setUserId(uid);
-        const metadata = readIamfineMetadata(userData.user.user_metadata);
+        const metadata = readIamfineMetadata(user.user_metadata);
         const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
         const resolvedTreatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
         setTreatmentMeta(resolvedTreatmentMeta);

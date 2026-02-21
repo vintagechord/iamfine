@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type AuthActionButtonProps = {
     showSignUpWhenLoggedOut?: boolean;
@@ -27,9 +27,9 @@ export default function AuthActionButton({
                 return;
             }
 
-            const { data, error } = await supabase.auth.getUser();
+            const { user, error } = await getAuthSessionUser();
             if (mounted) {
-                setLoggedIn(!error && Boolean(data.user));
+                setLoggedIn(!error && Boolean(user));
             }
         };
 
@@ -41,6 +41,11 @@ export default function AuthActionButton({
             };
         }
 
+        const handleOnline = () => {
+            void loadAuth();
+        };
+        window.addEventListener('online', handleOnline);
+
         const {
             data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -49,6 +54,7 @@ export default function AuthActionButton({
 
         return () => {
             mounted = false;
+            window.removeEventListener('online', handleOnline);
             subscription.unsubscribe();
         };
     }, []);

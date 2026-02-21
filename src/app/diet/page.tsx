@@ -28,7 +28,7 @@ import {
     type UserMedicationSchedule,
 } from '@/lib/dietEngine';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
-import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type StageStatus = 'planned' | 'active' | 'completed';
 
@@ -2408,21 +2408,21 @@ export default function DietPage() {
             return;
         }
 
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) {
+        const { user, error: userError } = await getAuthSessionUser();
+        if (userError || !user) {
             setLoading(false);
             return;
         }
 
-        const uid = userData.user.id;
+        const uid = user.id;
         setUserId(uid);
-        const createdAt = userData.user.created_at;
+        const createdAt = user.created_at;
         const createdAtDateKey =
             typeof createdAt === 'string' && createdAt.length >= 10
                 ? createdAt.slice(0, 10)
                 : todayKey;
         setAccountStartDateKey(createdAtDateKey);
-        const metadata = readIamfineMetadata(userData.user.user_metadata);
+        const metadata = readIamfineMetadata(user.user_metadata);
         const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
         const resolvedTreatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
         setTreatmentMeta(resolvedTreatmentMeta);
@@ -2466,7 +2466,7 @@ export default function DietPage() {
             syncPatch.medicationSchedules = store.medicationSchedules;
         }
         if (Object.keys(syncPatch).length > 0) {
-            const updatedMetadata = buildUpdatedUserMetadata(userData.user.user_metadata, syncPatch);
+            const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, syncPatch);
             await supabase.auth.updateUser({
                 data: updatedMetadata,
             });

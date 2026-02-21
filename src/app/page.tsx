@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { CalendarClock, MapPinned, NotebookPen, ShoppingCart, Stethoscope, Utensils } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { formatDateKey, STAGE_TYPE_LABELS, type StageType } from '@/lib/dietEngine';
-import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type HymnVideo = {
     title: string;
@@ -394,8 +394,8 @@ export default function Home() {
                 return;
             }
 
-            const { data: userData, error: userError } = await supabase.auth.getUser();
-            if (userError || !userData.user || cancelled) {
+            const { user, error: userError } = await getAuthSessionUser();
+            if (userError || !user || cancelled) {
                 if (!cancelled) {
                     setIsLoggedIn(false);
                     setTreatmentMeta(null);
@@ -406,10 +406,10 @@ export default function Home() {
                 return;
             }
 
-            const uid = userData.user.id;
+            const uid = user.id;
             setIsLoggedIn(true);
             setAuthUserId(uid);
-            const metadataMeta = readIamfineTreatmentMeta(userData.user.user_metadata);
+            const metadataMeta = readIamfineTreatmentMeta(user.user_metadata);
             const localMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             const meta = metadataMeta ?? localMeta;
             if (!cancelled) {

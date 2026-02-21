@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type StageType =
     | 'diagnosis'
@@ -295,9 +295,9 @@ export default function TreatmentPage() {
             return;
         }
 
-        const { data: authData, error: authError } = await supabase.auth.getUser();
+        const { user: authUser, error: authError } = await getAuthSessionUser();
 
-        if (authError || !authData.user) {
+        if (authError || !authUser) {
             setUser(null);
             setStages([]);
             setDrafts({});
@@ -305,11 +305,11 @@ export default function TreatmentPage() {
             return;
         }
 
-        setUser({ id: authData.user.id });
-        await loadStages(authData.user.id);
+        setUser({ id: authUser.id });
+        await loadStages(authUser.id);
 
-        const metadata = readIamfineMetadata(authData.user.user_metadata);
-        const meta = metadata.treatmentMeta ?? parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(authData.user.id)));
+        const metadata = readIamfineMetadata(authUser.user_metadata);
+        const meta = metadata.treatmentMeta ?? parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(authUser.id)));
         setCancerType(meta?.cancerType ?? '');
         setCancerStage(meta?.cancerStage ?? '');
         setMetaUpdatedAt(meta?.updatedAt ?? '');
@@ -703,13 +703,13 @@ export default function TreatmentPage() {
             updatedAt: new Date().toISOString(),
         };
 
-        const { data: authData, error: authError } = await supabase.auth.getUser();
-        if (authError || !authData.user) {
+        const { user: authUser, error: authError } = await getAuthSessionUser();
+        if (authError || !authUser) {
             setError(LOGIN_REQUIRED_MESSAGE);
             return;
         }
 
-        const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, payload);
+        const updatedMetadata = buildUpdatedUserMetadata(authUser.user_metadata, payload);
         const { error: updateError } = await supabase.auth.updateUser({
             data: updatedMetadata,
         });

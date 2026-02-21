@@ -9,7 +9,7 @@ import {
     type AdditionalCondition,
     type ConditionCatalogItem,
 } from '@/lib/additionalConditions';
-import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type ProfileRow = {
     user_id: string;
@@ -639,18 +639,18 @@ export default function ProfilePage() {
                 return;
             }
 
-            const { data: authData, error: authError } = await supabase.auth.getUser();
-            if (authError || !authData.user) {
+            const { user: authUser, error: authError } = await getAuthSessionUser();
+            if (authError || !authUser) {
                 setUserId(null);
                 setProfile(null);
                 setLoading(false);
                 return;
             }
 
-            const uid = authData.user.id;
+            const uid = authUser.id;
             setUserId(uid);
 
-            const metadata = readIamfineMetadata(authData.user.user_metadata);
+            const metadata = readIamfineMetadata(authUser.user_metadata);
             const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             const treatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
             setCancerType(treatmentMeta?.cancerType ?? '');
@@ -683,7 +683,7 @@ export default function ProfilePage() {
                 syncPatch.medicationSchedules = localStoredSchedules;
             }
             if (Object.keys(syncPatch).length > 0) {
-                const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, syncPatch);
+                const updatedMetadata = buildUpdatedUserMetadata(authUser.user_metadata, syncPatch);
                 await supabase.auth.updateUser({
                     data: updatedMetadata,
                 });
@@ -1019,13 +1019,13 @@ export default function ProfilePage() {
                 }
             }
 
-            const { data: authData, error: authError } = await supabase.auth.getUser();
-            if (authError || !authData.user) {
+            const { user: authUser, error: authError } = await getAuthSessionUser();
+            if (authError || !authUser) {
                 setFeedback({ type: 'error', text: '로그인이 만료되었어요. 다시 로그인해 주세요.' });
                 return;
             }
 
-            const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, {
+            const updatedMetadata = buildUpdatedUserMetadata(authUser.user_metadata, {
                 medications: nextMedications,
                 medicationSchedules: nextSchedules,
             });
@@ -1085,13 +1085,13 @@ export default function ProfilePage() {
                 updatedAt: new Date().toISOString(),
             };
 
-            const { data: authData, error: authError } = await supabase.auth.getUser();
-            if (authError || !authData.user) {
+            const { user: authUser, error: authError } = await getAuthSessionUser();
+            if (authError || !authUser) {
                 setFeedback({ type: 'error', text: '로그인이 만료되었어요. 다시 로그인해 주세요.' });
                 return;
             }
 
-            const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, {
+            const updatedMetadata = buildUpdatedUserMetadata(authUser.user_metadata, {
                 treatmentMeta: treatmentPayload,
             });
             const { error: updateError } = await supabase.auth.updateUser({
@@ -1313,13 +1313,13 @@ export default function ProfilePage() {
 
         setSavingAdditionalConditions(true);
         try {
-            const { data: authData, error: authError } = await supabase.auth.getUser();
-            if (authError || !authData.user) {
+            const { user: authUser, error: authError } = await getAuthSessionUser();
+            if (authError || !authUser) {
                 setFeedback({ type: 'error', text: '로그인이 만료되었어요. 다시 로그인해 주세요.' });
                 return;
             }
 
-            const updatedMetadata = buildUpdatedUserMetadata(authData.user.user_metadata, {
+            const updatedMetadata = buildUpdatedUserMetadata(authUser.user_metadata, {
                 additionalConditions,
             });
             const { error: updateError } = await supabase.auth.updateUser({
