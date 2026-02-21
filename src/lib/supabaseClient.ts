@@ -28,16 +28,10 @@ export async function getAuthSessionUser(): Promise<AuthSessionUserResult> {
 
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     const sessionUser = sessionData.session?.user ?? null;
-    if (!sessionUser) {
-        return {
-            user: null,
-            error: sessionError,
-        };
-    }
 
     // getSession() user metadata can be stale across devices.
     // Refresh from Auth server first so shared account data is consistent.
-    const { data: userData } = await supabase.auth.getUser();
+    const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userData.user) {
         return {
             user: userData.user,
@@ -45,8 +39,15 @@ export async function getAuthSessionUser(): Promise<AuthSessionUserResult> {
         };
     }
 
+    if (sessionUser) {
+        return {
+            user: sessionUser,
+            error: null,
+        };
+    }
+
     return {
-        user: sessionUser,
-        error: null,
+        user: null,
+        error: userError ?? sessionError,
     };
 }

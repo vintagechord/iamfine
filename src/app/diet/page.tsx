@@ -2699,9 +2699,9 @@ export default function DietPage() {
             Object.keys(metadata.dailyPreferences).length > 0
                 ? metadata.dailyPreferences
                 : store.dailyPreferences;
-        const resolvedMedications = store.medications.length > 0 ? store.medications : metadata.medications;
+        const resolvedMedications = metadata.medications.length > 0 ? metadata.medications : store.medications;
         const resolvedMedicationSchedules =
-            store.medicationSchedules.length > 0 ? store.medicationSchedules : metadata.medicationSchedules;
+            metadata.medicationSchedules.length > 0 ? metadata.medicationSchedules : store.medicationSchedules;
         const resolvedAdditionalConditions = metadata.additionalConditions;
         const localRecentDietSignals = buildRecentDietSignalsFromLogs(mergedLogs, todayKey);
         const syncPatch: Partial<{
@@ -2728,17 +2728,20 @@ export default function DietPage() {
         }
         if (Object.keys(syncPatch).length > 0) {
             const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, syncPatch);
-            await supabase.auth.updateUser({
+            const { error: metadataSyncError } = await supabase.auth.updateUser({
                 data: updatedMetadata,
             });
+            if (metadataSyncError) {
+                console.error('식단 초기 메타데이터 동기화 실패', metadataSyncError);
+            }
         }
 
         if (!localTreatmentMeta && resolvedTreatmentMeta) {
             localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(resolvedTreatmentMeta));
         }
         if (
-            (store.medications.length === 0 && resolvedMedications.length > 0) ||
-            (store.medicationSchedules.length === 0 && resolvedMedicationSchedules.length > 0)
+            JSON.stringify(store.medications) !== JSON.stringify(resolvedMedications) ||
+            JSON.stringify(store.medicationSchedules) !== JSON.stringify(resolvedMedicationSchedules)
         ) {
             localStorage.setItem(
                 getStoreKey(uid),

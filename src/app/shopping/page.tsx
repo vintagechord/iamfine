@@ -1238,9 +1238,9 @@ export default function ShoppingPage() {
                 ...parsed.logs,
                 ...serverLogs,
             };
-            const resolvedMedications = parsed.medications.length > 0 ? parsed.medications : metadata.medications;
+            const resolvedMedications = metadata.medications.length > 0 ? metadata.medications : parsed.medications;
             const resolvedMedicationSchedules =
-                parsed.medicationSchedules.length > 0 ? parsed.medicationSchedules : metadata.medicationSchedules;
+                metadata.medicationSchedules.length > 0 ? metadata.medicationSchedules : parsed.medicationSchedules;
             const resolvedDailyPreferences =
                 Object.keys(metadata.dailyPreferences).length > 0
                     ? metadata.dailyPreferences
@@ -1270,8 +1270,8 @@ export default function ShoppingPage() {
                 localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(resolvedTreatmentMeta));
             }
             if (
-                (parsed.medications.length === 0 && resolvedMedications.length > 0) ||
-                (parsed.medicationSchedules.length === 0 && resolvedMedicationSchedules.length > 0) ||
+                JSON.stringify(parsed.medications) !== JSON.stringify(resolvedMedications) ||
+                JSON.stringify(parsed.medicationSchedules) !== JSON.stringify(resolvedMedicationSchedules) ||
                 Object.keys(serverLogs).length > 0 ||
                 Object.keys(metadata.dailyPreferences).length > 0
             ) {

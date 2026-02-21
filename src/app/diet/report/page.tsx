@@ -1013,16 +1013,16 @@ export default function DietReportPage() {
             Object.keys(metadata.dailyPreferences).length > 0
                 ? metadata.dailyPreferences
                 : store.dailyPreferences;
-        const resolvedMedications = store.medications.length > 0 ? store.medications : metadata.medications;
+        const resolvedMedications = metadata.medications.length > 0 ? metadata.medications : store.medications;
         const resolvedMedicationSchedules =
-            store.medicationSchedules.length > 0 ? store.medicationSchedules : metadata.medicationSchedules;
+            metadata.medicationSchedules.length > 0 ? metadata.medicationSchedules : store.medicationSchedules;
 
         if (!localTreatmentMeta && resolvedTreatmentMeta) {
             localStorage.setItem(getTreatmentMetaKey(uid), JSON.stringify(resolvedTreatmentMeta));
         }
         if (
-            (store.medications.length === 0 && resolvedMedications.length > 0) ||
-            (store.medicationSchedules.length === 0 && resolvedMedicationSchedules.length > 0) ||
+            JSON.stringify(store.medications) !== JSON.stringify(resolvedMedications) ||
+            JSON.stringify(store.medicationSchedules) !== JSON.stringify(resolvedMedicationSchedules) ||
             Object.keys(serverLogs).length > 0 ||
             Object.keys(metadata.dailyPreferences).length > 0
         ) {

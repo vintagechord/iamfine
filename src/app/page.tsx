@@ -80,13 +80,14 @@ function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
 
     try {
         const parsed = JSON.parse(raw) as Partial<TreatmentMeta>;
-        if (!parsed.cancerType) {
+        if (typeof parsed.cancerType !== 'string' || !parsed.cancerType.trim()) {
             return null;
         }
+
         return {
-            cancerType: parsed.cancerType,
+            cancerType: parsed.cancerType.trim(),
             cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage : '',
-            updatedAt: parsed.updatedAt ?? '',
+            updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
         };
     } catch {
         return null;
@@ -289,26 +290,61 @@ function parseVisitScheduleListFromUnknown(raw: unknown) {
         return [] as VisitScheduleItem[];
     }
 
-    const parsed = raw
-        .filter((item): item is VisitScheduleItem => {
-            if (!item || typeof item !== 'object') {
-                return false;
+    const readString = (record: Record<string, unknown>, keys: string[]) => {
+        for (const key of keys) {
+            const value = record[key];
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed) {
+                    return trimmed;
+                }
             }
-            const candidate = item as Partial<VisitScheduleItem>;
-            return (
-                typeof candidate.id === 'string' &&
-                typeof candidate.visitDate === 'string' &&
-                typeof candidate.visitTime === 'string' &&
-                (typeof candidate.hospitalName === 'string' || candidate.hospitalName === undefined) &&
-                typeof candidate.treatmentNote === 'string' &&
-                typeof candidate.preparationNote === 'string' &&
-                typeof candidate.createdAt === 'string'
-            );
+        }
+        return '';
+    };
+
+    const parsed = raw
+        .map((item, index) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) {
+                return null;
+            }
+
+            const candidate = item as Record<string, unknown>;
+            const visitDate = readString(candidate, ['visitDate', 'date', 'appointmentDate']);
+            if (!visitDate) {
+                return null;
+            }
+
+            const visitTime = readString(candidate, ['visitTime', 'time', 'appointmentTime']);
+            const treatmentNote = readString(candidate, ['treatmentNote', 'treatment', 'note']);
+            if (!treatmentNote) {
+                return null;
+            }
+
+            const hospitalName = readString(candidate, ['hospitalName', 'hospital']);
+            const preparationNote = readString(candidate, ['preparationNote', 'preparation']);
+            const createdAtRaw = readString(candidate, ['createdAt', 'updatedAt', 'timestamp']);
+            const createdAt =
+                createdAtRaw && Number.isFinite(Date.parse(createdAtRaw))
+                    ? createdAtRaw
+                    : `${visitDate}T${visitTime || '00:00'}:00`;
+            const idRaw = readString(candidate, ['id', 'visitId']);
+            const fallbackIdBase = `${visitDate}-${visitTime || 'na'}-${treatmentNote}`
+                .toLowerCase()
+                .replace(/[^a-z0-9-]/g, '-');
+            const id = idRaw || `visit-legacy-${index}-${fallbackIdBase}`;
+
+            return {
+                id,
+                visitDate,
+                visitTime,
+                hospitalName,
+                treatmentNote,
+                preparationNote,
+                createdAt,
+            } satisfies VisitScheduleItem;
         })
-        .map((item) => ({
-            ...item,
-            hospitalName: item.hospitalName?.trim() ?? '',
-        }));
+        .filter((item): item is VisitScheduleItem => item !== null);
 
     return normalizeVisitScheduleList(parsed);
 }
@@ -569,7 +605,7 @@ export default function Home() {
             return;
         }
 
-        if (isLoggedIn && authUserId) {
+        if (isLoggedIn) {
             return;
         }
 
@@ -718,11 +754,19 @@ export default function Home() {
         }
     };
 
-    const persistVisitSchedules = (nextItems: VisitScheduleItem[]) => {
-        const normalized = normalizeVisitScheduleList(nextItems);
-        setVisitSchedules(normalized);
-        localStorage.setItem(getVisitScheduleKey(authUserId), JSON.stringify(normalized));
-        void syncVisitSchedulesToMetadata(normalized);
+    const persistVisitSchedules = (
+        nextItemsOrUpdater: VisitScheduleItem[] | ((current: VisitScheduleItem[]) => VisitScheduleItem[])
+    ) => {
+        setVisitSchedules((current) => {
+            const nextItems =
+                typeof nextItemsOrUpdater === 'function' ? nextItemsOrUpdater(current) : nextItemsOrUpdater;
+            const normalized = normalizeVisitScheduleList(nextItems);
+            if (!(isLoggedIn && !authUserId)) {
+                localStorage.setItem(getVisitScheduleKey(authUserId), JSON.stringify(normalized));
+            }
+            void syncVisitSchedulesToMetadata(normalized);
+            return normalized;
+        });
     };
 
     const resetVisitForm = () => {
@@ -754,14 +798,14 @@ export default function Home() {
             createdAt: new Date().toISOString(),
         };
 
-        persistVisitSchedules([...visitSchedules, nextItem]);
+        persistVisitSchedules((current) => [...current, nextItem]);
         setVisitFormIsError(false);
         setVisitFormMessage('진료 일정이 저장되었어요.');
         resetVisitForm();
     };
 
     const handleVisitScheduleDelete = (targetId: string) => {
-        persistVisitSchedules(visitSchedules.filter((item) => item.id !== targetId));
+        persistVisitSchedules((current) => current.filter((item) => item.id !== targetId));
     };
 
     return (
