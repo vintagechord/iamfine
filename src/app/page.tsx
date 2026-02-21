@@ -341,7 +341,11 @@ function readIamfineVisitSchedules(raw: unknown) {
     return parseVisitScheduleListFromUnknown(scoped.visitSchedules);
 }
 
-function buildUpdatedUserMetadata(raw: unknown, visitSchedules: VisitScheduleItem[]) {
+function buildUpdatedUserMetadata(
+    raw: unknown,
+    visitSchedules: VisitScheduleItem[],
+    treatmentMeta?: TreatmentMeta | null
+) {
     const root =
         raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
     const namespaced = root[USER_METADATA_NAMESPACE];
@@ -351,6 +355,9 @@ function buildUpdatedUserMetadata(raw: unknown, visitSchedules: VisitScheduleIte
             : {};
 
     scoped.visitSchedules = visitSchedules;
+    if (treatmentMeta) {
+        scoped.treatmentMeta = treatmentMeta;
+    }
     root[USER_METADATA_NAMESPACE] = scoped;
     return root;
 }
@@ -513,8 +520,14 @@ export default function Home() {
             if (!areVisitScheduleListsSame(localVisitSchedules, resolvedVisitSchedules)) {
                 localStorage.setItem(visitStorageKey, JSON.stringify(resolvedVisitSchedules));
             }
-            if (!areVisitScheduleListsSame(metadataVisitSchedules, resolvedVisitSchedules)) {
-                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, resolvedVisitSchedules);
+            const shouldSyncVisitSchedules = !areVisitScheduleListsSame(metadataVisitSchedules, resolvedVisitSchedules);
+            const shouldSyncTreatmentMeta = !metadataMeta && Boolean(localMeta && meta);
+            if (shouldSyncVisitSchedules || shouldSyncTreatmentMeta) {
+                const updatedMetadata = buildUpdatedUserMetadata(
+                    user.user_metadata,
+                    shouldSyncVisitSchedules ? resolvedVisitSchedules : metadataVisitSchedules,
+                    shouldSyncTreatmentMeta ? meta : null
+                );
                 const { error: syncError } = await supabase.auth.updateUser({
                     data: updatedMetadata,
                 });

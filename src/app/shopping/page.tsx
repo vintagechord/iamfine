@@ -10,6 +10,7 @@ import {
     generatePlanForDate,
     optimizePlanByMedications,
     optimizePlanByPreference,
+    PREFERENCE_OPTIONS,
     optimizePlanByUserContext,
     STAGE_TYPE_LABELS,
     type DayPlan,
@@ -118,28 +119,7 @@ const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
 const TWO_WEEK_DAYS = 14;
 const NO_REPEAT_DAYS = 30;
-const PREFERENCE_KEYS = new Set<PreferenceType>([
-    'spicy',
-    'sweet',
-    'meat',
-    'pizza',
-    'healthy',
-    'fish',
-    'sashimi',
-    'sushi',
-    'cool_food',
-    'warm_food',
-    'soft_food',
-    'soupy',
-    'high_protein',
-    'vegetable',
-    'bland',
-    'appetite_boost',
-    'digestive',
-    'low_salt',
-    'noodle',
-    'weight_loss',
-]);
+const PREFERENCE_KEYS = new Set<PreferenceType>(PREFERENCE_OPTIONS.map((option) => option.key));
 
 const CATEGORY_ORDER: CategoryKey[] = [
     '곡물/밥',

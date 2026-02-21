@@ -131,21 +131,21 @@ function getTreatmentMetaKey(userId: string) {
     return `${TREATMENT_META_PREFIX}:${userId}`;
 }
 
-function parseTreatmentMeta(raw: string | null) {
+function parseTreatmentMeta(raw: string | null): TreatmentMeta | null {
     if (!raw) {
         return null;
     }
 
     try {
         const parsed = JSON.parse(raw) as Partial<TreatmentMeta>;
-        if (!parsed.cancerType) {
+        if (typeof parsed.cancerType !== 'string' || !parsed.cancerType.trim()) {
             return null;
         }
 
         return {
-            cancerType: parsed.cancerType,
-            cancerStage: parsed.cancerStage,
-            updatedAt: parsed.updatedAt ?? '',
+            cancerType: parsed.cancerType.trim(),
+            cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage : '',
+            updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
         };
     } catch {
         return null;
@@ -309,7 +309,17 @@ export default function TreatmentPage() {
         await loadStages(authUser.id);
 
         const metadata = readIamfineMetadata(authUser.user_metadata);
-        const meta = metadata.treatmentMeta ?? parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(authUser.id)));
+        const localMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(authUser.id)));
+        const meta = metadata.treatmentMeta ?? localMeta;
+        if (!metadata.treatmentMeta && localMeta) {
+            const updatedMetadata = buildUpdatedUserMetadata(authUser.user_metadata, localMeta);
+            const { error: syncError } = await supabase.auth.updateUser({
+                data: updatedMetadata,
+            });
+            if (syncError) {
+                console.error('치료 정보 메타데이터 동기화 실패', syncError);
+            }
+        }
         setCancerType(meta?.cancerType ?? '');
         setCancerStage(meta?.cancerStage ?? '');
         setMetaUpdatedAt(meta?.updatedAt ?? '');
