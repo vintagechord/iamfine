@@ -3047,7 +3047,7 @@ export default function DietPage() {
         if (stageType === 'chemo' || stageType === 'chemo_2nd') {
             return {
                 snack: '14시~16시',
-                coffee: '10시~11시(선택)',
+                coffee: '10시~11시',
                 tea: '9시~18시(무카페인)',
             };
         }
@@ -3055,14 +3055,14 @@ export default function DietPage() {
         if (stageType === 'radiation') {
             return {
                 snack: '14시~15시',
-                coffee: '10시~11시(선택)',
+                coffee: '10시~11시',
                 tea: '9시~18시(무카페인)',
             };
         }
 
         return {
             snack: '14시~16시',
-            coffee: '9시~11시(선택)',
+            coffee: '9시~11시',
             tea: '9시~18시(무카페인)',
         };
     }, [stageType]);
@@ -3074,17 +3074,17 @@ export default function DietPage() {
 
         if (openRecipeSlot === 'coffee') {
             return {
-                title: '선택 커피/차 가이드',
-                recipeName: '치료 중 선택 음료(커피·차) 섭취 방법',
+                title: '커피/차 가이드',
+                recipeName: '치료 중 음료(커피·차) 섭취 방법',
                 recipeSteps: uniqueRecipeSteps([
                     timingGuide.coffee,
                     timingGuide.tea,
                     beverageCaution,
                     dailyCoffeeRecommendations.length > 0
-                        ? `오늘 선택 커피: ${dailyCoffeeRecommendations.map((item) => item.name).join(', ')}`
-                        : '커피는 필수가 아니며, 원할 때만 소량으로 선택해 주세요.',
+                        ? `오늘 커피: ${dailyCoffeeRecommendations.map((item) => item.name).join(', ')}`
+                        : '커피는 필수가 아니며, 원할 때만 소량으로 드셔 주세요.',
                     dailyTeaRecommendations.length > 0
-                        ? `오늘 선택 차: ${dailyTeaRecommendations.map((item) => item.name).join(', ')}`
+                        ? `오늘 차: ${dailyTeaRecommendations.map((item) => item.name).join(', ')}`
                         : '차는 카페인 없는 종류를 우선해 주세요.',
                     '식사 직후보다 1시간 뒤에 드세요.',
                     '가능하면 무가당/저당으로 연하게 드세요.',
@@ -4254,7 +4254,7 @@ export default function DietPage() {
                     <div className="mt-3 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
                         {dailyCoffeeRecommendations.length > 0 && (
                             <div>
-                                <p className="font-semibold text-gray-900 dark:text-gray-100">오늘 선택 커피(원할 때만)</p>
+                                <p className="font-semibold text-gray-900 dark:text-gray-100">오늘 커피(원할 때만)</p>
                                 {dailyCoffeeRecommendations.map((item) => (
                                     <p key={`coffee-${item.name}`} className="mt-1">
                                         - <span className="font-semibold">{item.name}</span>: {item.reason}
@@ -4264,7 +4264,7 @@ export default function DietPage() {
                         )}
                         {dailyTeaRecommendations.length > 0 && (
                             <div className="mt-2">
-                                <p className="font-semibold text-gray-900 dark:text-gray-100">오늘 선택 차(원할 때만)</p>
+                                <p className="font-semibold text-gray-900 dark:text-gray-100">오늘 차(원할 때만)</p>
                                 {dailyTeaRecommendations.map((item) => (
                                     <p key={`tea-${item.name}`} className="mt-1">
                                         - <span className="font-semibold">{item.name}</span>: {item.reason}
@@ -4272,7 +4272,7 @@ export default function DietPage() {
                                 ))}
                             </div>
                         )}
-                        <p className="mt-2 font-semibold text-gray-900 dark:text-gray-100">선택 음료 가이드(필수 아님)</p>
+                        <p className="mt-2 font-semibold text-gray-900 dark:text-gray-100">음료 가이드(필수 아님)</p>
                         <p className="mt-1">- 커피(원할 때만) 권장 시간: {snackCoffeeRecommendedTime.coffee}</p>
                         <p className="mt-1">- 차(원할 때만) 권장 시간: {snackCoffeeRecommendedTime.tea}</p>
                         <p className="mt-1">- {timingGuide.coffee}</p>
@@ -4285,7 +4285,7 @@ export default function DietPage() {
                             onClick={() => setOpenRecipeSlot('coffee')}
                             className="cursor-pointer rounded-md border border-black bg-black px-2.5 py-1.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-gray-800"
                         >
-                            선택 커피/차 가이드 보기
+                            커피/차 가이드 보기
                         </button>
                     </div>
                 </div>
