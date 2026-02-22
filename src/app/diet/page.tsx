@@ -4150,7 +4150,7 @@ export default function DietPage() {
                     onClick={() => setOpenRecipeSlot(null)}
                 >
                     <section
-                        className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
+                        className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[70dvh] overflow-y-auto overscroll-contain sm:max-h-[calc(100dvh-1.5rem)] dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="galaxySafeHeader">
@@ -4183,7 +4183,7 @@ export default function DietPage() {
                     onClick={() => setOpenPortionGuideContent(null)}
                 >
                     <section
-                        className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
+                        className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[70dvh] overflow-y-auto overscroll-contain sm:max-h-[calc(100dvh-1.5rem)] dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="galaxySafeHeader">
@@ -4464,7 +4464,7 @@ export default function DietPage() {
                             }}
                         >
                             <section
-                                className="mx-auto my-3 w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
+                                className="mx-auto my-3 w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[70dvh] overflow-y-auto overscroll-contain sm:max-h-[calc(100dvh-1.5rem)] dark:border-gray-800 dark:bg-gray-900"
                                 onClick={(event) => event.stopPropagation()}
                             >
                                 <div className="galaxySafeHeader">

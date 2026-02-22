@@ -1035,7 +1035,7 @@ export default function Home() {
                     }}
                 >
                     <section
-                        className="mx-auto my-3 w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[calc(100dvh-1.5rem)] overflow-y-auto dark:border-gray-800 dark:bg-gray-900"
+                        className="mx-auto my-3 w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[70dvh] overflow-y-auto overscroll-contain sm:max-h-[calc(100dvh-1.5rem)] dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="galaxySafeHeader">
