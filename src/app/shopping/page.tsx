@@ -1759,7 +1759,7 @@ export default function ShoppingPage() {
                         type="button"
                         onClick={saveMemo}
                         disabled={memoSaving}
-                        className="self-start rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 sm:self-auto"
+                        className="self-start rounded-lg primarySaveButton px-3 py-1.5 text-sm font-semibold sm:self-auto"
                     >
                         {memoSaving ? '저장 중...' : '메모 저장'}
                     </button>

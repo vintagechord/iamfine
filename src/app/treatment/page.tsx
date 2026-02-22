@@ -837,7 +837,7 @@ export default function TreatmentPage() {
                     <button
                         type="button"
                         aria-label="암 정보 저장"
-                        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
                         onClick={saveTreatmentMeta}
                     >
                         저장
@@ -1090,7 +1090,7 @@ export default function TreatmentPage() {
                                             <button
                                                 type="button"
                                                 aria-label={`${stageName} 저장`}
-                                                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                                                className="rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
                                                 onClick={() => void handleSaveStage(stage.id)}
                                                 disabled={disableAction}
                                             >

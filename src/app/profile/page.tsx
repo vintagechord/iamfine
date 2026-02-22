@@ -91,7 +91,7 @@ const MEDICATION_TIMING_OPTIONS: Array<{ value: MedicationTiming; label: string 
 ];
 const MEDICATION_CATEGORY_OPTIONS = ['미분류', '항암/표적', '호르몬', '부작용 완화', '영양/기타'] as const;
 const PROFILE_TABS: Array<{ key: ProfileTab; label: string }> = [
-    { key: 'health', label: '기본 건강 정보' },
+    { key: 'health', label: '기본 정보' },
     { key: 'medication', label: '약 복용 정보' },
     { key: 'treatment', label: '치료 정보' },
     { key: 'additional_disease', label: '추가 질병' },
@@ -1392,7 +1392,7 @@ export default function ProfilePage() {
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">내 정보</h1>
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                    기본 건강 정보, 약 복용 정보, 치료 정보를 탭으로 나눠 관리할 수 있어요.
+                    기본 정보, 약 복용 정보, 치료 정보를 탭으로 나눠 관리할 수 있어요.
                 </p>
             </section>
 
@@ -1433,9 +1433,9 @@ export default function ProfilePage() {
 
             {activeTab === 'health' && (
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">기본 건강 정보</h2>
+                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">기본 정보</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        닉네임과 기본 건강 정보를 관리할 수 있어요.
+                        닉네임과 기본 정보를 관리할 수 있어요.
                     </p>
 
                     <div className="mt-4">
@@ -1469,7 +1469,7 @@ export default function ProfilePage() {
                                 type="button"
                                 onClick={saveNickname}
                                 disabled={checking || saving}
-                                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                                className="rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
                             >
                                 {saving ? '저장 중…' : '저장'}
                             </button>
@@ -1548,7 +1548,7 @@ export default function ProfilePage() {
                             type="button"
                             onClick={saveHealthInfo}
                             disabled={isAnyProfileActionBusy}
-                            className="mt-3 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            className="mt-3 rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
                         >
                             {saving ? '저장 중…' : '기본 정보 저장'}
                         </button>
@@ -1651,7 +1651,7 @@ export default function ProfilePage() {
                         type="button"
                         onClick={saveMedicationInfo}
                         disabled={isAnyProfileActionBusy}
-                        className="mt-3 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                        className="mt-3 rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
                     >
                         {savingMedicationInfo ? '저장 중…' : '약 복용 정보 저장'}
                     </button>
@@ -1755,7 +1755,7 @@ export default function ProfilePage() {
                         type="button"
                         onClick={saveAdditionalConditionInfo}
                         disabled={isAnyProfileActionBusy}
-                        className="mt-3 rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                        className="mt-3 rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
                     >
                         {savingAdditionalConditions ? '저장 중…' : '추가 질병 저장'}
                     </button>
@@ -1793,7 +1793,7 @@ export default function ProfilePage() {
                         type="button"
                         onClick={saveTreatmentInfo}
                         disabled={isAnyProfileActionBusy}
-                        className="mt-3 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="mt-3 rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
                     >
                         {savingTreatmentInfo ? '저장 중…' : '치료 정보 저장'}
                     </button>

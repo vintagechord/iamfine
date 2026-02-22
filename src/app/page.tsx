@@ -1110,7 +1110,7 @@ export default function Home() {
                                 <button
                                     type="submit"
                                     disabled={visitScheduleSaving}
-                                    className="shrink-0 whitespace-nowrap rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                                    className="shrink-0 whitespace-nowrap rounded-lg primarySaveButton px-3 py-2 text-sm font-semibold"
                                 >
                                     {visitScheduleSaving ? '저장 중...' : '일정 저장'}
                                 </button>

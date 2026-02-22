@@ -1003,6 +1003,37 @@ body {
   box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.22);
 }
 
+.primarySaveButton {
+  border: 1px solid #111827;
+  background: #111827;
+  color: #fff;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.primarySaveButton:hover {
+  border-color: #1f2937;
+  background: #1f2937;
+}
+
+.primarySaveButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.dark .primarySaveButton {
+  border-color: #f3f4f6;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.dark .primarySaveButton:hover {
+  border-color: #e5e7eb;
+  background: #e5e7eb;
+}
+
 button,
 [role="button"] {
   white-space: nowrap;
