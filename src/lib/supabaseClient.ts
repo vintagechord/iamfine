@@ -1,19 +1,58 @@
-import { createBrowserClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import type { Session, SupabaseClient, User } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const AUTH_STORAGE_KEY = 'iamfine:auth-session:v1';
+const AUTH_CLIENT_STORAGE_KEY = 'iamfine-supabase-auth';
+
+function parseSupabaseProjectRef(url?: string) {
+    if (!url) {
+        return '';
+    }
+    try {
+        const hostname = new URL(url).hostname;
+        return hostname.split('.')[0] ?? '';
+    } catch {
+        return '';
+    }
+}
+
+const supabaseProjectRef = parseSupabaseProjectRef(supabaseUrl);
+const LEGACY_AUTH_COOKIE_BASE = supabaseProjectRef ? `sb-${supabaseProjectRef}-auth-token` : '';
 
 export const hasSupabaseEnv = Boolean(supabaseUrl && supabaseAnonKey);
 
+const browserStorage = {
+    getItem: (key: string) => {
+        if (typeof window === 'undefined') {
+            return null;
+        }
+        return window.localStorage.getItem(key);
+    },
+    setItem: (key: string, value: string) => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        window.localStorage.setItem(key, value);
+    },
+    removeItem: (key: string) => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        window.localStorage.removeItem(key);
+    },
+};
+
 export const supabase: SupabaseClient | null = hasSupabaseEnv
-    ? createBrowserClient(supabaseUrl!, supabaseAnonKey!, {
+    ? createClient(supabaseUrl!, supabaseAnonKey!, {
           auth: {
-              storageKey: 'iamfine-supabase-auth',
+              storage: browserStorage,
+              storageKey: AUTH_CLIENT_STORAGE_KEY,
               persistSession: true,
               autoRefreshToken: true,
               detectSessionInUrl: true,
+              flowType: 'pkce',
           },
       })
     : null;
@@ -47,6 +86,44 @@ function saveSessionSnapshot(session: Session | null) {
     } catch {
         // no-op: localStorage access can fail in private mode or restricted contexts.
     }
+}
+
+function clearCookie(name: string) {
+    const expires = 'Thu, 01 Jan 1970 00:00:00 GMT';
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    const parts = host.split('.');
+    const topLevelDomain = parts.length >= 2 ? `.${parts.slice(-2).join('.')}` : '';
+
+    const candidates = [
+        `${name}=; expires=${expires}; path=/`,
+        `${name}=; expires=${expires}; path=/; domain=${host}`,
+        topLevelDomain ? `${name}=; expires=${expires}; path=/; domain=${topLevelDomain}` : '',
+    ].filter(Boolean);
+
+    candidates.forEach((cookie) => {
+        document.cookie = cookie;
+    });
+}
+
+function clearLegacySupabaseAuthCookies() {
+    if (typeof document === 'undefined') {
+        return;
+    }
+
+    const cookieNames = new Set<string>([
+        'sb-access-token',
+        'sb-refresh-token',
+        'supabase-auth-token',
+    ]);
+
+    if (LEGACY_AUTH_COOKIE_BASE) {
+        cookieNames.add(LEGACY_AUTH_COOKIE_BASE);
+        for (let chunk = 0; chunk <= 5; chunk += 1) {
+            cookieNames.add(`${LEGACY_AUTH_COOKIE_BASE}.${chunk}`);
+        }
+    }
+
+    cookieNames.forEach((name) => clearCookie(name));
 }
 
 function readSessionSnapshot() {
@@ -114,6 +191,8 @@ export async function getAuthSessionUser(): Promise<AuthSessionUserResult> {
     if (!supabase) {
         return { user: null, error: null };
     }
+
+    clearLegacySupabaseAuthCookies();
 
     let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     if (!sessionData.session) {

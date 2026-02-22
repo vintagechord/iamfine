@@ -103,7 +103,7 @@ type DietStore = {
     carryPreferences: PreferenceType[];
 };
 
-type DailyLogsStorageMode = 'unknown' | 'table' | 'metadata';
+type DailyLogsStorageMode = 'unknown' | 'table' | 'local';
 
 type DayAnalysis = {
     matchScore: number;
@@ -161,6 +161,7 @@ const USER_METADATA_NAMESPACE = 'iamfine';
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const METADATA_DAILY_LOG_LIMIT = 60;
 const RECORD_SAVE_SUCCESS_MESSAGE = '저장하였습니다. 같은 계정의 다른 기기에서도 확인할 수 있어요.';
+const RECORD_SAVE_SUCCESS_MESSAGE_LOCAL = '저장하였습니다. 현재 기기에서 확인할 수 있어요.';
 
 const DEFAULT_STORE: DietStore = {
     logs: {},
@@ -1068,16 +1069,28 @@ function readIamfineMetadata(raw: unknown) {
     };
 }
 
-function buildUpdatedUserMetadata(
+function hasVolatileDietMetadata(raw: unknown) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return false;
+    }
+
+    const root = raw as Record<string, unknown>;
+    const namespaced = root[USER_METADATA_NAMESPACE];
+    if (!namespaced || typeof namespaced !== 'object' || Array.isArray(namespaced)) {
+        return false;
+    }
+
+    const scoped = namespaced as Record<string, unknown>;
+    return 'recentDietSignals' in scoped || 'dailyPreferences' in scoped || 'dailyLogs' in scoped;
+}
+
+function buildTrimmedDietMetadata(
     raw: unknown,
     patch: Partial<{
         treatmentMeta: TreatmentMeta;
         medications: string[];
         medicationSchedules: MedicationSchedule[];
         additionalConditions: AdditionalCondition[];
-        recentDietSignals: string[];
-        dailyPreferences: Record<string, PreferenceType[]>;
-        dailyLogs: Record<string, DayLog>;
     }>
 ) {
     const root =
@@ -1089,11 +1102,15 @@ function buildUpdatedUserMetadata(
         existingNamespacedRaw && typeof existingNamespacedRaw === 'object' && !Array.isArray(existingNamespacedRaw)
             ? (existingNamespacedRaw as Record<string, unknown>)
             : {};
+    const stableNamespaced = { ...existingNamespaced };
+    delete stableNamespaced.recentDietSignals;
+    delete stableNamespaced.dailyPreferences;
+    delete stableNamespaced.dailyLogs;
 
     return {
         ...root,
         [USER_METADATA_NAMESPACE]: {
-            ...existingNamespaced,
+            ...stableNamespaced,
             ...patch,
         },
     };
@@ -1380,22 +1397,6 @@ function parseMetadataDailyLogsFromUnknown(raw: unknown) {
     );
 
     return compactMetadataDailyLogs(parsed);
-}
-
-function areDailyLogsEqual(left: Record<string, DayLog>, right: Record<string, DayLog>) {
-    const leftKeys = Object.keys(left).sort();
-    const rightKeys = Object.keys(right).sort();
-    if (leftKeys.length !== rightKeys.length) {
-        return false;
-    }
-
-    return leftKeys.every((key, index) => {
-        const compareKey = rightKeys[index];
-        if (key !== compareKey) {
-            return false;
-        }
-        return JSON.stringify(left[key]) === JSON.stringify(right[compareKey]);
-    });
 }
 
 function isDietLogTableMissingError(raw: unknown) {
@@ -3060,38 +3061,27 @@ export default function DietPage() {
         return sorted;
     }, [recentDateKeys, selectedDate, todayKey]);
 
-    const syncDailyLogsToMetadata = useCallback(
-        async (nextLogs: Record<string, DayLog>) => {
-            if (!hasSupabaseEnv || !supabase) {
-                return false;
-            }
+    const syncDailyLogsToLocalFallback = useCallback(async (nextLogs: Record<string, DayLog>) => {
+        if (!userId) {
+            return false;
+        }
 
-            const { user, error: userError } = await getAuthSessionUser();
-            if (userError || !user) {
-                return false;
-            }
-
-            const metadata = readIamfineMetadata(user.user_metadata);
-            const normalizedLogs = compactMetadataDailyLogs(nextLogs);
-            if (areDailyLogsEqual(metadata.dailyLogs, normalizedLogs)) {
-                return true;
-            }
-
-            const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
-                dailyLogs: normalizedLogs,
-            });
-            const { error: updateError } = await supabase.auth.updateUser({
-                data: updatedMetadata,
-            });
-            if (updateError) {
-                console.error('식단 로그 메타데이터 저장 실패', updateError);
-                return false;
-            }
-
+        try {
+            const storeKey = getStoreKey(userId);
+            const latestStored = parseStore(localStorage.getItem(storeKey));
+            localStorage.setItem(
+                storeKey,
+                JSON.stringify({
+                    ...latestStored,
+                    logs: nextLogs,
+                } satisfies DietStore)
+            );
             return true;
-        },
-        []
-    );
+        } catch (syncError) {
+            console.error('식단 로그 로컬 저장 실패', syncError);
+            return false;
+        }
+    }, [userId]);
 
     const loadInitial = useCallback(async () => {
         setLoading(true);
@@ -3150,8 +3140,8 @@ export default function DietPage() {
             .order('date_key', { ascending: true });
         if (serverLogsError) {
             if (isDietLogTableMissingError(serverLogsError)) {
-                tableMode = 'metadata';
-                setDailyLogsStorageMode('metadata');
+                tableMode = 'local';
+                setDailyLogsStorageMode('local');
             } else {
                 console.error('서버 기록 조회 실패', serverLogsError);
             }
@@ -3181,8 +3171,8 @@ export default function DietPage() {
             );
             if (backfillError) {
                 if (isDietLogTableMissingError(backfillError)) {
-                    tableMode = 'metadata';
-                    setDailyLogsStorageMode('metadata');
+                    tableMode = 'local';
+                    setDailyLogsStorageMode('local');
                 } else {
                     console.error('기존 로컬 기록 서버 백필 실패', backfillError);
                 }
@@ -3197,21 +3187,17 @@ export default function DietPage() {
             ...serverLogs,
         };
         const resolvedDailyPreferences =
-            Object.keys(metadata.dailyPreferences).length > 0
-                ? metadata.dailyPreferences
-                : store.dailyPreferences;
+            Object.keys(store.dailyPreferences).length > 0
+                ? store.dailyPreferences
+                : metadata.dailyPreferences;
         const resolvedMedications = metadata.medications.length > 0 ? metadata.medications : store.medications;
         const resolvedMedicationSchedules =
             metadata.medicationSchedules.length > 0 ? metadata.medicationSchedules : store.medicationSchedules;
         const resolvedAdditionalConditions = metadata.additionalConditions;
-        const localRecentDietSignals = buildRecentDietSignalsFromLogs(mergedLogs, todayKey);
         const syncPatch: Partial<{
             treatmentMeta: TreatmentMeta;
             medications: string[];
             medicationSchedules: MedicationSchedule[];
-            recentDietSignals: string[];
-            dailyPreferences: Record<string, PreferenceType[]>;
-            dailyLogs: Record<string, DayLog>;
         }> = {};
         if (!metadata.treatmentMeta && localTreatmentMeta) {
             syncPatch.treatmentMeta = localTreatmentMeta;
@@ -3222,20 +3208,8 @@ export default function DietPage() {
         if (metadata.medicationSchedules.length === 0 && store.medicationSchedules.length > 0) {
             syncPatch.medicationSchedules = store.medicationSchedules;
         }
-        if (metadata.recentDietSignals.length === 0 && localRecentDietSignals.length > 0) {
-            syncPatch.recentDietSignals = localRecentDietSignals;
-        }
-        if (Object.keys(metadata.dailyPreferences).length === 0 && Object.keys(store.dailyPreferences).length > 0) {
-            syncPatch.dailyPreferences = store.dailyPreferences;
-        }
-        if (tableMode === 'metadata') {
-            const nextMetadataLogs = compactMetadataDailyLogs(mergedLogs);
-            if (!areDailyLogsEqual(metadata.dailyLogs, nextMetadataLogs)) {
-                syncPatch.dailyLogs = nextMetadataLogs;
-            }
-        }
-        if (Object.keys(syncPatch).length > 0) {
-            const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, syncPatch);
+        if (Object.keys(syncPatch).length > 0 || hasVolatileDietMetadata(user.user_metadata)) {
+            const updatedMetadata = buildTrimmedDietMetadata(user.user_metadata, syncPatch);
             const { error: metadataSyncError } = await supabase.auth.updateUser({
                 data: updatedMetadata,
             });
@@ -3309,80 +3283,6 @@ export default function DietPage() {
             return;
         }
 
-        const supabaseClient = supabase;
-        const nextSignals = buildRecentDietSignalsFromLogs(logs, todayKey);
-        const timer = window.setTimeout(() => {
-            void (async () => {
-                const { user, error: userError } = await getAuthSessionUser();
-                if (userError || !user) {
-                    return;
-                }
-
-                const metadata = readIamfineMetadata(user.user_metadata);
-                const currentSignals = metadata.recentDietSignals;
-                const isSame =
-                    currentSignals.length === nextSignals.length &&
-                    currentSignals.every((signal, index) => signal === nextSignals[index]);
-                if (isSame) {
-                    return;
-                }
-
-                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
-                    recentDietSignals: nextSignals,
-                });
-                const { error: updateError } = await supabaseClient.auth.updateUser({
-                    data: updatedMetadata,
-                });
-                if (updateError) {
-                    console.error('최근 식단 신호 저장 실패', updateError);
-                }
-            })();
-        }, 700);
-
-        return () => window.clearTimeout(timer);
-    }, [storeReady, userId, logs, todayKey]);
-
-    useEffect(() => {
-        if (!storeReady || !userId || !hasSupabaseEnv || !supabase) {
-            return;
-        }
-
-        const supabaseClient = supabase;
-        const timer = window.setTimeout(() => {
-            void (async () => {
-                const { user, error: userError } = await getAuthSessionUser();
-                if (userError || !user) {
-                    return;
-                }
-
-                const metadata = readIamfineMetadata(user.user_metadata);
-                const currentDaily = metadata.dailyPreferences;
-                const nextDaily = normalizeDailyPreferencesRecord(dailyPreferences);
-                const isSame = JSON.stringify(currentDaily) === JSON.stringify(nextDaily);
-                if (isSame) {
-                    return;
-                }
-
-                const updatedMetadata = buildUpdatedUserMetadata(user.user_metadata, {
-                    dailyPreferences: nextDaily,
-                });
-                const { error: updateError } = await supabaseClient.auth.updateUser({
-                    data: updatedMetadata,
-                });
-                if (updateError) {
-                    console.error('일자별 식단 선호 저장 실패', updateError);
-                }
-            })();
-        }, 700);
-
-        return () => window.clearTimeout(timer);
-    }, [storeReady, userId, dailyPreferences]);
-
-    useEffect(() => {
-        if (!storeReady || !userId || !hasSupabaseEnv || !supabase) {
-            return;
-        }
-
         const dirtyLogEntries = Object.entries(logs).filter(([dateKey, log]) => {
             const signature = JSON.stringify(log);
             return syncedLogSignaturesRef.current[dateKey] !== signature;
@@ -3395,9 +3295,9 @@ export default function DietPage() {
         const targetUserId = userId;
         const timer = window.setTimeout(() => {
             void (async () => {
-                if (dailyLogsStorageMode === 'metadata') {
-                    const metadataSyncOk = await syncDailyLogsToMetadata(logs);
-                    if (!metadataSyncOk) {
+                if (dailyLogsStorageMode === 'local') {
+                    const localSyncOk = await syncDailyLogsToLocalFallback(logs);
+                    if (!localSyncOk) {
                         return;
                     }
 
@@ -3422,9 +3322,9 @@ export default function DietPage() {
 
                 if (saveError) {
                     if (isDietLogTableMissingError(saveError)) {
-                        setDailyLogsStorageMode('metadata');
-                        const metadataSyncOk = await syncDailyLogsToMetadata(logs);
-                        if (!metadataSyncOk) {
+                        setDailyLogsStorageMode('local');
+                        const localSyncOk = await syncDailyLogsToLocalFallback(logs);
+                        if (!localSyncOk) {
                             return;
                         }
                     } else {
@@ -3442,7 +3342,7 @@ export default function DietPage() {
         }, 900);
 
         return () => window.clearTimeout(timer);
-    }, [storeReady, userId, logs, dailyLogsStorageMode, syncDailyLogsToMetadata]);
+    }, [storeReady, userId, logs, dailyLogsStorageMode, syncDailyLogsToLocalFallback]);
 
     useEffect(() => {
         if (loading || !openRecordView) {
@@ -3830,16 +3730,16 @@ export default function DietPage() {
             [selectedDate]: currentLog,
         };
 
-        if (dailyLogsStorageMode === 'metadata') {
-            const metadataSyncOk = await syncDailyLogsToMetadata(nextLogs);
+        if (dailyLogsStorageMode === 'local') {
+            const localSyncOk = await syncDailyLogsToLocalFallback(nextLogs);
             setSaving(false);
-            if (!metadataSyncOk) {
-                setError('서버 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+            if (!localSyncOk) {
+                setError('로컬 저장에 실패했어요. 브라우저 저장공간을 확인해 주세요.');
                 return;
             }
 
             syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
-            showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE);
+            showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE_LOCAL);
             return;
         }
 
@@ -3857,16 +3757,16 @@ export default function DietPage() {
 
         if (saveError) {
             if (isDietLogTableMissingError(saveError)) {
-                setDailyLogsStorageMode('metadata');
-                const metadataSyncOk = await syncDailyLogsToMetadata(nextLogs);
+                setDailyLogsStorageMode('local');
+                const localSyncOk = await syncDailyLogsToLocalFallback(nextLogs);
                 setSaving(false);
-                if (!metadataSyncOk) {
-                    setError('서버 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+                if (!localSyncOk) {
+                    setError('로컬 저장에 실패했어요. 브라우저 저장공간을 확인해 주세요.');
                     return;
                 }
 
                 syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
-                showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE);
+                showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE_LOCAL);
                 return;
             }
 
