@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MapPinned, Search, Truck } from 'lucide-react';
+import { CircleHelp, MapPinned, Search, Truck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
@@ -271,6 +271,7 @@ export default function RestaurantsPage() {
     const [loadingRecommendations, setLoadingRecommendations] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [recommendationError, setRecommendationError] = useState('');
+    const [showFinderInfoModal, setShowFinderInfoModal] = useState(false);
     const [patientContext, setPatientContext] = useState<FinderPatientContext>({
         mode: 'guest',
         cancerType: '',
@@ -516,10 +517,15 @@ export default function RestaurantsPage() {
                                 <MapPinned className="h-5 w-5" />
                             </span>
                             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">건강식당 찾기</h1>
+                            <button
+                                type="button"
+                                onClick={() => setShowFinderInfoModal(true)}
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                aria-label="건강식당 찾기 안내 열기"
+                            >
+                                <CircleHelp className="h-4 w-4" />
+                            </button>
                         </div>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                            치료 상황에 맞는 식당을 키워드로 빠르게 찾을 수 있어요.
-                        </p>
                     </div>
                     <Link
                         href="/"
@@ -529,6 +535,28 @@ export default function RestaurantsPage() {
                     </Link>
                 </div>
             </section>
+
+            {showFinderInfoModal && (
+                <div
+                    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
+                    onClick={() => setShowFinderInfoModal(false)}
+                >
+                    <section
+                        className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">건강식당 찾기 안내</h2>
+                            <button type="button" onClick={() => setShowFinderInfoModal(false)} className="popupCloseButton">
+                                닫기
+                            </button>
+                        </div>
+                        <p className="mt-3 text-sm text-gray-700 dark:text-gray-200">
+                            치료 상황에 맞는 식당을 키워드로 빠르게 찾을 수 있어요.
+                        </p>
+                    </section>
+                </div>
+            )}
 
             <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
                 <div className="flex items-center gap-2">

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Moon, Sun, Sunrise, Utensils } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleHelp, Moon, Sun, Sunrise, Utensils } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     applySevenDayNoRepeatRule,
@@ -179,37 +179,136 @@ const SLOT_ORDER: MealSlot[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const COMMON_MANUAL_FOOD_CANDIDATES = [
     '현미밥',
     '잡곡밥',
+    '흑미밥',
+    '보리밥',
+    '귀리밥',
+    '기장밥',
+    '퀴노아밥',
+    '곤드레밥',
+    '콩나물밥',
+    '영양밥',
+    '주먹밥',
+    '삼각김밥',
+    '볶음밥',
+    '김치볶음밥',
+    '새우볶음밥',
+    '덮밥',
+    '불고기덮밥',
+    '연어덮밥',
+    '카레라이스',
+    '오므라이스',
+    '리조또',
     '죽',
+    '닭죽',
+    '전복죽',
+    '야채죽',
+    '흰죽',
+    '호박죽',
     '오트밀',
+    '그래놀라',
+    '시리얼',
     '닭가슴살',
+    '닭안심찜',
+    '닭다리살구이',
+    '닭갈비',
+    '찜닭',
+    '닭볶음탕',
+    '삼계탕',
     '연어구이',
+    '고등어구이',
+    '갈치구이',
+    '조기구이',
+    '대구탕',
+    '아귀찜',
+    '고등어조림',
     '흰살생선찜',
     '두부조림',
+    '두부부침',
+    '두부스테이크',
+    '순두부찌개',
+    '연두부',
+    '된장찌개',
+    '청국장',
     '달걀찜',
+    '계란말이',
+    '계란프라이',
+    '오믈렛',
+    '스크램블에그',
     '브로콜리찜',
     '당근볶음',
     '양배추볶음',
     '버섯볶음',
     '시금치나물',
     '오이무침',
+    '콩나물무침',
+    '숙주나물',
+    '애호박볶음',
+    '가지볶음',
+    '감자조림',
+    '연근조림',
+    '우엉조림',
+    '깻잎무침',
+    '샐러드',
+    '그린샐러드',
+    '닭가슴살샐러드',
+    '연어샐러드',
+    '참치샐러드',
+    '과일샐러드',
     '채소수프',
     '된장국',
     '미역국',
     '콩나물국',
-    '샐러드',
+    '북엇국',
+    '무국',
+    '소고기무국',
+    '떡국',
+    '만둣국',
+    '갈비탕',
+    '설렁탕',
+    '곰탕',
+    '육개장',
+    '감자수프',
+    '단호박수프',
+    '양송이스프',
+    '토마토수프',
     '그릭요거트',
     '무가당 요거트',
     '두유',
+    '저지방우유',
+    '아몬드밀크',
+    '치즈',
+    '리코타치즈',
     '바나나',
     '사과',
     '배',
     '키위',
     '오렌지',
+    '귤',
+    '포도',
+    '딸기',
+    '블루베리',
+    '망고',
+    '파인애플',
+    '수박',
+    '참외',
+    '복숭아',
     '오렌지주스',
+    '사과주스',
+    '토마토주스',
     '토마토',
     '고구마',
     '감자',
+    '단호박',
+    '옥수수',
+    '찐고구마',
+    '찐감자',
     '견과류',
+    '아몬드',
+    '호두',
+    '캐슈넛',
+    '피스타치오',
+    '병아리콩',
+    '렌틸콩',
     '치킨',
     '후라이드치킨',
     '양념치킨',
@@ -224,54 +323,126 @@ const COMMON_MANUAL_FOOD_CANDIDATES = [
     '치즈버거',
     '감자튀김',
     '핫도그',
+    '샌드위치',
+    '클럽샌드위치',
+    '에그샌드위치',
+    '참치샌드위치',
+    '베이글',
+    '랩샌드위치',
+    '타코',
+    '브리또',
+    '퀘사디아',
     '떡볶이',
     '라볶이',
     '순대',
     '튀김',
     '김밥',
     '참치김밥',
+    '치즈김밥',
+    '불고기김밥',
+    '비빔밥',
+    '돌솥비빔밥',
+    '산채비빔밥',
     '라면',
+    '비빔면',
+    '칼국수',
+    '잔치국수',
+    '비빔국수',
+    '메밀국수',
+    '물냉면',
+    '비빔냉면',
+    '쫄면',
     '짜장면',
     '짬뽕',
     '우동',
+    '마라탕',
+    '마라샹궈',
+    '탕수육',
+    '깐풍기',
     '파스타',
     '스파게티',
+    '알리오올리오',
+    '토마토파스타',
+    '크림파스타',
+    '봉골레파스타',
+    '라자냐',
     '돈가스',
+    '치즈돈가스',
     '제육볶음',
     '불고기',
     '삼겹살',
+    '목살구이',
+    '갈비찜',
+    '오리고기',
+    '훈제오리',
     '족발',
     '보쌈',
+    '순대국',
+    '돼지국밥',
+    '해장국',
+    '김치찌개',
+    '부대찌개',
+    '동태찌개',
+    '불고기전골',
+    '샤브샤브',
+    '김치전',
+    '해물파전',
     '아이스크림',
     '초콜릿',
     '쿠키',
     '케이크',
+    '티라미수',
+    '마카롱',
     '도넛',
     '빵',
+    '식빵',
+    '호밀빵',
+    '바게트',
     '크로와상',
     '와플',
+    '팬케이크',
     '붕어빵',
+    '호떡',
     '과자',
     '젤리',
+    '팝콘',
     '콜라',
     '사이다',
     '탄산음료',
+    '레몬에이드',
+    '자몽에이드',
     '밀크티',
     '버블티',
     '커피',
     '라떼',
     '카페라떼',
     '아메리카노',
+    '디카페인 아메리카노',
+    '콜드브루',
+    '카푸치노',
+    '바닐라라떼',
+    '녹차라떼',
+    '코코아',
+    '핫초코',
     '보리차',
     '카모마일차',
     '루이보스차',
     '페퍼민트차',
     '생강차',
     '레몬밤차',
+    '홍차',
+    '녹차',
+    '우롱차',
+    '유자차',
+    '대추차',
     '주스',
+    '스무디',
+    '요거트스무디',
     '맥주',
     '소주',
     '와인',
+    '막걸리',
+    '하이볼',
 ] as const;
 const SUBSTITUTE_GROUPS: SubstituteGroup[] = [
     {
@@ -1577,7 +1748,7 @@ function foodNameSimilarityScore(query: string, candidate: string) {
     return clamp(score, 0, 1);
 }
 
-function searchManualFoodCandidates(query: string, candidates: string[], maxResults = 8) {
+function searchManualFoodCandidates(query: string, candidates: string[], maxResults = 20) {
     const normalizedQuery = normalizeManualMealName(query);
     if (!normalizedQuery) {
         return [];
@@ -2227,6 +2398,7 @@ export default function DietPage() {
     const [todayPlanOffset, setTodayPlanOffset] = useState(0);
     const [openRecipeSlot, setOpenRecipeSlot] = useState<RecipeTarget | null>(null);
     const [openPortionGuideContent, setOpenPortionGuideContent] = useState<PortionGuideModalContent | null>(null);
+    const [showDietModeInfoModal, setShowDietModeInfoModal] = useState(false);
     const [showRecordPlanModal, setShowRecordPlanModal] = useState(false);
     const [openRecordPortionSlot, setOpenRecordPortionSlot] = useState<MealSlot | null>(null);
     const [openSubstituteTarget, setOpenSubstituteTarget] = useState<{
@@ -3917,13 +4089,18 @@ export default function DietPage() {
                     </div>
                 </div>
 
-                <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/30">
-                    <label className="flex cursor-pointer items-center justify-between gap-3">
-                        <div>
-                            <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">다이어트 체크</p>
-                            <p className="mt-0.5 text-xs text-blue-800 dark:text-blue-200">
-                                체크 시 식단을 체중감량형(단백질 유지·탄수화물 조절)으로 바꿔요.
-                            </p>
+                <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-2.5 dark:border-blue-800 dark:bg-blue-950/30">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                            <p className="truncate text-sm font-semibold text-blue-900 dark:text-blue-100">다이어트 체크</p>
+                            <button
+                                type="button"
+                                onClick={() => setShowDietModeInfoModal(true)}
+                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-white/90 text-blue-700 transition hover:bg-white dark:border-blue-700 dark:bg-blue-950/60 dark:text-blue-100"
+                                aria-label="다이어트 체크 안내 열기"
+                            >
+                                <CircleHelp className="h-4 w-4" />
+                            </button>
                         </div>
                         <input
                             type="checkbox"
@@ -3933,14 +4110,9 @@ export default function DietPage() {
                             aria-label="다이어트 체크"
                             disabled={!isViewingToday}
                         />
-                    </label>
-                    {adaptiveTodayPreferences.length > 0 && (
-                        <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">
-                            최근 기록 자동 반영: {adaptiveTodayPreferences.map((item) => preferenceLabel(item)).join(', ')}
-                        </p>
-                    )}
+                    </div>
                     {!isViewingToday && (
-                        <p className="mt-2 text-xs text-blue-800 dark:text-blue-200">
+                        <p className="mt-1.5 text-xs text-blue-800 dark:text-blue-200">
                             다이어트 체크 변경은 오늘 식단에서만 가능해요.
                         </p>
                     )}
@@ -4008,32 +4180,26 @@ export default function DietPage() {
                                             ))}
                                         </div>
                                     </div>
-                                    {showMedicationArea && (
+                                    {showMedicationArea && mealMedicationList.length > 0 && (
                                         <div className="flex w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto sm:max-w-[62%] sm:justify-end">
                                             <span className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                                                 식후 복용 약
                                             </span>
-                                            {mealMedicationList.length === 0 ? (
-                                                <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
-                                                    복용 약 없음
-                                                </span>
-                                            ) : (
-                                                mealMedicationList.map((medication) => {
-                                                    const taken = viewedTodayMedicationTakenSet.has(medication.id);
-                                                    return (
-                                                        <span
-                                                            key={medication.id}
-                                                            className={`rounded-md border px-2 py-1 text-xs font-semibold ${
-                                                                taken
-                                                                    ? 'border-emerald-600 bg-emerald-600 text-white'
-                                                                    : 'border-amber-400 bg-amber-100 text-amber-900 dark:border-amber-500 dark:bg-amber-900/40 dark:text-amber-50'
-                                                            }`}
-                                                        >
-                                                            {taken ? '복용 확인' : '복용 전'} · {medication.name}
-                                                        </span>
-                                                    );
-                                                })
-                                            )}
+                                            {mealMedicationList.map((medication) => {
+                                                const taken = viewedTodayMedicationTakenSet.has(medication.id);
+                                                return (
+                                                    <span
+                                                        key={medication.id}
+                                                        className={`rounded-md border px-2 py-1 text-xs font-semibold ${
+                                                            taken
+                                                                ? 'border-emerald-600 bg-emerald-600 text-white'
+                                                                : 'border-amber-400 bg-amber-100 text-amber-900 dark:border-amber-500 dark:bg-amber-900/40 dark:text-amber-50'
+                                                        }`}
+                                                    >
+                                                        {taken ? '복용 확인' : '복용 전'} · {medication.name}
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -4086,14 +4252,8 @@ export default function DietPage() {
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 간식 권장 시간: {snackCoffeeRecommendedTime.snack}</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.snack}</p>
                     <div className="mt-3 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">선택 음료 가이드(필수 아님)</p>
-                        <p className="mt-1">- 커피(원할 때만) 권장 시간: {snackCoffeeRecommendedTime.coffee}</p>
-                        <p className="mt-1">- 차(원할 때만) 권장 시간: {snackCoffeeRecommendedTime.tea}</p>
-                        <p className="mt-1">- {timingGuide.coffee}</p>
-                        <p className="mt-1">- {timingGuide.tea}</p>
-                        <p className="mt-1">- {beverageCaution}</p>
                         {dailyCoffeeRecommendations.length > 0 && (
-                            <div className="mt-2">
+                            <div>
                                 <p className="font-semibold text-gray-900 dark:text-gray-100">오늘 선택 커피(원할 때만)</p>
                                 {dailyCoffeeRecommendations.map((item) => (
                                     <p key={`coffee-${item.name}`} className="mt-1">
@@ -4112,6 +4272,12 @@ export default function DietPage() {
                                 ))}
                             </div>
                         )}
+                        <p className="mt-2 font-semibold text-gray-900 dark:text-gray-100">선택 음료 가이드(필수 아님)</p>
+                        <p className="mt-1">- 커피(원할 때만) 권장 시간: {snackCoffeeRecommendedTime.coffee}</p>
+                        <p className="mt-1">- 차(원할 때만) 권장 시간: {snackCoffeeRecommendedTime.tea}</p>
+                        <p className="mt-1">- {timingGuide.coffee}</p>
+                        <p className="mt-1">- {timingGuide.tea}</p>
+                        <p className="mt-1">- {beverageCaution}</p>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                         <button
@@ -4141,13 +4307,47 @@ export default function DietPage() {
             </section>
             )}
 
+            {showDietModeInfoModal && (
+                <div
+                    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
+                    onClick={() => setShowDietModeInfoModal(false)}
+                >
+                    <section
+                        className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="galaxySafeHeader">
+                            <h2 className="galaxySafeHeader__main text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                다이어트 체크 안내
+                            </h2>
+                            <button
+                                type="button"
+                                onClick={() => setShowDietModeInfoModal(false)}
+                                className="galaxySafeHeader__action popupCloseButton"
+                            >
+                                닫기
+                            </button>
+                        </div>
+                        <div className="mt-3 space-y-1 text-sm text-gray-700 dark:text-gray-200">
+                            <p>체크 시 식단을 체중감량형(단백질 유지·탄수화물 조절)으로 바꿔요.</p>
+                            <p>
+                                최근 기록 자동 반영:{' '}
+                                {adaptiveTodayPreferences.length > 0
+                                    ? adaptiveTodayPreferences.map((item) => preferenceLabel(item)).join(', ')
+                                    : '단백질 강화, 채소 듬뿍'}
+                            </p>
+                        </div>
+                    </section>
+                </div>
+            )}
+
             {openRecipeContent && openRecipeSlot && (
                 <div
                     className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
                     onClick={() => setOpenRecipeSlot(null)}
                 >
                     <section
-                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
+                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="galaxySafeHeader">
@@ -4180,7 +4380,7 @@ export default function DietPage() {
                     onClick={() => setOpenPortionGuideContent(null)}
                 >
                     <section
-                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
+                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="galaxySafeHeader">
@@ -4474,7 +4674,7 @@ export default function DietPage() {
                             }}
                         >
                             <section
-                                className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
+                                className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                                 onClick={(event) => event.stopPropagation()}
                             >
                                 <div className="galaxySafeHeader">

@@ -1089,7 +1089,7 @@ export default function Home() {
                                     enterKeyHint="next"
                                     value={visitHospitalInput}
                                     onChange={(event) => setVisitHospitalInput(event.target.value)}
-                                    placeholder="예: 서울아산병원"
+                                    placeholder="예: 강북삼성병원"
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
                                 />
                             </label>

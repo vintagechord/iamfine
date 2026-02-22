@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ShoppingCart } from 'lucide-react';
+import { CircleHelp, ShoppingCart } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
     applySevenDayNoRepeatRule,
@@ -1244,6 +1244,7 @@ export default function ShoppingPage() {
     const [memoSavedAt, setMemoSavedAt] = useState('');
     const [memoSaving, setMemoSaving] = useState(false);
     const [showPlanSummary, setShowPlanSummary] = useState(false);
+    const [openInfoModal, setOpenInfoModal] = useState<'shopping' | 'category' | null>(null);
     const userDietContext = useMemo<UserDietContext>(() => {
         const nowYear = new Date().getFullYear();
         const age = profile?.birth_year ? Math.max(0, nowYear - profile.birth_year) : undefined;
@@ -1640,13 +1641,15 @@ export default function ShoppingPage() {
                         <ShoppingCart className="h-5 w-5" />
                     </span>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
+                    <button
+                        type="button"
+                        onClick={() => setOpenInfoModal('shopping')}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                        aria-label="장보기 안내 열기"
+                    >
+                        <CircleHelp className="h-4 w-4" />
+                    </button>
                 </div>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    날짜를 정하면 해당 기간 식단표를 기준으로 장볼 목록을 분야별로 추천해 드려요.
-                </p>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}
-                </p>
             </section>
 
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -1713,10 +1716,17 @@ export default function ShoppingPage() {
             </section>
 
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">분야별 장볼 목록</h2>
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                    식단 메뉴를 실제 구입 재료 기준으로 환산했어요. 재료별 예상 구입량(1인 기준)과 사용 횟수를 함께 보여드려요.
-                </p>
+                <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">분야별 장볼 목록</h2>
+                    <button
+                        type="button"
+                        onClick={() => setOpenInfoModal('category')}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                        aria-label="분야별 장볼 목록 안내 열기"
+                    >
+                        <CircleHelp className="h-4 w-4" />
+                    </button>
+                </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     {groceryCategories.map((category) => (
                         <article
@@ -1735,6 +1745,40 @@ export default function ShoppingPage() {
                     ))}
                 </div>
             </section>
+
+            {openInfoModal && (
+                <div
+                    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
+                    onClick={() => setOpenInfoModal(null)}
+                >
+                    <section
+                        className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                                {openInfoModal === 'shopping' ? '장보기 안내' : '분야별 장볼 목록 안내'}
+                            </h3>
+                            <button type="button" onClick={() => setOpenInfoModal(null)} className="popupCloseButton">
+                                닫기
+                            </button>
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-200">
+                            {openInfoModal === 'shopping' ? (
+                                <>
+                                    <p>날짜를 정하면 해당 기간 식단표를 기준으로 장볼 목록을 분야별로 추천해 드려요.</p>
+                                    <p>현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}</p>
+                                </>
+                            ) : (
+                                <p>
+                                    식단 메뉴를 실제 구입 재료 기준으로 환산했어요. 재료별 예상 구입량(1인 기준)과 사용 횟수를
+                                    함께 보여드려요.
+                                </p>
+                            )}
+                        </div>
+                    </section>
+                </div>
+            )}
 
             <section className="rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm dark:border-red-800 dark:bg-red-950/30">
                 <h2 className="text-lg font-semibold text-red-800 dark:text-red-200">상하기 쉬운 재료 주의사항</h2>
