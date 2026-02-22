@@ -26,6 +26,7 @@ import {
     type StageType,
     type UserDietContext,
     type UserMedicationSchedule,
+    type RecentDietPattern,
 } from '@/lib/dietEngine';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
@@ -1851,6 +1852,9 @@ function recommendPreferencesByExternalSignals(items: CustomAlertApiItem[]) {
     if (countKeywords(text, ['생선', '연어', '오메가', '등푸른']) >= 1) {
         add('fish');
     }
+    if (countKeywords(text, ['통곡물', 'wholegrain', 'whole grain', '귀리', '보리']) >= 1) {
+        add('healthy');
+    }
     if (countKeywords(text, ['채소', '샐러드', '브로콜리', '과일', '식이섬유']) >= 1) {
         add('vegetable');
     }
@@ -1859,6 +1863,13 @@ function recommendPreferencesByExternalSignals(items: CustomAlertApiItem[]) {
     }
     if (countKeywords(text, ['저염', '염분', '나트륨']) >= 1) {
         add('low_salt');
+    }
+    if (countKeywords(text, ['가공육', 'processed meat', '초가공', 'ultra-processed']) >= 1) {
+        add('healthy');
+        add('low_salt');
+    }
+    if (countKeywords(text, ['수분', 'hydration', '탈수']) >= 1) {
+        add('soupy');
     }
     if (countKeywords(text, ['식욕저하', '메스꺼움', '소화', '부드러운', '죽', '수프']) >= 1) {
         add('digestive');
@@ -1931,6 +1942,81 @@ function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, 
     }
 
     return suggestions.slice(0, 4);
+}
+
+function buildRecentDietPattern(logs: Record<string, DayLog>, referenceDateKey: string): RecentDietPattern {
+    const lookbackKeys = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => offsetDateKey(referenceDateKey, -(index + 1)));
+    const proteinKeywords = ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유'];
+    const vegetableKeywords = ['브로콜리', '양배추', '시금치', '오이', '당근', '버섯', '샐러드', '채소', '나물'];
+    const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛', '햄버거'];
+    const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림', '시럽', '주스'];
+    const sodiumKeywords = ['라면', '찌개', '국밥', '젓갈', '장아찌', '햄', '소시지', '가공육', '짠'];
+    const spicyHeavyKeywords = ['매운', '불닭', '짬뽕', '떡볶이', '튀김', '치킨', '야식', '술', '맥주', '소주'];
+
+    let analyzedDays = 0;
+    let skippedMealDays = 0;
+    let lowProteinDays = 0;
+    let lowVegetableDays = 0;
+    let highFlourSugarDays = 0;
+    let highSodiumDays = 0;
+    let spicyHeavyDays = 0;
+
+    lookbackKeys.forEach((dateKey) => {
+        const log = logs[dateKey];
+        if (!log || !hasMeaningfulDayLog(log)) {
+            return;
+        }
+
+        analyzedDays += 1;
+        const eatenItems = eatenTrackItems(log);
+        const eatenCount = eatenItems.length;
+        if (eatenCount === 0) {
+            skippedMealDays += 1;
+            lowProteinDays += 1;
+            lowVegetableDays += 1;
+            return;
+        }
+
+        const eatenMeals = (['breakfast', 'lunch', 'dinner'] as MealSlot[]).reduce((count, slot) => {
+            const hasEaten = log.meals[slot].some((item) => item.eaten);
+            return hasEaten ? count + 1 : count;
+        }, 0);
+        if (eatenMeals <= 1) {
+            skippedMealDays += 1;
+        }
+
+        const proteinCount = countKeywordsByItems(eatenItems, proteinKeywords);
+        const vegetableCount = countKeywordsByItems(eatenItems, vegetableKeywords);
+        const flourSugarCount = countKeywordsByItems(eatenItems, flourKeywords) + countKeywordsByItems(eatenItems, sugarKeywords);
+        const sodiumCount = countKeywordsByItems(eatenItems, sodiumKeywords);
+        const spicyHeavyCount = countKeywordsByItems(eatenItems, spicyHeavyKeywords);
+
+        if (proteinCount <= 1 || proteinCount / eatenCount < 0.22) {
+            lowProteinDays += 1;
+        }
+        if (vegetableCount <= 1 || vegetableCount / eatenCount < 0.24) {
+            lowVegetableDays += 1;
+        }
+        if (flourSugarCount >= 2 || flourSugarCount / eatenCount >= 0.35) {
+            highFlourSugarDays += 1;
+        }
+        if (sodiumCount >= 2 || sodiumCount / eatenCount >= 0.3) {
+            highSodiumDays += 1;
+        }
+        if (spicyHeavyCount >= 2 || spicyHeavyCount / eatenCount >= 0.3) {
+            spicyHeavyDays += 1;
+        }
+    });
+
+    return {
+        analyzedDays,
+        skippedMealDays,
+        lowProteinDays,
+        lowVegetableDays,
+        highFlourSugarDays,
+        highSodiumDays,
+        spicyHeavyDays,
+    };
 }
 
 function plannedNamesBySlot(plan: DayPlan, slot: MealSlot) {
@@ -2259,6 +2345,15 @@ export default function DietPage() {
     const userDietContext = useMemo<UserDietContext>(() => {
         const nowYear = new Date().getFullYear();
         const age = profile?.birth_year ? Math.max(0, nowYear - profile.birth_year) : undefined;
+        const recentDietPattern = buildRecentDietPattern(logs, todayKey);
+        const recentDietSignals = Array.from(
+            new Set([
+                ...buildRecentDietSignalsFromLogs(logs, todayKey),
+                ...externalSignalPreferences.map(
+                    (preference) => PREFERENCE_TO_DIET_SIGNAL[preference] ?? preferenceLabel(preference)
+                ),
+            ])
+        ).slice(0, 12);
         const contextMedicationSchedules: UserMedicationSchedule[] = medicationSchedules.map((item) => ({
             name: item.name,
             category: item.category,
@@ -2284,8 +2379,10 @@ export default function DietPage() {
             activeStageStatus: activeStage?.status ?? undefined,
             medicationSchedules: contextMedicationSchedules,
             additionalConditions: contextAdditionalConditions,
+            recentDietSignals,
+            recentDietPattern,
         };
-    }, [profile, treatmentMeta, activeStage, medicationSchedules, additionalConditions]);
+    }, [profile, treatmentMeta, activeStage, medicationSchedules, additionalConditions, logs, todayKey, externalSignalPreferences]);
 
     const applyRecommendationAdjustments = useCallback(
         (basePlan: DayPlan, targetPreferences: PreferenceType[], dateKey: string) => {
