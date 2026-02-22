@@ -4439,6 +4439,7 @@ export default function DietPage() {
                                                 <input
                                                     id="record-date"
                                                     type="date"
+                                                    enterKeyHint="done"
                                                     value={selectedDate}
                                                     max={todayKey}
                                                     onChange={(event) => {
@@ -4764,6 +4765,12 @@ export default function DietPage() {
                                             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                                                 <input
                                                     aria-label={`${mealTypeLabel(slot)} 먹은 음식 추가`}
+                                                    autoComplete="off"
+                                                    autoCapitalize="none"
+                                                    autoCorrect="off"
+                                                    spellCheck={false}
+                                                    enterKeyHint="done"
+                                                    maxLength={60}
                                                     value={newItemBySlot[slot]}
                                                     onChange={(event) =>
                                                         setNewItemBySlot((prev) => ({

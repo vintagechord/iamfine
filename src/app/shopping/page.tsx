@@ -1657,6 +1657,7 @@ export default function ShoppingPage() {
                         <input
                             type="date"
                             aria-label="시작 날짜"
+                            enterKeyHint="next"
                             value={startDateKey}
                             onChange={(event) => setStartDateKey(event.target.value)}
                             className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
@@ -1667,6 +1668,8 @@ export default function ShoppingPage() {
                         <input
                             type="number"
                             aria-label="기간(일)"
+                            inputMode="numeric"
+                            enterKeyHint="done"
                             min={1}
                             max={30}
                             step={1}
@@ -1749,6 +1752,8 @@ export default function ShoppingPage() {
                 </p>
                 <textarea
                     aria-label="장보기 메모"
+                    enterKeyHint="done"
+                    maxLength={1200}
                     value={memo}
                     onChange={(event) => setMemo(event.target.value)}
                     placeholder="예: 채소는 2~3일치만 먼저 사기, 생선은 냉동으로 구입"

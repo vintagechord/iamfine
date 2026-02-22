@@ -1063,6 +1063,7 @@ export default function Home() {
                                 <input
                                     type="date"
                                     aria-label="방문 일자"
+                                    enterKeyHint="next"
                                     value={visitDateInput}
                                     onChange={(event) => setVisitDateInput(event.target.value)}
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
@@ -1073,6 +1074,7 @@ export default function Home() {
                                 <input
                                     type="time"
                                     aria-label="방문 시간"
+                                    enterKeyHint="next"
                                     value={visitTimeInput}
                                     onChange={(event) => setVisitTimeInput(event.target.value)}
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
@@ -1083,6 +1085,8 @@ export default function Home() {
                                 <input
                                     type="text"
                                     aria-label="병원 이름"
+                                    autoComplete="organization"
+                                    enterKeyHint="next"
                                     value={visitHospitalInput}
                                     onChange={(event) => setVisitHospitalInput(event.target.value)}
                                     placeholder="예: 서울아산병원"
@@ -1094,6 +1098,8 @@ export default function Home() {
                                 <input
                                     type="text"
                                     aria-label="진료 내용"
+                                    enterKeyHint="next"
+                                    maxLength={120}
                                     value={visitTreatmentInput}
                                     onChange={(event) => setVisitTreatmentInput(event.target.value)}
                                     placeholder="예: 항암 부작용 추적 진료"
@@ -1104,6 +1110,8 @@ export default function Home() {
                                 <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">준비사항</span>
                                 <textarea
                                     aria-label="준비사항"
+                                    enterKeyHint="done"
+                                    maxLength={300}
                                     value={visitPreparationInput}
                                     onChange={(event) => setVisitPreparationInput(event.target.value)}
                                     rows={2}

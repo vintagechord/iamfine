@@ -258,6 +258,12 @@ export default function AuthPage() {
                             <input
                                 type="email"
                                 aria-label="이메일"
+                                autoComplete="email"
+                                inputMode="email"
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                spellCheck={false}
+                                enterKeyHint="next"
                                 placeholder="이메일 주소를 입력해 주세요"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
@@ -270,6 +276,8 @@ export default function AuthPage() {
                             <input
                                 type="password"
                                 aria-label="비밀번호"
+                                autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+                                enterKeyHint={authMode === 'signup' ? 'next' : 'done'}
                                 placeholder="비밀번호"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
@@ -283,6 +291,8 @@ export default function AuthPage() {
                                 <input
                                     type="password"
                                     aria-label="비밀번호 확인"
+                                    autoComplete="new-password"
+                                    enterKeyHint="done"
                                     placeholder="비밀번호를 다시 입력해 주세요"
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}

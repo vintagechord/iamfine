@@ -825,6 +825,8 @@ export default function TreatmentPage() {
                         암 종류
                         <input
                             aria-label="암 종류 입력"
+                            enterKeyHint="done"
+                            autoComplete="off"
                             className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
                             value={cancerType}
                             onChange={(event) => setCancerType(event.target.value)}
@@ -989,6 +991,7 @@ export default function TreatmentPage() {
                                                     단계 이름
                                                     <input
                                                         aria-label="수정할 단계 이름"
+                                                        enterKeyHint="next"
                                                         className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
                                                         value={draft.stage_label}
                                                         onChange={(event) =>
@@ -1027,6 +1030,8 @@ export default function TreatmentPage() {
                                                         aria-label="수정할 순서"
                                                         className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
                                                         type="number"
+                                                        inputMode="numeric"
+                                                        enterKeyHint="next"
                                                         step={1}
                                                         min={1}
                                                         value={draft.stage_order}
@@ -1045,6 +1050,7 @@ export default function TreatmentPage() {
                                                         aria-label="수정할 시작일"
                                                         className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                                         type="date"
+                                                        enterKeyHint="next"
                                                         value={draft.started_at}
                                                         onChange={(event) =>
                                                             updateDraft(stage.id, {
@@ -1061,6 +1067,7 @@ export default function TreatmentPage() {
                                                         aria-label="수정할 종료일"
                                                         className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                                         type="date"
+                                                        enterKeyHint="next"
                                                         value={draft.ended_at}
                                                         onChange={(event) =>
                                                             updateDraft(stage.id, {
@@ -1076,6 +1083,8 @@ export default function TreatmentPage() {
                                                 메모
                                                 <textarea
                                                     aria-label="수정할 메모"
+                                                    enterKeyHint="done"
+                                                    maxLength={600}
                                                     className="mt-2 min-h-24 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
                                                     value={draft.notes}
                                                     onChange={(event) =>
@@ -1131,6 +1140,7 @@ export default function TreatmentPage() {
                             단계 이름
                             <input
                                 aria-label="단계 이름 입력"
+                                enterKeyHint="next"
                                 className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
                                 value={addStageLabel}
                                 onChange={(event) => setAddStageLabel(event.target.value)}
@@ -1145,6 +1155,8 @@ export default function TreatmentPage() {
                                 aria-label="순서 입력"
                                 className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
                                 type="number"
+                                inputMode="numeric"
+                                enterKeyHint="next"
                                 step={1}
                                 min={1}
                                 value={addStageOrder}

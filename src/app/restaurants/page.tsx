@@ -594,8 +594,20 @@ export default function RestaurantsPage() {
                 <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                     <input
                         aria-label="지역 입력"
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        enterKeyHint="search"
                         value={regionInput}
                         onChange={(event) => setRegionInput(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key !== 'Enter') {
+                                return;
+                            }
+                            event.preventDefault();
+                            updateContextByRegion();
+                        }}
                         placeholder="예: 서울역, 강남역, 종로구"
                         className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-emerald-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                     />
