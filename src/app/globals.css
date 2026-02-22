@@ -1034,39 +1034,6 @@ body {
   background: #e5e7eb;
 }
 
-button,
-[role="button"] {
-  white-space: nowrap;
-  word-break: keep-all;
-}
-
-@media (max-width: 1024px) {
-  .flex.flex-wrap:has(> button),
-  .inline-flex.flex-wrap:has(> button),
-  .flex.flex-wrap:has(> [role="button"]),
-  .inline-flex.flex-wrap:has(> [role="button"]) {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .flex.flex-wrap:has(> button)::-webkit-scrollbar,
-  .inline-flex.flex-wrap:has(> button)::-webkit-scrollbar,
-  .flex.flex-wrap:has(> [role="button"])::-webkit-scrollbar,
-  .inline-flex.flex-wrap:has(> [role="button"])::-webkit-scrollbar {
-    display: none;
-  }
-
-  .flex.flex-wrap:has(> button) > button,
-  .inline-flex.flex-wrap:has(> button) > button,
-  .flex.flex-wrap:has(> [role="button"]) > [role="button"],
-  .inline-flex.flex-wrap:has(> [role="button"]) > [role="button"] {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-}
-
 @media (max-width: 767px) {
   .galaxySafeActions {
     gap: 6px;

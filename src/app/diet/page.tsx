@@ -4808,9 +4808,9 @@ export default function DietPage() {
                                                                     onClick={() => toggleMealSubstitutePanel(slot, item.id)}
                                                                     className="min-w-0 px-1 text-center leading-snug text-gray-800 underline decoration-dotted underline-offset-4 transition hover:text-gray-900 dark:text-gray-100 dark:hover:text-white"
                                                                 >
-                                                                    <span className="block text-base font-bold">{displayFoodName}</span>
+                                                                    <span className="block break-words text-base font-bold">{displayFoodName}</span>
                                                                     {displayAmount && (
-                                                                        <span className="block text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                                                                        <span className="block break-words text-[11px] font-medium text-gray-600 dark:text-gray-300">
                                                                             {displayAmount}
                                                                         </span>
                                                                     )}
