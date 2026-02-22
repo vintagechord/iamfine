@@ -3867,51 +3867,44 @@ export default function DietPage() {
         <main className="space-y-4">
             {!openRecordView && (
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                        <div className="flex justify-end">
+                            <p className="inline-flex shrink-0 rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-sm font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">
+                                {viewedTodayDateLabel}
+                            </p>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             <button
                                 type="button"
                                 onClick={() => setTodayPlanOffset((prev) => Math.max(-1, prev - 1))}
                                 disabled={todayPlanOffset <= -1}
-                                className="rounded-full border border-gray-300 bg-white p-1.5 text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="shrink-0 rounded-full border border-gray-300 bg-white p-1.5 text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                 aria-label="어제 식단 보기"
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
-                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
+                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
                                 <Utensils className="h-5 w-5" />
                             </span>
-                            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{viewedTodayLabel} 식단</h1>
+                            <h1 className="shrink-0 whitespace-nowrap text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{viewedTodayLabel} 식단</h1>
                             <button
                                 type="button"
                                 onClick={() => setTodayPlanOffset((prev) => Math.min(1, prev + 1))}
                                 disabled={todayPlanOffset >= 1}
-                                className="rounded-full border border-gray-300 bg-white p-1.5 text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="shrink-0 rounded-full border border-gray-300 bg-white p-1.5 text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                 aria-label="내일 식단 보기"
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </button>
-                            {todayPlanOffset !== 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setTodayPlanOffset(0)}
-                                    className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                >
-                                    오늘로
-                                </button>
-                            )}
-                            <p className="ml-auto inline-flex shrink-0 rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-sm font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">
-                                {viewedTodayDateLabel}
-                            </p>
                         </div>
                         {profile?.nickname && (
-                            <p className="mt-1 pl-16 text-sm font-medium text-gray-700 dark:text-gray-200 sm:pl-20">
+                            <p className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
                                 {profile.nickname} 님 맞춤 추천이에요.
                             </p>
                         )}
                     </div>
-                    <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+                    <div className="galaxySafeActions w-full sm:w-auto sm:justify-end">
                         <Link
                             href="/diet/report"
                             className="rounded-lg border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
@@ -4001,8 +3994,8 @@ export default function DietPage() {
                                 key={slot}
                                 className={`mealTileMono ${mealTileAccentClass} h-full`}
                             >
-                                <div className="mealTileMono__header items-start justify-between gap-2">
-                                    <div className="flex items-start gap-2">
+                                <div className="mealTileMono__header flex-wrap items-start gap-2 sm:justify-between">
+                                    <div className="min-w-0 flex items-start gap-2">
                                         <span className="mealTileMono__iconWrap" aria-hidden="true">
                                             <MealIcon className="mealTileMono__icon" />
                                         </span>
@@ -4019,7 +4012,7 @@ export default function DietPage() {
                                         </div>
                                     </div>
                                     {showMedicationArea && (
-                                        <div className="ml-auto flex max-w-[62%] flex-wrap justify-end gap-1.5">
+                                        <div className="flex w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto sm:max-w-[62%] sm:justify-end">
                                             <span className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                                                 식후 복용 약
                                             </span>
@@ -4564,9 +4557,9 @@ export default function DietPage() {
                                     return (
                                         <div
                                             key={medication.id}
-                                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-950/40"
+                                            className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-950/40 sm:flex-row sm:items-center sm:justify-between"
                                         >
-                                            <p className="text-sm text-gray-800 dark:text-gray-100">
+                                            <p className="min-w-0 text-sm text-gray-800 dark:text-gray-100">
                                                 <span className="font-semibold">{medicationTimingLabel(medication.timing)}</span>
                                                 {' · '}
                                                 {medication.category}
@@ -4576,7 +4569,7 @@ export default function DietPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => toggleMedicationTaken(medication.id)}
-                                                className={`rounded-lg px-3 py-1 text-xs font-semibold ${
+                                                className={`shrink-0 self-start rounded-lg px-3 py-1 text-xs font-semibold sm:self-auto ${
                                                     taken
                                                         ? 'bg-emerald-600 text-white'
                                                         : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
@@ -4727,7 +4720,7 @@ export default function DietPage() {
 
                                                             {isSubstitutePanelOpen && (
                                                                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 dark:border-gray-700 dark:bg-gray-950/40">
-                                                                    <div className="flex items-center justify-between gap-2">
+                                                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                                                         <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">
                                                                             대체 가능한 음식
                                                                         </p>

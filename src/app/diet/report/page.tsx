@@ -1214,15 +1214,15 @@ export default function DietReportPage() {
     return (
         <main className="space-y-4">
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">적용 근거 리포트</h1>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">생성 시각: {nowIso}</p>
                     </div>
                     <Link
                         href="/diet"
-                        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                     >
                         오늘 식단으로 돌아가기
                     </Link>

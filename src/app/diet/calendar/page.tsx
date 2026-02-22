@@ -1090,23 +1090,23 @@ export default function DietCalendarPage() {
     return (
         <main className="space-y-4">
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">월간 식단표</h1>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}
                         </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="galaxySafeActions w-full sm:w-auto">
                         <Link
                             href="/diet"
-                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                         >
                             오늘 기록하기
                         </Link>
                         <Link
                             href="/"
-                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                         >
                             홈으로
                         </Link>
@@ -1126,20 +1126,20 @@ export default function DietCalendarPage() {
             </section>
 
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                    <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="min-w-0">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">전체 식단표</h2>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             월 단위로 아침/점심/저녁/간식을 한 번에 확인할 수 있어요.
                         </p>
                     </div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    <label className="w-full text-sm font-medium text-gray-700 dark:text-gray-200 sm:w-auto">
                         월 선택
                         <input
                             type="month"
                             value={monthValue}
                             onChange={(event) => setMonthValue(event.target.value)}
-                            className="mt-1 block rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                            className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 sm:w-auto"
                         />
                     </label>
                 </div>

@@ -1751,15 +1751,15 @@ export default function ShoppingPage() {
                     placeholder="예: 채소는 2~3일치만 먼저 사기, 생선은 냉동으로 구입"
                     className="mt-3 min-h-28 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                 />
-                <div className="mt-3 flex items-center justify-between gap-2">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="min-w-0 text-xs text-gray-500 dark:text-gray-400">
                         {memoSavedAt || '작성 후 저장 버튼을 눌러 보관하세요.'}
                     </p>
                     <button
                         type="button"
                         onClick={saveMemo}
                         disabled={memoSaving}
-                        className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                        className="self-start rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 sm:self-auto"
                     >
                         {memoSaving ? '저장 중...' : '메모 저장'}
                     </button>
@@ -1767,12 +1767,12 @@ export default function ShoppingPage() {
             </section>
 
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">기간 식단표 요약</h2>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="min-w-0 text-lg font-semibold text-gray-900 dark:text-gray-100">기간 식단표 요약</h2>
                     <button
                         type="button"
                         onClick={() => setShowPlanSummary((prev) => !prev)}
-                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="shrink-0 self-start whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:self-auto"
                     >
                         {showPlanSummary ? '닫기' : '펼치기'}
                     </button>

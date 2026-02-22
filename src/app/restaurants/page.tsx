@@ -509,8 +509,8 @@ export default function RestaurantsPage() {
     return (
         <main className="mx-auto max-w-3xl space-y-4 py-6">
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex items-start justify-between gap-3">
-                    <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                         <div className="flex items-center gap-2">
                             <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
                                 <MapPinned className="h-5 w-5" />
@@ -523,7 +523,7 @@ export default function RestaurantsPage() {
                     </div>
                     <Link
                         href="/"
-                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="shrink-0 self-start whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                     >
                         홈으로
                     </Link>
@@ -584,9 +584,9 @@ export default function RestaurantsPage() {
             </section>
 
             <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">위치 기반 추천 식당</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">위치 기반 추천 식당</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
                         {resolvedRegion ? `기준 지역: ${resolvedRegion}` : '기준 지역을 찾는 중'}
                         {generatedAtLabel ? ` · ${generatedAtLabel} 업데이트` : ''}
                     </p>
@@ -645,8 +645,8 @@ export default function RestaurantsPage() {
                                 className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40"
                             >
                                 <div className="flex items-start justify-between gap-2">
-                                    <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{item.name}</h3>
-                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100">
+                                    <h3 className="min-w-0 truncate text-base font-semibold text-gray-900 dark:text-gray-100">{item.name}</h3>
+                                    <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100">
                                         근거 {item.sourceCount}건
                                     </span>
                                 </div>
@@ -710,12 +710,12 @@ export default function RestaurantsPage() {
                                 className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40"
                             >
                                 <div className="flex items-center justify-between gap-2">
-                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{provider.name}</p>
+                                    <p className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{provider.name}</p>
                                     <a
                                         href={provider.homepage}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                        className="shrink-0 whitespace-nowrap rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                     >
                                         플랫폼 열기
                                     </a>

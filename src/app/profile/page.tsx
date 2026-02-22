@@ -1728,8 +1728,8 @@ export default function ProfilePage() {
                                     key={condition.id}
                                     className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40"
                                 >
-                                    <div className="flex flex-wrap items-start justify-between gap-2">
-                                        <div>
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="min-w-0">
                                             <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{condition.name}</p>
                                             <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                                                 코드: {condition.code} · 분류: {condition.category}
@@ -1741,7 +1741,7 @@ export default function ProfilePage() {
                                         <button
                                             type="button"
                                             onClick={() => removeAdditionalConditionDraft(condition.id)}
-                                            className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-900/50"
+                                            className="self-start rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-900/50 sm:self-auto"
                                         >
                                             회복/삭제
                                         </button>
@@ -1811,13 +1811,13 @@ export default function ProfilePage() {
                                         key={stage.id}
                                         className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40"
                                     >
-                                        <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <p className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
                                                 {STAGE_TYPE_LABELS[stage.stage_type]} · {stage.stage_label?.trim() || '이름 없음'}
                                             </p>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                                                 <span
-                                                    className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                                                    className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold ${
                                                         stage.status === 'active'
                                                             ? 'border-blue-600 bg-blue-600 text-white'
                                                             : stage.status === 'completed'
@@ -1827,7 +1827,7 @@ export default function ProfilePage() {
                                                 >
                                                     {STAGE_STATUS_LABELS[stage.status]}
                                                 </span>
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">순서 {stage.stage_order}</span>
+                                                <span className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">순서 {stage.stage_order}</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => void deleteTreatmentStage(stage.id)}

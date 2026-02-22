@@ -950,9 +950,9 @@ export default function Home() {
 
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">맞춤 알림</h2>
-                <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm text-gray-600 dark:text-gray-300">{customAlertSummary}</p>
-                    <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                <div className="mt-1 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="min-w-0 text-sm text-gray-600 dark:text-gray-300">{customAlertSummary}</p>
+                    <span className="shrink-0 whitespace-nowrap rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
                         {customAlertUpdatedAt ? formatAlertUpdatedAgo(customAlertUpdatedAt) : '업데이트 시간 미확인'}
                     </span>
                 </div>
@@ -997,7 +997,7 @@ export default function Home() {
                                 </a>
                             ))}
                         </div>
-                        <div className="flex items-center justify-between border-t border-gray-200 px-3 py-1 dark:border-gray-800">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-3 py-1 dark:border-gray-800">
                             <button
                                 type="button"
                                 onClick={() =>
@@ -1152,7 +1152,7 @@ export default function Home() {
                                 <div className="max-h-[40vh] divide-y divide-gray-200 overflow-y-auto dark:divide-gray-800">
                                     {visitSchedules.map((item) => (
                                         <article key={item.id} className="px-3 py-3">
-                                            <div className="flex items-start justify-between gap-3">
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                                                 <div className="min-w-0">
                                                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                                                         {formatVisitScheduleDate(item.visitDate)} ·{' '}
@@ -1170,7 +1170,7 @@ export default function Home() {
                                                     type="button"
                                                     onClick={() => void handleVisitScheduleDelete(item.id)}
                                                     disabled={visitScheduleSaving}
-                                                    className="shrink-0 rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                                                    className="shrink-0 self-start rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 sm:self-auto"
                                                 >
                                                     삭제
                                                 </button>
