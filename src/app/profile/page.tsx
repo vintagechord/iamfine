@@ -1444,6 +1444,7 @@ export default function ProfilePage() {
                         </label>
                         <input
                             id="nickname"
+                            aria-label="닉네임"
                             value={nickname}
                             onChange={(event) => {
                                 setNickname(event.target.value);
@@ -1486,6 +1487,7 @@ export default function ProfilePage() {
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
                                 출생연도
                                 <input
+                                    aria-label="출생연도"
                                     value={birthYear}
                                     onChange={(event) => setBirthYear(event.target.value)}
                                     placeholder="예: 1988"
@@ -1495,6 +1497,7 @@ export default function ProfilePage() {
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
                                 성별
                                 <select
+                                    aria-label="성별"
                                     value={sex}
                                     onChange={(event) => setSex(event.target.value as ProfileRow['sex'])}
                                     className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
@@ -1508,6 +1511,7 @@ export default function ProfilePage() {
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
                                 키(cm)
                                 <input
+                                    aria-label="키"
                                     value={heightCm}
                                     onChange={(event) => setHeightCm(event.target.value)}
                                     placeholder="예: 165"
@@ -1517,6 +1521,7 @@ export default function ProfilePage() {
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
                                 몸무게(kg)
                                 <input
+                                    aria-label="몸무게"
                                     value={weightKg}
                                     onChange={(event) => setWeightKg(event.target.value)}
                                     placeholder="예: 58"
@@ -1570,6 +1575,7 @@ export default function ProfilePage() {
                         복용 약(선택)
                         <div className="mt-1 grid gap-2 sm:grid-cols-4">
                             <input
+                                aria-label="복용 약 이름"
                                 value={medicationNameDraft}
                                 onChange={(event) => setMedicationNameDraft(event.target.value)}
                                 onCompositionStart={() => setIsMedicationComposing(true)}
@@ -1669,6 +1675,7 @@ export default function ProfilePage() {
                         질병명 입력/선택
                         <div className="mt-1 flex flex-col gap-2 sm:flex-row">
                             <input
+                                aria-label="추가 질병명"
                                 value={additionalConditionDraft}
                                 onChange={(event) => setAdditionalConditionDraft(event.target.value)}
                                 onCompositionStart={() => setIsConditionComposing(true)}
@@ -1773,6 +1780,7 @@ export default function ProfilePage() {
                         <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
                             암 종류(필수)
                             <input
+                                aria-label="암 종류"
                                 value={cancerType}
                                 onChange={(event) => setCancerType(event.target.value)}
                                 placeholder="예: 유방암"
@@ -1782,6 +1790,7 @@ export default function ProfilePage() {
                         <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
                             기수(선택)
                             <input
+                                aria-label="기수"
                                 value={cancerStage}
                                 onChange={(event) => setCancerStage(event.target.value)}
                                 placeholder="예: 2기"
@@ -1865,6 +1874,7 @@ export default function ProfilePage() {
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
                                 단계 이름
                                 <input
+                                    aria-label="단계 이름"
                                     value={addStageLabel}
                                     onChange={(event) => setAddStageLabel(event.target.value)}
                                     placeholder="예: 항암 1차"
@@ -1876,6 +1886,7 @@ export default function ProfilePage() {
                                 순서
                                 <input
                                     type="number"
+                                    aria-label="단계 순서"
                                     step={1}
                                     min={1}
                                     value={addStageOrder}

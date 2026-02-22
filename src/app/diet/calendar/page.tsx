@@ -1137,6 +1137,7 @@ export default function DietCalendarPage() {
                         월 선택
                         <input
                             type="month"
+                            aria-label="월 선택"
                             value={monthValue}
                             onChange={(event) => setMonthValue(event.target.value)}
                             className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 sm:w-auto"

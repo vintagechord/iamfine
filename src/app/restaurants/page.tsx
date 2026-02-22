@@ -593,6 +593,7 @@ export default function RestaurantsPage() {
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
                     <input
+                        aria-label="지역 입력"
                         value={regionInput}
                         onChange={(event) => setRegionInput(event.target.value)}
                         placeholder="예: 서울역, 강남역, 종로구"

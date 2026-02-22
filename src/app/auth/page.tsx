@@ -215,6 +215,7 @@ export default function AuthPage() {
                         닉네임: <span className="font-semibold">{nickname || '닉네임이 아직 없어요.'}</span>
                     </p>
                     <button
+                        type="button"
                         onClick={signOut}
                         disabled={loading || !hasSupabaseEnv}
                         className="mt-4 rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
@@ -256,6 +257,7 @@ export default function AuthPage() {
                             이메일
                             <input
                                 type="email"
+                                aria-label="이메일"
                                 placeholder="이메일 주소를 입력해 주세요"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
@@ -267,6 +269,7 @@ export default function AuthPage() {
                             비밀번호
                             <input
                                 type="password"
+                                aria-label="비밀번호"
                                 placeholder="비밀번호"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
@@ -279,6 +282,7 @@ export default function AuthPage() {
                                 비밀번호 확인
                                 <input
                                     type="password"
+                                    aria-label="비밀번호 확인"
                                     placeholder="비밀번호를 다시 입력해 주세요"
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}

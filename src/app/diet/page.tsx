@@ -4763,6 +4763,7 @@ export default function DietPage() {
 
                                             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                                                 <input
+                                                    aria-label={`${mealTypeLabel(slot)} 먹은 음식 추가`}
                                                     value={newItemBySlot[slot]}
                                                     onChange={(event) =>
                                                         setNewItemBySlot((prev) => ({
