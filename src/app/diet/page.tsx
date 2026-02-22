@@ -3874,7 +3874,7 @@ export default function DietPage() {
                                 {viewedTodayDateLabel}
                             </p>
                         </div>
-                        <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
                             <button
                                 type="button"
                                 onClick={() => setTodayPlanOffset((prev) => Math.max(-1, prev - 1))}
@@ -3887,7 +3887,7 @@ export default function DietPage() {
                             <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
                                 <Utensils className="h-5 w-5" />
                             </span>
-                            <h1 className="shrink-0 whitespace-nowrap text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{viewedTodayLabel} 식단</h1>
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{viewedTodayLabel} 식단</h1>
                             <button
                                 type="button"
                                 onClick={() => setTodayPlanOffset((prev) => Math.min(1, prev + 1))}
@@ -4146,11 +4146,11 @@ export default function DietPage() {
 
             {openRecipeContent && openRecipeSlot && (
                 <div
-                    className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-4"
+                    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
                     onClick={() => setOpenRecipeSlot(null)}
                 >
                     <section
-                        className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[70dvh] overflow-y-auto overscroll-contain sm:max-h-[calc(100dvh-1.5rem)] dark:border-gray-800 dark:bg-gray-900"
+                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="galaxySafeHeader">
@@ -4179,11 +4179,11 @@ export default function DietPage() {
 
             {openPortionGuideContent && (
                 <div
-                    className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-4"
+                    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
                     onClick={() => setOpenPortionGuideContent(null)}
                 >
                     <section
-                        className="mx-auto my-3 w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[70dvh] overflow-y-auto overscroll-contain sm:max-h-[calc(100dvh-1.5rem)] dark:border-gray-800 dark:bg-gray-900"
+                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="galaxySafeHeader">
@@ -4210,9 +4210,21 @@ export default function DietPage() {
                                             - <span className="font-semibold">{item.name}</span>: {item.amount}
                                         </p>
                                         {substitute && substitute.options.length > 0 && (
-                                            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                                                대체 가능한 음식({substitute.hint}): {substitute.options.join(', ')}
-                                            </p>
+                                            <div className="mt-1.5 space-y-1">
+                                                <p className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                                                    대체 가능한 음식({substitute.hint})
+                                                </p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {substitute.options.map((option) => (
+                                                        <span
+                                                            key={`portion-modal-substitute-${item.name}-${index}-${option}`}
+                                                            className="max-w-full break-words rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                                        >
+                                                            {option}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                 );
@@ -4291,7 +4303,7 @@ export default function DietPage() {
                                 </p>
                             </div>
 
-                            <div className="mt-3 flex flex-nowrap gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <div className="mt-3 flex flex-wrap gap-2">
                                 {PREFERENCE_OPTIONS.map((option) => {
                                     const selected = draftTodayPreferences.includes(option.key);
                                     const recommended = recentRecordRecommendations.includes(option.key);
@@ -4300,7 +4312,7 @@ export default function DietPage() {
                                             key={option.key}
                                             type="button"
                                             onClick={() => toggleDraftTodayPreference(option.key)}
-                                            className={`shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                                                 selected
                                                     ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500'
                                                     : recommended
@@ -4323,25 +4335,25 @@ export default function DietPage() {
                                 )}
                             </div>
 
-                            <div className="mt-4 flex flex-nowrap gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <div className="mt-4 flex flex-wrap gap-2">
                                 <button
                                     type="button"
                                     onClick={applyRecentRecordRecommendation}
-                                    className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
                                     추천 적용
                                 </button>
                                 <button
                                     type="button"
                                     onClick={requestTodayProposal}
-                                    className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
                                     수정 제안 요청
                                 </button>
                                 <button
                                     type="button"
                                     onClick={confirmTodayPlanChange}
-                                    className="shrink-0 whitespace-nowrap rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
                                 >
                                     오늘 식단 변경 확정
                                 </button>
@@ -4458,14 +4470,14 @@ export default function DietPage() {
 
                     {showRecordPlanModal && (
                         <div
-                            className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-4"
+                            className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
                             onClick={() => {
                                 setShowRecordPlanModal(false);
                                 setOpenRecordPortionSlot(null);
                             }}
                         >
                             <section
-                                className="mx-auto my-3 w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[70dvh] overflow-y-auto overscroll-contain sm:max-h-[calc(100dvh-1.5rem)] dark:border-gray-800 dark:bg-gray-900"
+                                className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                                 onClick={(event) => event.stopPropagation()}
                             >
                                 <div className="galaxySafeHeader">
@@ -4744,7 +4756,7 @@ export default function DietPage() {
                                                                                             candidate
                                                                                         )
                                                                                     }
-                                                                                    className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                                                    className="max-w-full break-words rounded-full border border-gray-300 bg-white px-2.5 py-1 text-left text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                                                                 >
                                                                                     {candidate}
                                                                                 </button>
@@ -4812,7 +4824,7 @@ export default function DietPage() {
                                                                     key={`${slot}-${candidate}`}
                                                                     type="button"
                                                                     onClick={() => addMealItem(slot, candidate, 'chip')}
-                                                                    className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                                    className="max-w-full break-words rounded-full border border-gray-300 bg-white px-2.5 py-1 text-left text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                                                 >
                                                                     {candidate}
                                                                 </button>

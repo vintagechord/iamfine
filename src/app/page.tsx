@@ -1028,14 +1028,14 @@ export default function Home() {
 
             {showVisitScheduleModal && (
                 <div
-                    className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-4"
+                    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
                     onClick={() => {
                         setShowVisitScheduleModal(false);
                         setVisitFormMessage('');
                     }}
                 >
                     <section
-                        className="mx-auto my-3 w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl sm:my-6 max-h-[70dvh] overflow-y-auto overscroll-contain sm:max-h-[calc(100dvh-1.5rem)] dark:border-gray-800 dark:bg-gray-900"
+                        className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <div className="galaxySafeHeader">
@@ -1119,11 +1119,11 @@ export default function Home() {
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-gray-900 focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200 dark:focus:ring-gray-700"
                                 />
                             </label>
-                            <div className="sm:col-span-2 flex flex-nowrap items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                            <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
                                 <button
                                     type="submit"
                                     disabled={visitScheduleSaving}
-                                    className="shrink-0 whitespace-nowrap rounded-lg primarySaveButton px-3 py-2 text-sm font-semibold"
+                                    className="rounded-lg primarySaveButton px-3 py-2 text-sm font-semibold"
                                 >
                                     {visitScheduleSaving ? '저장 중...' : '일정 저장'}
                                 </button>
@@ -1134,7 +1134,7 @@ export default function Home() {
                                         setVisitFormMessage('');
                                     }}
                                     disabled={visitScheduleSaving}
-                                    className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
                                     입력 초기화
                                 </button>
