@@ -3197,25 +3197,13 @@ export default function DietPage() {
     //     [expectedPercentile]
     // );
 
-    const recentDateKeys = useMemo(() => {
-        const base = new Date(todayKey);
-        const keys: string[] = [];
-        for (let offset = 0; offset <= 6; offset += 1) {
-            const date = new Date(base);
-            date.setDate(base.getDate() - offset);
-            const key = formatDateKey(date);
-            if (key >= accountStartDateKey) {
-                keys.push(key);
-            }
-        }
-        return keys;
-    }, [todayKey, accountStartDateKey]);
-
     const recordDateKeys = useMemo(() => {
         const yesterdayKey = offsetDateKey(todayKey, -1);
-        const keySet = new Set<string>(recentDateKeys);
+        const keySet = new Set<string>();
         keySet.add(todayKey);
-        keySet.add(yesterdayKey);
+        if (yesterdayKey >= accountStartDateKey) {
+            keySet.add(yesterdayKey);
+        }
 
         if (selectedDate <= todayKey) {
             keySet.add(selectedDate);
@@ -3231,7 +3219,7 @@ export default function DietPage() {
         }
 
         return sorted;
-    }, [recentDateKeys, selectedDate, todayKey]);
+    }, [accountStartDateKey, selectedDate, todayKey]);
 
     const syncDailyLogsToLocalFallback = useCallback(async (nextLogs: Record<string, DayLog>) => {
         if (!userId) {
