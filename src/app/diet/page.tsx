@@ -4214,11 +4214,11 @@ export default function DietPage() {
                                                 <p className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">
                                                     대체 가능한 음식({substitute.hint})
                                                 </p>
-                                                <div className="flex flex-wrap gap-1.5">
+                                                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                                                     {substitute.options.map((option) => (
                                                         <span
                                                             key={`portion-modal-substitute-${item.name}-${index}-${option}`}
-                                                            className="max-w-full break-words rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                                            className="w-full min-w-0 break-all whitespace-normal rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-semibold leading-4 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                                         >
                                                             {option}
                                                         </span>
@@ -4743,7 +4743,7 @@ export default function DietPage() {
                                                                     </div>
 
                                                                     {substituteCandidates && substituteCandidates.options.length > 0 ? (
-                                                                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                                                        <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                                                                             {substituteCandidates.options.map((candidate) => (
                                                                                 <button
                                                                                     key={`${item.id}-${candidate}`}
@@ -4756,7 +4756,7 @@ export default function DietPage() {
                                                                                             candidate
                                                                                         )
                                                                                     }
-                                                                                    className="max-w-full break-words rounded-full border border-gray-300 bg-white px-2.5 py-1 text-left text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                                                    className="w-full min-w-0 break-all whitespace-normal rounded-full border border-gray-300 bg-white px-2.5 py-1 text-left text-[11px] font-semibold leading-4 text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                                                                 >
                                                                                     {candidate}
                                                                                 </button>
@@ -4818,13 +4818,13 @@ export default function DietPage() {
                                                         유사 음식 선택
                                                     </p>
                                                     {manualMatchCandidatesBySlot[slot].length > 0 ? (
-                                                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                                        <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                                                             {manualMatchCandidatesBySlot[slot].map((candidate) => (
                                                                 <button
                                                                     key={`${slot}-${candidate}`}
                                                                     type="button"
                                                                     onClick={() => addMealItem(slot, candidate, 'chip')}
-                                                                    className="max-w-full break-words rounded-full border border-gray-300 bg-white px-2.5 py-1 text-left text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                                    className="w-full min-w-0 break-all whitespace-normal rounded-full border border-gray-300 bg-white px-2.5 py-1 text-left text-[11px] font-semibold leading-4 text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                                                 >
                                                                     {candidate}
                                                                 </button>
