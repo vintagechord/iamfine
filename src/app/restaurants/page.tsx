@@ -558,7 +558,7 @@ export default function RestaurantsPage() {
                 </div>
             )}
 
-            <section className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-100 via-lime-50 to-teal-100 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+            <section className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-100 via-lime-50 to-teal-100 p-4 shadow-sm dark:border-emerald-800 dark:bg-gradient-to-br dark:from-emerald-950 dark:via-teal-950 dark:to-slate-950">
                 <div className="flex items-center gap-2">
                     <MapPinned className="h-4 w-4 text-emerald-800 dark:text-emerald-200" />
                     <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">추천 검색 카테고리</p>
@@ -573,8 +573,8 @@ export default function RestaurantsPage() {
                                 onClick={() => setSelectedCategory(key)}
                                 className={`rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${
                                     selectedState
-                                        ? 'border-emerald-700 bg-emerald-700 text-white shadow-sm'
-                                        : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40'
+                                        ? 'border-emerald-700 bg-emerald-700 text-white shadow-sm dark:border-emerald-300 dark:bg-emerald-300 dark:text-emerald-950'
+                                        : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900'
                                 }`}
                             >
                                 {option.label}
@@ -582,7 +582,7 @@ export default function RestaurantsPage() {
                         );
                     })}
                 </div>
-                <p className="mt-3 text-xs text-emerald-900 dark:text-emerald-200">{selected.hint}</p>
+                <p className="mt-3 text-xs text-emerald-900 dark:text-emerald-100">{selected.hint}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                     {quickKeywords.map((keyword) => (
                         <button
@@ -591,8 +591,8 @@ export default function RestaurantsPage() {
                             onClick={() => setSelectedKeyword((prev) => (prev === keyword ? '' : keyword))}
                             className={`inline-flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition ${
                                 selectedKeyword === keyword
-                                    ? 'border-teal-700 bg-teal-700 text-white shadow-sm'
-                                    : 'border-emerald-400 bg-white text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40'
+                                    ? 'border-teal-700 bg-teal-700 text-white shadow-sm dark:border-teal-300 dark:bg-teal-300 dark:text-teal-950'
+                                    : 'border-emerald-400 bg-white text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900'
                             }`}
                             aria-pressed={selectedKeyword === keyword}
                         >
@@ -606,7 +606,7 @@ export default function RestaurantsPage() {
                         적용 중 키워드: {selectedKeyword}
                     </p>
                 )}
-                <p className="mt-2 text-xs text-emerald-900 dark:text-emerald-200">
+                <p className="mt-2 text-xs text-emerald-900 dark:text-emerald-100">
                     선택한 카테고리 키워드 + 위치(또는 지역명)로 웹 문서를 수집하고, 언급 식당을 점수화해 추천해요.
                 </p>
             </section>
