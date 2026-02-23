@@ -4838,7 +4838,7 @@ export default function DietPage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setMealSlotStatus(slot, 'eaten')}
-                                                    className="rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                                                    className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700"
                                                 >
                                                     전체 먹음
                                                 </button>
