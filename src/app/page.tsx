@@ -444,6 +444,7 @@ export default function Home() {
     const [visitSchedules, setVisitSchedules] = useState<VisitScheduleItem[]>([]);
     const [showVisitScheduleModal, setShowVisitScheduleModal] = useState(false);
     const [showVisitScheduleForm, setShowVisitScheduleForm] = useState(false);
+    const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
     const [visitDateInput, setVisitDateInput] = useState('');
     const [visitTimeInput, setVisitTimeInput] = useState('');
     const [visitHospitalInput, setVisitHospitalInput] = useState('');
@@ -785,6 +786,23 @@ export default function Home() {
         setVisitHospitalInput('');
         setVisitTreatmentInput('');
         setVisitPreparationInput('');
+        setEditingVisitId(null);
+    };
+
+    const handleVisitScheduleEdit = (item: VisitScheduleItem) => {
+        if (visitScheduleSaving) {
+            return;
+        }
+
+        setEditingVisitId(item.id);
+        setVisitDateInput(item.visitDate);
+        setVisitTimeInput(item.visitTime);
+        setVisitHospitalInput(item.hospitalName);
+        setVisitTreatmentInput(item.treatmentNote);
+        setVisitPreparationInput(item.preparationNote);
+        setShowVisitScheduleForm(true);
+        setVisitFormIsError(false);
+        setVisitFormMessage('수정할 내용을 변경한 뒤 저장해 주세요.');
     };
 
     const handleVisitScheduleSave = async (event: FormEvent<HTMLFormElement>) => {
@@ -801,25 +819,45 @@ export default function Home() {
             return;
         }
 
-        const nextItem: VisitScheduleItem = {
-            id: `visit-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-            visitDate: visitDateInput,
-            visitTime: visitTimeInput,
-            hospitalName: visitHospitalInput.trim(),
-            treatmentNote: trimmedTreatment,
-            preparationNote: trimmedPreparation,
-            createdAt: new Date().toISOString(),
-        };
-
         setVisitScheduleSaving(true);
-        const synced = await persistVisitSchedules((current) => [...current, nextItem]);
+        const synced = editingVisitId
+            ? await persistVisitSchedules((current) =>
+                  current.map((item) =>
+                      item.id === editingVisitId
+                          ? {
+                                ...item,
+                                visitDate: visitDateInput,
+                                visitTime: visitTimeInput,
+                                hospitalName: visitHospitalInput.trim(),
+                                treatmentNote: trimmedTreatment,
+                                preparationNote: trimmedPreparation,
+                            }
+                          : item
+                  )
+              )
+            : await persistVisitSchedules((current) => [
+                  ...current,
+                  {
+                      id: `visit-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+                      visitDate: visitDateInput,
+                      visitTime: visitTimeInput,
+                      hospitalName: visitHospitalInput.trim(),
+                      treatmentNote: trimmedTreatment,
+                      preparationNote: trimmedPreparation,
+                      createdAt: new Date().toISOString(),
+                  },
+              ]);
         setVisitScheduleSaving(false);
         if (synced) {
             setVisitFormIsError(false);
-            setVisitFormMessage('진료 일정이 저장되었어요.');
+            setVisitFormMessage(editingVisitId ? '진료 일정이 수정되었어요.' : '진료 일정이 저장되었어요.');
         } else {
             setVisitFormIsError(true);
-            setVisitFormMessage('기기에는 저장됐지만 계정 동기화에 실패했어요. 잠시 후 다시 시도해 주세요.');
+            setVisitFormMessage(
+                editingVisitId
+                    ? '기기에는 수정됐지만 계정 동기화에 실패했어요. 잠시 후 다시 시도해 주세요.'
+                    : '기기에는 저장됐지만 계정 동기화에 실패했어요. 잠시 후 다시 시도해 주세요.'
+            );
         }
         resetVisitForm();
     };
@@ -832,6 +870,10 @@ export default function Home() {
         setVisitScheduleSaving(true);
         const synced = await persistVisitSchedules((current) => current.filter((item) => item.id !== targetId));
         setVisitScheduleSaving(false);
+        if (editingVisitId === targetId) {
+            resetVisitForm();
+            setShowVisitScheduleForm(false);
+        }
         if (synced) {
             setVisitFormIsError(false);
             setVisitFormMessage('선택한 일정을 삭제했어요.');
@@ -910,6 +952,7 @@ export default function Home() {
                         onClick={() => {
                             setShowVisitScheduleModal(true);
                             setShowVisitScheduleForm(false);
+                            resetVisitForm();
                             setVisitFormMessage('');
                             setVisitFormIsError(false);
                         }}
@@ -1037,6 +1080,8 @@ export default function Home() {
                     className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
                     onClick={() => {
                         setShowVisitScheduleModal(false);
+                        setShowVisitScheduleForm(false);
+                        resetVisitForm();
                         setVisitFormMessage('');
                     }}
                 >
@@ -1052,6 +1097,8 @@ export default function Home() {
                                 type="button"
                                 onClick={() => {
                                     setShowVisitScheduleModal(false);
+                                    setShowVisitScheduleForm(false);
+                                    resetVisitForm();
                                     setVisitFormMessage('');
                                 }}
                                 className="galaxySafeHeader__action popupCloseButton"
@@ -1087,14 +1134,24 @@ export default function Home() {
                                                         준비사항: {item.preparationNote || '없음'}
                                                     </p>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleVisitScheduleDelete(item.id)}
-                                                    disabled={visitScheduleSaving}
-                                                    className="shrink-0 self-start rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 sm:self-auto"
-                                                >
-                                                    삭제
-                                                </button>
+                                                <div className="flex shrink-0 self-start items-center gap-1 sm:self-auto">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleVisitScheduleEdit(item)}
+                                                        disabled={visitScheduleSaving}
+                                                        className="rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-900/40"
+                                                    >
+                                                        수정
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleVisitScheduleDelete(item.id)}
+                                                        disabled={visitScheduleSaving}
+                                                        className="rounded border border-gray-300 px-2 py-1 text-xs font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+                                                    >
+                                                        삭제
+                                                    </button>
+                                                </div>
                                             </div>
                                         </article>
                                     ))}
@@ -1106,13 +1163,18 @@ export default function Home() {
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setShowVisitScheduleForm((prev) => !prev);
+                                    if (showVisitScheduleForm) {
+                                        setShowVisitScheduleForm(false);
+                                        resetVisitForm();
+                                    } else {
+                                        setShowVisitScheduleForm(true);
+                                    }
                                     setVisitFormMessage('');
                                     setVisitFormIsError(false);
                                 }}
                                 className="inline-flex items-center justify-center rounded-lg border border-sky-500 bg-sky-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-600 dark:border-sky-400 dark:bg-sky-500 dark:text-gray-900 dark:hover:bg-sky-400"
                             >
-                                {showVisitScheduleForm ? '입력 닫기' : '병원 일정 추가'}
+                                {showVisitScheduleForm ? (editingVisitId ? '수정 입력 닫기' : '입력 닫기') : '병원 일정 추가'}
                             </button>
                             {visitFormMessage && (
                                 <p
@@ -1195,7 +1257,7 @@ export default function Home() {
                                             disabled={visitScheduleSaving}
                                             className="rounded-lg primarySaveButton px-3 py-2 text-sm font-semibold"
                                         >
-                                            {visitScheduleSaving ? '저장 중...' : '일정 저장'}
+                                            {visitScheduleSaving ? '저장 중...' : editingVisitId ? '수정 저장' : '일정 저장'}
                                         </button>
                                         <button
                                             type="button"
@@ -1208,6 +1270,20 @@ export default function Home() {
                                         >
                                             입력 초기화
                                         </button>
+                                        {editingVisitId && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    resetVisitForm();
+                                                    setVisitFormMessage('');
+                                                    setVisitFormIsError(false);
+                                                }}
+                                                disabled={visitScheduleSaving}
+                                                className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-900/40"
+                                            >
+                                                수정 취소
+                                            </button>
+                                        )}
                                     </div>
                                 </form>
                             </div>
