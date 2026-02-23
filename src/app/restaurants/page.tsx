@@ -558,9 +558,9 @@ export default function RestaurantsPage() {
                 </div>
             )}
 
-            <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+            <section className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-100 via-lime-50 to-teal-100 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
                 <div className="flex items-center gap-2">
-                    <MapPinned className="h-4 w-4 text-emerald-700 dark:text-emerald-200" />
+                    <MapPinned className="h-4 w-4 text-emerald-800 dark:text-emerald-200" />
                     <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">추천 검색 카테고리</p>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -573,8 +573,8 @@ export default function RestaurantsPage() {
                                 onClick={() => setSelectedCategory(key)}
                                 className={`rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${
                                     selectedState
-                                        ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm'
-                                        : 'border-emerald-200 bg-white text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40'
+                                        ? 'border-emerald-700 bg-emerald-700 text-white shadow-sm'
+                                        : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40'
                                 }`}
                             >
                                 {option.label}
@@ -582,7 +582,7 @@ export default function RestaurantsPage() {
                         );
                     })}
                 </div>
-                <p className="mt-3 text-xs text-emerald-800 dark:text-emerald-200">{selected.hint}</p>
+                <p className="mt-3 text-xs text-emerald-900 dark:text-emerald-200">{selected.hint}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                     {quickKeywords.map((keyword) => (
                         <button
@@ -591,8 +591,8 @@ export default function RestaurantsPage() {
                             onClick={() => setSelectedKeyword((prev) => (prev === keyword ? '' : keyword))}
                             className={`inline-flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition ${
                                 selectedKeyword === keyword
-                                    ? 'border-emerald-500 bg-emerald-600 text-white shadow-sm'
-                                    : 'border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40'
+                                    ? 'border-teal-700 bg-teal-700 text-white shadow-sm'
+                                    : 'border-emerald-400 bg-white text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-100 dark:hover:bg-emerald-900/40'
                             }`}
                             aria-pressed={selectedKeyword === keyword}
                         >
@@ -606,7 +606,7 @@ export default function RestaurantsPage() {
                         적용 중 키워드: {selectedKeyword}
                     </p>
                 )}
-                <p className="mt-2 text-xs text-emerald-800 dark:text-emerald-200">
+                <p className="mt-2 text-xs text-emerald-900 dark:text-emerald-200">
                     선택한 카테고리 키워드 + 위치(또는 지역명)로 웹 문서를 수집하고, 언급 식당을 점수화해 추천해요.
                 </p>
             </section>
@@ -637,7 +637,7 @@ export default function RestaurantsPage() {
                             updateContextByRegion();
                         }}
                         placeholder="예: 서울역, 강남역, 종로구"
-                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-emerald-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-emerald-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                     />
                     <button
                         type="button"
@@ -650,7 +650,7 @@ export default function RestaurantsPage() {
                         type="button"
                         onClick={updateContextByLocation}
                         disabled={locationLoading}
-                        className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
+                        className="rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
                     >
                         {locationLoading ? '위치 확인 중…' : '내 위치 사용'}
                     </button>
@@ -687,7 +687,7 @@ export default function RestaurantsPage() {
                             >
                                 <div className="flex items-start justify-between gap-2">
                                     <h3 className="min-w-0 truncate text-base font-semibold text-gray-900 dark:text-gray-100">{item.name}</h3>
-                                    <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-100">
+                                    <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white dark:bg-emerald-900/40 dark:text-emerald-100">
                                         근거 {item.sourceCount}건
                                     </span>
                                 </div>
@@ -799,7 +799,7 @@ export default function RestaurantsPage() {
                                 deliveryRestaurantNames.map((name) => (
                                     <span
                                         key={`delivery-restaurant-${name}`}
-                                        className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-100"
+                                        className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-100"
                                     >
                                         {name}
                                     </span>

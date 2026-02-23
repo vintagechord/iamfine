@@ -1222,7 +1222,7 @@ export default function DietReportPage() {
                     </div>
                     <Link
                         href="/diet"
-                        className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="shrink-0 whitespace-nowrap rounded-lg border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 dark:border-sky-500 dark:bg-sky-500 dark:text-gray-900 dark:hover:bg-sky-400"
                     >
                         오늘 식단으로 돌아가기
                     </Link>

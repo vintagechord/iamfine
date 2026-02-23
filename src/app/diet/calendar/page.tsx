@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { CircleHelp } from 'lucide-react';
 import {
     applySevenDayNoRepeatRule,
     formatDateLabel,
@@ -880,6 +881,7 @@ export default function DietCalendarPage() {
     const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
     const [logs, setLogs] = useState<Record<string, DayLog>>({});
     const [monthValue, setMonthValue] = useState(toMonthInputValue(now.getFullYear(), now.getMonth()));
+    const [showCalendarInfoModal, setShowCalendarInfoModal] = useState(false);
 
     const { year, month } = useMemo(() => parseMonthKey(monthValue), [monthValue]);
     const userDietContext = useMemo<UserDietContext>(() => {
@@ -1092,14 +1094,24 @@ export default function DietCalendarPage() {
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">월간 식단표</h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">월간 식단표</h1>
+                            <button
+                                type="button"
+                                onClick={() => setShowCalendarInfoModal(true)}
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                aria-label="월간 식단표 안내 열기"
+                            >
+                                <CircleHelp className="h-4 w-4" />
+                            </button>
+                        </div>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}
                         </p>
                     </div>
                     <div className="galaxySafeActions w-full sm:w-auto">
                         <Link
-                            href="/diet"
+                            href="/diet?view=record#today-record-section"
                             className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                         >
                             오늘 기록하기
@@ -1124,6 +1136,29 @@ export default function DietCalendarPage() {
                     <p>- 기록한 식사 패턴은 다음/다다음 날짜 식단에도 자동 반영돼요.</p>
                 </div>
             </section>
+
+            {showCalendarInfoModal && (
+                <div
+                    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
+                    onClick={() => setShowCalendarInfoModal(false)}
+                >
+                    <section
+                        className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">월간 식단표 안내</h2>
+                            <button type="button" onClick={() => setShowCalendarInfoModal(false)} className="popupCloseButton">
+                                닫기
+                            </button>
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-200">
+                            <p>- 먹고 싶은 방향 선택은 당일에서만 확정할 수 있어요.</p>
+                            <p>- 기록한 식사 패턴은 다음/다다음 날짜 식단에도 자동 반영돼요.</p>
+                        </div>
+                    </section>
+                </div>
+            )}
 
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
