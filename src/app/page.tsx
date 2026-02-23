@@ -224,6 +224,21 @@ function parseCustomAlertCache(raw: string | null): CustomAlertCache | null {
     }
 }
 
+function prioritizeNewCustomAlertItems(nextItems: CustomAlertArticle[], previousItems: CustomAlertArticle[]) {
+    if (nextItems.length === 0 || previousItems.length === 0) {
+        return nextItems;
+    }
+
+    const previousUrlSet = new Set(previousItems.map((item) => item.url.trim()));
+    const newlyFetched = nextItems.filter((item) => !previousUrlSet.has(item.url.trim()));
+    if (newlyFetched.length === 0) {
+        return nextItems;
+    }
+
+    const existing = nextItems.filter((item) => previousUrlSet.has(item.url.trim()));
+    return [...newlyFetched, ...existing];
+}
+
 function getVisitScheduleKey(userId: string | null) {
     return `${VISIT_SCHEDULE_PREFIX}:${userId ?? 'guest'}`;
 }
@@ -426,6 +441,30 @@ function formatVisitScheduleTime(rawTime: string) {
     const period = hour >= 12 ? '오후' : '오전';
     const normalizedHour = hour % 12 === 0 ? 12 : hour % 12;
     return `${period} ${normalizedHour}:${String(minute).padStart(2, '0')}`;
+}
+
+function formatVisitScheduleDday(rawDate: string) {
+    if (!rawDate) {
+        return '';
+    }
+
+    const [year, month, day] = rawDate.split('-').map(Number);
+    if (!year || !month || !day) {
+        return '';
+    }
+
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const targetDate = new Date(year, month - 1, day);
+    const diffDays = Math.round((targetDate.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0) {
+        return `D-${diffDays}`;
+    }
+    if (diffDays === 0) {
+        return 'D-Day';
+    }
+    return `D+${Math.abs(diffDays)}`;
 }
 
 export default function Home() {
@@ -659,20 +698,21 @@ export default function Home() {
                     updatedAt?: string;
                 };
                 const nextItems = Array.isArray(payload.items) ? payload.items : [];
+                const orderedNextItems = prioritizeNewCustomAlertItems(nextItems, cached?.items ?? []);
                 const nextUpdatedAt =
                     typeof payload.updatedAt === 'string' && payload.updatedAt
                         ? payload.updatedAt
                         : new Date().toISOString();
 
                 if (!cancelled) {
-                    setCustomAlertItems(nextItems);
+                    setCustomAlertItems(orderedNextItems);
                     setCustomAlertUpdatedAt(nextUpdatedAt);
                 }
 
                 localStorage.setItem(
                     cacheKey,
                     JSON.stringify({
-                        items: nextItems,
+                        items: orderedNextItems,
                         updatedAt: nextUpdatedAt,
                     } satisfies CustomAlertCache)
                 );
@@ -939,13 +979,20 @@ export default function Home() {
                                 총 {visitSchedules.length}건
                             </span>
                         </div>
-                        <p className="mt-1 truncate pl-10 text-sm text-gray-600 dark:text-gray-300">
-                            {upcomingVisit
-                                ? `${formatVisitScheduleDate(upcomingVisit.visitDate)} ${formatVisitScheduleTime(upcomingVisit.visitTime)} · ${
-                                      upcomingVisit.hospitalName ? `${upcomingVisit.hospitalName} · ` : ''
-                                  }${upcomingVisit.treatmentNote}`
-                                : '다음 병원 방문 일정을 등록해 주세요.'}
-                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 pl-10">
+                            <p className="truncate text-sm text-gray-600 dark:text-gray-300">
+                                {upcomingVisit
+                                    ? `${formatVisitScheduleDate(upcomingVisit.visitDate)} ${formatVisitScheduleTime(upcomingVisit.visitTime)} · ${
+                                          upcomingVisit.hospitalName || '병원 미입력'
+                                      }`
+                                    : '다음 병원 방문 일정을 등록해 주세요.'}
+                            </p>
+                            {upcomingVisit && (
+                                <span className="shrink-0 rounded-full border border-sky-300 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-200">
+                                    {formatVisitScheduleDday(upcomingVisit.visitDate)}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     <button
                         type="button"
@@ -1122,10 +1169,15 @@ export default function Home() {
                                         <article key={item.id} className="px-3 py-3">
                                             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                                                 <div className="min-w-0">
-                                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                        {formatVisitScheduleDate(item.visitDate)} ·{' '}
-                                                        {formatVisitScheduleTime(item.visitTime)}
-                                                    </p>
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                            {formatVisitScheduleDate(item.visitDate)} ·{' '}
+                                                            {formatVisitScheduleTime(item.visitTime)}
+                                                        </p>
+                                                        <span className="rounded-full border border-sky-300 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-200">
+                                                            {formatVisitScheduleDday(item.visitDate)}
+                                                        </span>
+                                                    </div>
                                                     <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
                                                         병원: {item.hospitalName || '미입력'}
                                                     </p>

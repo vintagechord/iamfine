@@ -1034,6 +1034,19 @@ body {
   background: #e5e7eb;
 }
 
+/* 노란(amber) 버튼 공통 톤 고정 */
+:is(button, a, [role="button"])[class*="bg-amber-"] {
+  background-color: rgb(246, 214, 74) !important;
+  color: rgb(32, 32, 32) !important;
+  border-bottom-style: solid;
+  border-bottom-width: 1px;
+  border-bottom-color: rgb(32, 32, 32) !important;
+}
+
+:is(button, a, [role="button"])[class*="bg-amber-"]:hover {
+  background-color: rgb(246, 214, 74) !important;
+}
+
 @media (max-width: 767px) {
   .galaxySafeActions {
     gap: 6px;
