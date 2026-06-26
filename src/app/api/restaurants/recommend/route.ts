@@ -602,7 +602,7 @@ async function fetchText(url: string) {
             Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'ko,en-US;q=0.8,en;q=0.6',
         },
-        next: { revalidate: FETCH_REVALIDATE_SECONDS },
+        cache: 'no-store',
     });
 
     if (!response.ok) {

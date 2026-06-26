@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { MapPinned, NotebookPen, ShoppingCart, Utensils } from 'lucide-react';
@@ -23,13 +23,21 @@ export const metadata: Metadata = {
     description: '치료 단계와 식단을 기록하는 도구',
 };
 
+export const viewport: Viewport = {
+    width: 'device-width',
+    initialScale: 1,
+};
+
 const CATEGORY_LINKS = [
     { href: '/diet', label: '오늘 식단', icon: Utensils },
     { href: '/diet?view=record#today-record-section', label: '오늘 기록', icon: NotebookPen },
     { href: '/shopping', label: '장보기', icon: ShoppingCart },
     { href: '/restaurants', label: '건강식당', icon: MapPinned },
 ];
-const MOBILE_CATEGORY_LINKS = CATEGORY_LINKS.map(({ href, label }) => ({ href, label }));
+const MOBILE_CATEGORY_LINKS = [
+    ...CATEGORY_LINKS.map(({ href, label }) => ({ href, label })),
+    { href: '/profile', label: '내 정보' },
+];
 
 const TEXT_SCALE_KEY = 'iamfine:text-scale:v1';
 

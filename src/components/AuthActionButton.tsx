@@ -72,12 +72,13 @@ export default function AuthActionButton({
 
     const baseClassName =
         'whitespace-nowrap rounded-full border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 sm:px-3 sm:text-sm';
+    const secondaryClassName = `${baseClassName} hidden sm:inline-flex`;
 
     if (loggedIn) {
         return (
             <div className="flex items-center gap-1.5 sm:gap-2">
                 {showProfileWhenLoggedIn && (
-                    <Link href="/profile" className={baseClassName} aria-label="내 정보">
+                    <Link href="/profile" className={secondaryClassName} aria-label="내 정보">
                         내 정보
                     </Link>
                 )}
@@ -97,7 +98,7 @@ export default function AuthActionButton({
     return (
         <div className="flex items-center gap-1.5 sm:gap-2">
             {showSignUpWhenLoggedOut && (
-                <Link href="/auth?mode=signup" className={baseClassName} aria-label="회원가입">
+                <Link href="/auth?mode=signup" className={secondaryClassName} aria-label="회원가입">
                     회원가입
                 </Link>
             )}
