@@ -113,14 +113,6 @@ function normalizeTitleKey(title: string) {
         .trim();
 }
 
-function getDateBucket(raw: string) {
-    const timestamp = parseDateTimestamp(raw);
-    if (timestamp === null) {
-        return '';
-    }
-    return new Date(timestamp).toISOString().slice(0, 10);
-}
-
 function isWithinRecentDays(raw: string, days: number) {
     const timestamp = parseDateTimestamp(raw);
     if (timestamp === null) {
@@ -195,29 +187,28 @@ function ensureMinimumItems(primary: AlertArticle[], fallback: AlertArticle[], m
 
 function dedupeAndSort(items: AlertArticle[]) {
     const seenUrls = new Set<string>();
-    const seenTitleBuckets = new Set<string>();
+    const seenTitleKeys = new Set<string>();
     const deduped: AlertArticle[] = [];
+    const newestFirst = [...items].sort((a, b) => parseDateValue(b.publishedAt) - parseDateValue(a.publishedAt));
 
-    for (const item of items) {
+    for (const item of newestFirst) {
         if (!item.url) {
             continue;
         }
 
         const normalizedUrl = normalizeArticleUrl(item.url);
         const titleKey = normalizeTitleKey(item.title);
-        const dateBucket = getDateBucket(item.publishedAt);
-        const titleBucketKey = titleKey && dateBucket ? `${titleKey}|${dateBucket}` : '';
 
         if (seenUrls.has(normalizedUrl)) {
             continue;
         }
-        if (titleBucketKey && seenTitleBuckets.has(titleBucketKey)) {
+        if (titleKey && seenTitleKeys.has(titleKey)) {
             continue;
         }
 
         seenUrls.add(normalizedUrl);
-        if (titleBucketKey) {
-            seenTitleBuckets.add(titleBucketKey);
+        if (titleKey) {
+            seenTitleKeys.add(titleKey);
         }
 
         deduped.push({

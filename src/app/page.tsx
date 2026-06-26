@@ -188,6 +188,38 @@ function buildCustomAlertCacheKey(params: URLSearchParams) {
     return `${ALERT_CACHE_PREFIX}:${params.toString()}`;
 }
 
+function normalizeCustomAlertTitleKey(title: string) {
+    return title
+        .toLowerCase()
+        .replace(/[\s"'`‘’“”.,;:!?()[\]{}\-_/\\]+/g, '')
+        .trim();
+}
+
+function dedupeCustomAlertArticles(items: CustomAlertArticle[]) {
+    const seenUrls = new Set<string>();
+    const seenTitleKeys = new Set<string>();
+    const deduped: CustomAlertArticle[] = [];
+
+    items.forEach((item) => {
+        const urlKey = item.url.trim();
+        const titleKey = normalizeCustomAlertTitleKey(item.title);
+        if (!urlKey || seenUrls.has(urlKey)) {
+            return;
+        }
+        if (titleKey && seenTitleKeys.has(titleKey)) {
+            return;
+        }
+
+        seenUrls.add(urlKey);
+        if (titleKey) {
+            seenTitleKeys.add(titleKey);
+        }
+        deduped.push(item);
+    });
+
+    return deduped;
+}
+
 function parseCustomAlertCache(raw: string | null): CustomAlertCache | null {
     if (!raw) {
         return null;
@@ -217,7 +249,7 @@ function parseCustomAlertCache(raw: string | null): CustomAlertCache | null {
 
         return {
             updatedAt,
-            items,
+            items: dedupeCustomAlertArticles(items),
         };
     } catch {
         return null;
@@ -225,18 +257,21 @@ function parseCustomAlertCache(raw: string | null): CustomAlertCache | null {
 }
 
 function prioritizeNewCustomAlertItems(nextItems: CustomAlertArticle[], previousItems: CustomAlertArticle[]) {
-    if (nextItems.length === 0 || previousItems.length === 0) {
-        return nextItems;
+    const dedupedNextItems = dedupeCustomAlertArticles(nextItems);
+    const dedupedPreviousItems = dedupeCustomAlertArticles(previousItems);
+
+    if (dedupedNextItems.length === 0 || dedupedPreviousItems.length === 0) {
+        return dedupedNextItems;
     }
 
-    const previousUrlSet = new Set(previousItems.map((item) => item.url.trim()));
-    const newlyFetched = nextItems.filter((item) => !previousUrlSet.has(item.url.trim()));
+    const previousUrlSet = new Set(dedupedPreviousItems.map((item) => item.url.trim()));
+    const newlyFetched = dedupedNextItems.filter((item) => !previousUrlSet.has(item.url.trim()));
     if (newlyFetched.length === 0) {
-        return nextItems;
+        return dedupedNextItems;
     }
 
-    const existing = nextItems.filter((item) => previousUrlSet.has(item.url.trim()));
-    return [...newlyFetched, ...existing];
+    const existing = dedupedNextItems.filter((item) => previousUrlSet.has(item.url.trim()));
+    return dedupeCustomAlertArticles([...newlyFetched, ...existing]);
 }
 
 function getVisitScheduleKey(userId: string | null) {
