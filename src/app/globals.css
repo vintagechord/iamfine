@@ -22,6 +22,138 @@ body {
   line-height: 1.6;
 }
 
+:where(*) {
+  letter-spacing: 0 !important;
+}
+
+.rounded-xl,
+.rounded-2xl {
+  border-radius: 0.5rem !important;
+}
+
+.appShell {
+  background:
+    linear-gradient(180deg, rgba(236, 253, 245, 0.74) 0%, rgba(248, 250, 252, 0.98) 30%, rgba(239, 246, 255, 0.72) 100%);
+}
+
+.dark .appShell {
+  background:
+    linear-gradient(180deg, rgba(6, 78, 59, 0.22) 0%, rgba(2, 6, 23, 0.98) 36%, rgba(15, 23, 42, 0.94) 100%);
+}
+
+.appHeader {
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.72) inset;
+}
+
+.brandMark {
+  background:
+    linear-gradient(135deg, #059669 0%, #0891b2 58%, #2563eb 100%);
+  box-shadow:
+    0 10px 22px rgba(5, 150, 105, 0.24),
+    0 1px 0 rgba(255, 255, 255, 0.32) inset;
+}
+
+.navPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.surfacePanel {
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9));
+  box-shadow:
+    0 18px 42px rgba(15, 23, 42, 0.09),
+    0 1px 0 rgba(255, 255, 255, 0.82) inset;
+}
+
+.dark .surfacePanel {
+  border-color: rgba(148, 163, 184, 0.18);
+  background:
+    linear-gradient(180deg, rgba(30, 41, 59, 0.76), rgba(15, 23, 42, 0.86));
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.36),
+    0 1px 0 rgba(255, 255, 255, 0.07) inset;
+}
+
+.softPanel {
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.68) inset;
+}
+
+.softPanel--sky {
+  border-color: rgba(14, 165, 233, 0.24);
+  background: rgba(240, 249, 255, 0.86);
+}
+
+.softPanel--emerald {
+  border-color: rgba(16, 185, 129, 0.24);
+  background: rgba(236, 253, 245, 0.86);
+}
+
+.dark .softPanel {
+  border-color: rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.66);
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.dark .softPanel--sky {
+  border-color: rgba(56, 189, 248, 0.26);
+  background: rgba(8, 47, 73, 0.44);
+}
+
+.dark .softPanel--emerald {
+  border-color: rgba(52, 211, 153, 0.24);
+  background: rgba(6, 78, 59, 0.34);
+}
+
+.iconCircleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.82);
+  color: #0f172a;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.iconCircleButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(16, 185, 129, 0.36);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.13);
+}
+
+.iconCircleButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+  box-shadow: none;
+}
+
+.dark .iconCircleButton {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.78);
+  color: #e2e8f0;
+}
+
 /* 작은 글씨 최소 가독성 보정 */
 .text-xs {
   font-size: 0.8125rem;
@@ -55,10 +187,10 @@ body {
 
   min-height: 9rem;
   padding: 12px 14px;
-  border-radius: 18px;
+  border-radius: 8px;
   text-decoration: none;
   font-weight: 600;
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
 
   /* 라이트: 흰 바탕에서 튀지 않는 카드 톤 */
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.86));
@@ -83,8 +215,8 @@ body {
   inset: -2px;
   z-index: -1;
   background:
-    radial-gradient(420px 180px at 20% 15%, rgba(var(--accent), 0.28), transparent 60%),
-    radial-gradient(360px 160px at 80% 30%, rgba(var(--accent), 0.14), transparent 62%);
+    linear-gradient(135deg, rgba(var(--accent), 0.20), transparent 48%),
+    linear-gradient(315deg, rgba(var(--accent), 0.10), transparent 56%);
   filter: saturate(1.05);
 }
 
@@ -161,7 +293,7 @@ body {
 
   min-height: 92px;
   padding: 12px 16px;
-  border-radius: 18px;
+  border-radius: 8px;
   text-decoration: none;
   user-select: none;
 
@@ -230,17 +362,7 @@ body {
 
 /* 아이콘 래퍼 안쪽에 포인트 "글로우 점" */
 .quickTileMono__iconWrap::after {
-  content: "";
-  position: absolute;
-  right: -8px;
-  top: -8px;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(var(--accent), 0.95), rgba(var(--accent), 0.18) 60%, transparent 72%);
-  filter: blur(0.2px);
-  opacity: 0.95;
+  display: none;
 }
 
 /* 실제 아이콘 */
@@ -253,8 +375,21 @@ body {
 /* 라벨(텍스트) */
 .quickTileMono__label {
   font-weight: 650;
-  letter-spacing: -0.2px;
   color: #0f172a;
+}
+
+.quickTileMono__content {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.quickTileMono__hint {
+  display: block;
+  color: rgba(71, 85, 105, 0.86);
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.35;
 }
 
 /* 다크 모드 */
@@ -285,6 +420,10 @@ body {
   color: #e2e8f0;
 }
 
+.dark .quickTileMono__hint {
+  color: rgba(203, 213, 225, 0.78);
+}
+
 /* 각 버튼의 "아이콘 포인트"만 다르게 */
 .quickTileMono--emerald {
   --accent: 16, 185, 129;
@@ -305,7 +444,7 @@ body {
   flex-direction: column;
   gap: 10px;
 
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 14px 14px 12px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.88));
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -376,16 +515,7 @@ body {
 }
 
 .mealTileMono__iconWrap::after {
-  content: "";
-  position: absolute;
-  right: -8px;
-  top: -8px;
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(var(--accent), 0.95), rgba(var(--accent), 0.18) 60%, transparent 72%);
-  opacity: 0.95;
+  display: none;
 }
 
 .mealTileMono__icon {
@@ -396,7 +526,6 @@ body {
 
 .mealTileMono__title {
   font-weight: 650;
-  letter-spacing: -0.2px;
   color: #0f172a;
 }
 
@@ -444,7 +573,6 @@ body {
   color: rgba(15, 23, 42, 0.94);
 
   font-weight: 650;
-  letter-spacing: -0.2px;
   line-height: 1.2;
   text-decoration: none;
   cursor: pointer;
@@ -516,6 +644,18 @@ body {
   width: 16px;
   height: 16px;
   color: rgba(var(--accent, 15, 23, 42), 0.85);
+}
+
+.ctaMono--emerald {
+  --accent: 16, 185, 129;
+}
+
+.ctaMono--sky {
+  --accent: 14, 165, 233;
+}
+
+.ctaMono--rose {
+  --accent: 244, 63, 94;
 }
 
 /* 다크 모드 */
@@ -600,7 +740,7 @@ body {
 /* 섹션 제목(선택): 기존 타이틀이 밋밋하면 톤만 맞춰줌 */
 .sectionTitleMono {
   font-weight: 700;
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
   color: rgba(15, 23, 42, 0.92);
 }
 
@@ -608,7 +748,7 @@ body {
 .infoTileMono {
   position: relative;
   isolation: isolate;
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 14px 14px 12px;
 
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.88));
@@ -635,22 +775,13 @@ body {
 
 /* 오른쪽 위 작은 글로우 점(과하지 않게) */
 .infoTileMono::after {
-  content: "";
-  position: absolute;
-  right: 14px;
-  top: 12px;
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(var(--accent), 0.92), rgba(var(--accent), 0.18) 60%, transparent 72%);
-  opacity: 0.9;
+  display: none;
 }
 
 /* 제목 */
 .infoTileMono__title {
   font-weight: 700;
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
   color: rgba(15, 23, 42, 0.90);
   margin-bottom: 8px;
   display: flex;
@@ -729,7 +860,7 @@ body {
 
 /* 근처 찾기 섹션(모노톤 카드) */
 .finderSection {
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 16px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.88));
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -741,7 +872,7 @@ body {
 /* 타이틀이 있다면(선택) */
 .finderSection__title {
   font-weight: 700;
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
   color: rgba(15, 23, 42, 0.92);
   margin-bottom: 10px;
 }
@@ -842,7 +973,7 @@ body {
   z-index: 1;
   color: rgba(15, 23, 42, 0.92);
   font-weight: 650;
-  letter-spacing: -0.2px;
+  letter-spacing: 0;
   font-size: 14px;
   white-space: nowrap;
   overflow: hidden;

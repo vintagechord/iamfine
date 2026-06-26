@@ -848,7 +848,18 @@ function isFruitName(name: string) {
 function baseAmountByFoodName(name: string, slot: MealSlot) {
     const normalized = name.replace(/\s+/g, '');
 
-    if (normalized.includes('현미밥') || normalized.includes('잡곡밥') || normalized.includes('귀리밥') || normalized.includes('보리밥') || normalized.includes('흑미밥') || normalized.includes('기장밥')) {
+    if (
+        normalized.includes('현미밥') ||
+        normalized.includes('잡곡밥') ||
+        normalized.includes('귀리밥') ||
+        normalized.includes('보리밥') ||
+        normalized.includes('흑미밥') ||
+        normalized.includes('기장밥') ||
+        normalized.includes('수수밥') ||
+        normalized.includes('렌틸콩밥') ||
+        normalized.includes('퀴노아잡곡밥') ||
+        normalized.includes('곤드레밥')
+    ) {
         if (normalized.includes('소량')) {
             return '반 공기(90~100g)';
         }
@@ -871,6 +882,9 @@ function baseAmountByFoodName(name: string, slot: MealSlot) {
     }
     if (normalized.includes('고등어')) {
         return '반 마리(90~100g)';
+    }
+    if (normalized.includes('대구살')) {
+        return '한 토막(80~90g)';
     }
     if (normalized.includes('흰살생선')) {
         return '한 토막(80~90g)';
@@ -902,6 +916,15 @@ function baseAmountByFoodName(name: string, slot: MealSlot) {
     if (normalized.includes('두유')) {
         return '1팩 또는 1컵(150~190ml)';
     }
+    if (normalized.includes('리코타치즈')) {
+        return '작은 스푼 3~4큰술(50~60g)';
+    }
+    if (normalized.includes('오트밀')) {
+        return '1/3컵(35~40g)';
+    }
+    if (normalized.includes('병아리콩')) {
+        return '1/3컵(50~60g)';
+    }
     if (normalized.includes('아몬드') || normalized.includes('호두') || normalized.includes('견과')) {
         return '한 줌의 절반(10~15g)';
     }
@@ -926,10 +949,31 @@ function baseAmountByFoodName(name: string, slot: MealSlot) {
     if (normalized.includes('브로콜리')) {
         return '작은 송이 5~6개(70g)';
     }
+    if (normalized.includes('토마토')) {
+        return '중간 크기 1/2개 또는 방울토마토 5~6개(70g)';
+    }
+    if (normalized.includes('파프리카')) {
+        return '1/3개(50~60g)';
+    }
+    if (normalized.includes('청경채')) {
+        return '작은 포기 1개(60~70g)';
+    }
+    if (normalized.includes('숙주') || normalized.includes('콩나물')) {
+        return '작은 접시 1개(60~70g)';
+    }
+    if (normalized.includes('연근') || normalized.includes('우엉')) {
+        return '2~3큰술(40~50g)';
+    }
+    if (normalized.includes('무나물') || normalized.includes('배추찜') || normalized.includes('양배추찜')) {
+        return '작은 접시 1개(60g)';
+    }
+    if (normalized.includes('단호박')) {
+        return '작은 조각 2~3개(70~90g)';
+    }
     if (normalized.includes('당근볶음')) {
         return '2~3큰술(40~50g)';
     }
-    if (normalized.includes('버섯볶음')) {
+    if (normalized.includes('버섯볶음') || normalized.includes('새송이버섯') || normalized.includes('구운버섯')) {
         return '작은 접시 1개(50g)';
     }
     if (normalized.includes('시금치')) {
@@ -4021,13 +4065,13 @@ export default function DietPage() {
     }
 
     return (
-        <main className="space-y-4">
+        <main className="space-y-4 pb-8">
             {!openRecordView && (
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="surfacePanel overflow-hidden p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1">
                         <div className="flex justify-end">
-                            <p className="inline-flex shrink-0 rounded-md border border-gray-900 bg-gray-900 px-2.5 py-1 text-sm font-semibold text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900">
+                            <p className="inline-flex shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-sm font-bold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-100">
                                 {viewedTodayDateLabel}
                             </p>
                         </div>
@@ -4036,20 +4080,20 @@ export default function DietPage() {
                                 type="button"
                                 onClick={() => setTodayPlanOffset((prev) => Math.max(-1, prev - 1))}
                                 disabled={todayPlanOffset <= -1}
-                                className="shrink-0 rounded-full border border-gray-300 bg-white p-1.5 text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="iconCircleButton shrink-0"
                                 aria-label="어제 식단 보기"
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
-                            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
+                            <span className="brandMark inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white shadow-sm">
                                 <Utensils className="h-5 w-5" />
                             </span>
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 sm:text-2xl">{viewedTodayLabel} 식단</h1>
+                            <h1 className="text-xl font-black text-gray-950 dark:text-gray-50 sm:text-2xl">{viewedTodayLabel} 식단</h1>
                             <button
                                 type="button"
                                 onClick={() => setTodayPlanOffset((prev) => Math.min(1, prev + 1))}
                                 disabled={todayPlanOffset >= 1}
-                                className="shrink-0 rounded-full border border-gray-300 bg-white p-1.5 text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="iconCircleButton shrink-0"
                                 aria-label="내일 식단 보기"
                             >
                                 <ChevronRight className="h-4 w-4" />
@@ -4064,20 +4108,20 @@ export default function DietPage() {
                     <div className="galaxySafeActions w-full sm:w-auto sm:justify-end">
                         <Link
                             href="/diet/report"
-                            className="rounded-lg border border-gray-900 bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                            className="ctaMono ctaMono--emerald"
                         >
                             적용 근거 리포트
                         </Link>
                         <Link
                             href="/diet/calendar"
-                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            className="ctaMono ctaMono--sky"
                         >
                             전체 식단표 보기
                         </Link>
                     </div>
                 </div>
 
-                <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-2.5 dark:border-blue-800 dark:bg-blue-950/30">
+                <div className="softPanel softPanel--sky mt-3 p-3">
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-1.5">
                             <p className="truncate text-sm font-semibold text-blue-900 dark:text-blue-100">다이어트 체크</p>
@@ -4106,7 +4150,7 @@ export default function DietPage() {
                     )}
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     {(['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).map((slot) => {
                         const meal =
                             slot === 'breakfast'
@@ -4157,7 +4201,7 @@ export default function DietPage() {
                                             <MealIcon className="mealTileMono__icon" />
                                         </span>
                                         <div className="flex flex-wrap items-start gap-1.5">
-                                            <h2 className="mealTileMono__title text-base font-extrabold tracking-tight">{mealTypeLabel(slot)}</h2>
+                                            <h2 className="mealTileMono__title text-base font-extrabold">{mealTypeLabel(slot)}</h2>
                                             {mealTimeBadges.map((badgeText) => (
                                                 <span
                                                     key={`${slot}-${badgeText}`}
@@ -4216,14 +4260,14 @@ export default function DietPage() {
                                                     }),
                                                 });
                                             }}
-                                            className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                                            className="ctaMono ctaMono--sky w-full cursor-pointer"
                                         >
                                             권장 섭취량
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setOpenRecipeSlot(slot)}
-                                            className="w-full cursor-pointer rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                                            className="ctaMono ctaMono--emerald w-full cursor-pointer"
                                         >
                                             조리법
                                         </button>
@@ -4235,7 +4279,7 @@ export default function DietPage() {
                     })}
                 </div>
 
-                <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+                <div className="softPanel mt-3 p-3">
                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">오늘 간식 타이밍</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 간식 권장 시간: {snackCoffeeRecommendedTime.snack}</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.snack}</p>
@@ -4278,7 +4322,7 @@ export default function DietPage() {
                     </div>
                 </div>
 
-                <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100">
+                <div className="softPanel softPanel--emerald mt-3 p-3 text-sm text-emerald-900 dark:text-emerald-100">
                     <p className="font-semibold">{viewedTodayLabel} 식단 점검 로그</p>
                     <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
                         암 종류/치료 단계/복용 정보를 기준으로 실제 반영된 항목이에요.
@@ -4458,7 +4502,7 @@ export default function DietPage() {
             )}
 
             {!openRecordView && (
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <section className="surfacePanel p-5">
                     <div className="galaxySafeHeader">
                         <h2 className="galaxySafeHeader__main galaxySafeText text-lg font-semibold text-gray-900 dark:text-gray-100">
                             오늘만 이렇게 먹을래요

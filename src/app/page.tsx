@@ -924,8 +924,8 @@ export default function Home() {
     };
 
     return (
-        <main className="mx-auto max-w-3xl space-y-4 py-6">
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <main className="mx-auto max-w-4xl space-y-5 py-6">
+            <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <Link
                     href="/diet"
                     className="quickTileMono quickTileMono--emerald w-full"
@@ -933,7 +933,10 @@ export default function Home() {
                     <span className="quickTileMono__iconWrap" aria-hidden="true">
                         <Utensils className="quickTileMono__icon" />
                     </span>
-                    <span className="quickTileMono__label text-xl">오늘 식단</span>
+                    <span className="quickTileMono__content">
+                        <span className="quickTileMono__label text-lg">오늘 식단</span>
+                        <span className="quickTileMono__hint">추천 메뉴와 섭취량</span>
+                    </span>
                 </Link>
                 <Link
                     href="/diet?view=record#today-record-section"
@@ -942,7 +945,10 @@ export default function Home() {
                     <span className="quickTileMono__iconWrap" aria-hidden="true">
                         <NotebookPen className="quickTileMono__icon" />
                     </span>
-                    <span className="quickTileMono__label text-xl">오늘 기록</span>
+                    <span className="quickTileMono__content">
+                        <span className="quickTileMono__label text-lg">오늘 기록</span>
+                        <span className="quickTileMono__hint">먹은 음식 체크</span>
+                    </span>
                 </Link>
                 <Link
                     href="/shopping"
@@ -951,7 +957,10 @@ export default function Home() {
                     <span className="quickTileMono__iconWrap" aria-hidden="true">
                         <ShoppingCart className="quickTileMono__icon" />
                     </span>
-                    <span className="quickTileMono__label text-xl">장보기</span>
+                    <span className="quickTileMono__content">
+                        <span className="quickTileMono__label text-lg">장보기</span>
+                        <span className="quickTileMono__hint">필요 재료 모아보기</span>
+                    </span>
                 </Link>
                 <Link
                     href="/restaurants"
@@ -960,11 +969,14 @@ export default function Home() {
                     <span className="quickTileMono__iconWrap" aria-hidden="true">
                         <MapPinned className="quickTileMono__icon" />
                     </span>
-                    <span className="quickTileMono__label text-xl">건강식당 찾기</span>
+                    <span className="quickTileMono__content">
+                        <span className="quickTileMono__label text-lg">건강식당</span>
+                        <span className="quickTileMono__hint">근처 식당 추천</span>
+                    </span>
                 </Link>
             </section>
 
-            <section className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="surfacePanel px-4 py-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1005,8 +1017,8 @@ export default function Home() {
                         }}
                         className={
                             visitSchedules.length > 0
-                                ? 'inline-flex items-center justify-center rounded-lg border border-emerald-500 bg-emerald-500 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 dark:border-emerald-400 dark:bg-emerald-500 dark:text-gray-900 dark:hover:bg-emerald-400'
-                                : 'inline-flex items-center justify-center rounded-lg border border-gray-900 bg-gray-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-gray-700 dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200'
+                                ? 'ctaMono ctaMono--emerald'
+                                : 'ctaMono ctaMono--sky'
                         }
                     >
                         일정 보기
@@ -1015,7 +1027,7 @@ export default function Home() {
             </section>
 
             {SHOW_DAILY_HYMN && (
-                <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <section className="surfacePanel p-5">
                     <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">오늘 추천 찬송가</h2>
                     </div>
@@ -1044,7 +1056,7 @@ export default function Home() {
                 </section>
             )}
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="surfacePanel p-5">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">맞춤 알림</h2>
                 <div className="mt-1 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
                     <p className="min-w-0 text-sm text-gray-600 dark:text-gray-300">{customAlertSummary}</p>

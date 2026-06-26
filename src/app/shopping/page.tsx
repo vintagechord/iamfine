@@ -162,6 +162,10 @@ const INGREDIENT_RULES: Array<{ pattern: RegExp; ingredient: string }> = [
     { pattern: /보리밥|보리/, ingredient: '보리' },
     { pattern: /흑미밥|흑미/, ingredient: '흑미' },
     { pattern: /기장밥|기장/, ingredient: '기장' },
+    { pattern: /수수밥|수수/, ingredient: '수수' },
+    { pattern: /렌틸콩밥|렌틸콩|렌틸/, ingredient: '렌틸콩' },
+    { pattern: /퀴노아잡곡밥|퀴노아/, ingredient: '퀴노아' },
+    { pattern: /곤드레밥|곤드레/, ingredient: '곤드레나물' },
     { pattern: /죽/, ingredient: '쌀' },
     { pattern: /달걀두부|두부달걀/, ingredient: '달걀' },
     { pattern: /달걀두부|두부달걀/, ingredient: '두부' },
@@ -171,12 +175,16 @@ const INGREDIENT_RULES: Array<{ pattern: RegExp; ingredient: string }> = [
     { pattern: /돼지안심|돼지고기/, ingredient: '돼지안심' },
     { pattern: /연어/, ingredient: '연어' },
     { pattern: /흰살생선|생선찜|생선숙회|생선초밥/, ingredient: '흰살생선' },
+    { pattern: /대구살|대구/, ingredient: '대구살' },
     { pattern: /고등어/, ingredient: '고등어' },
     { pattern: /두부|연두부/, ingredient: '두부' },
     { pattern: /달걀|계란/, ingredient: '달걀' },
     { pattern: /콩/, ingredient: '콩류' },
+    { pattern: /병아리콩/, ingredient: '병아리콩' },
     { pattern: /요거트|그릭요거트/, ingredient: '무가당 요거트' },
     { pattern: /두유/, ingredient: '무가당 두유' },
+    { pattern: /리코타치즈|리코타/, ingredient: '리코타치즈' },
+    { pattern: /오트밀/, ingredient: '오트밀' },
     { pattern: /브로콜리/, ingredient: '브로콜리' },
     { pattern: /버섯/, ingredient: '버섯' },
     { pattern: /시금치/, ingredient: '시금치' },
@@ -200,6 +208,13 @@ const INGREDIENT_RULES: Array<{ pattern: RegExp; ingredient: string }> = [
     { pattern: /옥수수/, ingredient: '옥수수' },
     { pattern: /레몬/, ingredient: '레몬' },
     { pattern: /나물/, ingredient: '나물채소' },
+    { pattern: /숙주/, ingredient: '숙주' },
+    { pattern: /콩나물/, ingredient: '콩나물' },
+    { pattern: /연근/, ingredient: '연근' },
+    { pattern: /우엉/, ingredient: '우엉' },
+    { pattern: /파프리카/, ingredient: '파프리카' },
+    { pattern: /청경채/, ingredient: '청경채' },
+    { pattern: /새송이버섯|새송이/, ingredient: '새송이버섯' },
     { pattern: /채소|샐러드|구운채소/, ingredient: '채소믹스' },
     { pattern: /해초/, ingredient: '해초' },
     { pattern: /미역/, ingredient: '마른미역' },
@@ -226,20 +241,23 @@ const INGREDIENT_RULES: Array<{ pattern: RegExp; ingredient: string }> = [
 ];
 
 const QUANTITY_RULES: Array<{ pattern: RegExp; rule: QuantityRule }> = [
-    { pattern: /현미|잡곡쌀|귀리|보리|흑미|기장|쌀/, rule: { kind: 'weight', perUseGram: 70, preferKg: true } },
+    { pattern: /현미|잡곡쌀|귀리|보리|흑미|기장|수수|렌틸콩|퀴노아|쌀/, rule: { kind: 'weight', perUseGram: 70, preferKg: true } },
     { pattern: /닭가슴살|닭안심/, rule: { kind: 'weight', perUseGram: 100 } },
     { pattern: /소고기|돼지안심/, rule: { kind: 'weight', perUseGram: 90 } },
     { pattern: /연어/, rule: { kind: 'weight', perUseGram: 100 } },
-    { pattern: /흰살생선|고등어/, rule: { kind: 'count', unit: '마리', perUse: 0.5 } },
+    { pattern: /흰살생선|고등어|대구살/, rule: { kind: 'count', unit: '마리', perUse: 0.5 } },
     { pattern: /두부/, rule: { kind: 'count', unit: '모', perUse: 0.5 } },
     { pattern: /달걀/, rule: { kind: 'count', unit: '알', perUse: 1 } },
-    { pattern: /콩류/, rule: { kind: 'weight', perUseGram: 40 } },
+    { pattern: /콩류|병아리콩/, rule: { kind: 'weight', perUseGram: 40 } },
     { pattern: /요거트/, rule: { kind: 'weight', perUseGram: 90 } },
     { pattern: /두유/, rule: { kind: 'volume', perUseMl: 190 } },
+    { pattern: /리코타치즈/, rule: { kind: 'weight', perUseGram: 60 } },
+    { pattern: /오트밀/, rule: { kind: 'weight', perUseGram: 40 } },
     { pattern: /브로콜리/, rule: { kind: 'count', unit: '송이', perUse: 0.5 } },
     { pattern: /버섯/, rule: { kind: 'weight', perUseGram: 60 } },
-    { pattern: /시금치|나물채소|상추|미나리|냉이|달래|두릅|쑥/, rule: { kind: 'weight', perUseGram: 70 } },
-    { pattern: /오이|당근|애호박|가지|토마토/, rule: { kind: 'count', unit: '개', perUse: 0.5 } },
+    { pattern: /시금치|나물채소|상추|미나리|냉이|달래|두릅|쑥|곤드레나물|숙주|콩나물|청경채/, rule: { kind: 'weight', perUseGram: 70 } },
+    { pattern: /오이|당근|애호박|가지|토마토|파프리카/, rule: { kind: 'count', unit: '개', perUse: 0.5 } },
+    { pattern: /연근|우엉|새송이버섯/, rule: { kind: 'weight', perUseGram: 70 } },
     { pattern: /단호박/, rule: { kind: 'count', unit: '통', perUse: 0.25 } },
     { pattern: /양배추/, rule: { kind: 'count', unit: '통', perUse: 0.25 } },
     { pattern: /배추/, rule: { kind: 'count', unit: '포기', perUse: 0.25 } },
@@ -1048,20 +1066,20 @@ function applyYesterdayIntakeCorrection(
 
 function classifyItem(item: string): CategoryKey {
     if (
-        /요거트|두유|바나나|사과|키위|딸기|베리|고구마|아몬드|견과|복숭아|자두|감|귤/.test(item) ||
+        /요거트|두유|바나나|사과|키위|딸기|베리|고구마|아몬드|호두|견과|복숭아|자두|감|귤|리코타|오트밀/.test(item) ||
         item === '배' ||
         item === '제철 과일'
     ) {
         return '단 음식/간식';
     }
-    if (/현미|잡곡쌀|귀리|보리|흑미|기장|쌀/.test(item)) {
+    if (/현미|잡곡쌀|귀리|보리|흑미|기장|수수|렌틸콩|퀴노아|쌀/.test(item)) {
         return '곡물/밥';
     }
-    if (/닭|소고기|돼지|연어|생선|고등어|두부|달걀|콩/.test(item)) {
+    if (/닭|소고기|돼지|연어|생선|고등어|대구|두부|달걀|콩/.test(item)) {
         return '단백질 식품';
     }
     if (
-        /브로콜리|버섯|시금치|오이|당근|애호박|단호박|양배추|배추|무|미나리|채소|해초|토마토|가지|상추|나물|냉이|달래|두릅|아스파라거스|쑥|완두콩|옥수수|레몬/.test(
+        /브로콜리|버섯|시금치|오이|당근|애호박|단호박|양배추|배추|무|미나리|채소|해초|토마토|가지|상추|나물|냉이|달래|두릅|아스파라거스|쑥|완두콩|옥수수|레몬|숙주|콩나물|연근|우엉|파프리카|청경채|새송이|곤드레/.test(
             item
         )
     ) {

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -10,6 +11,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 type CategoryItem = {
     href: string;
     label: string;
+    icon?: LucideIcon;
 };
 
 type MobileCategoryMenuProps = {
@@ -114,16 +116,20 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
                             </button>
                         </div>
                         <nav className="grid gap-2 pt-1">
-                            {items.map((item) => (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    onClick={closeMenu}
-                                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-emerald-500 dark:hover:bg-emerald-900/30 dark:hover:text-emerald-200"
-                                >
-                                    {item.label}
-                                </Link>
-                            ))}
+                            {items.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        onClick={closeMenu}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-emerald-500 dark:hover:bg-emerald-900/30 dark:hover:text-emerald-200"
+                                    >
+                                        {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
                         </nav>
                         <div className="mt-3 border-t border-gray-200 pt-3 dark:border-gray-800">
                             <ThemeToggle />
