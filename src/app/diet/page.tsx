@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Leaf, Minus, Moon, Plus, Search, Sun, Sunrise, Utensils } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    applySevenDayNoRepeatRule,
     formatDateKey,
     formatDateLabel,
     generatePlanForDate,
@@ -18,7 +17,6 @@ import {
     optimizePlanByUserContext,
     optimizePlanByPreference,
     PREFERENCE_OPTIONS,
-    STAGE_TYPE_LABELS,
     type DayPlan,
     type MealNutrient,
     type MealSlot,
@@ -26,12 +24,12 @@ import {
     type StageType,
     type UserDietContext,
     type UserMedicationSchedule,
-    type RecentDietPattern,
 } from '@/lib/dietEngine';
 import { searchFoods, normalizeFoodQuery, type FoodSearchResult } from '@/lib/foodSearch';
 import { applyFoodPersonalization, describeFoodPersonalization, hasRenalDietRestrictions, matchesAvoidedIngredient, parseFoodPersonalization, readFoodPersonalization, type AvoidedIngredient } from '@/lib/personalization';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { applyMealRecordGuidance, buildDietRecordContext } from '@/lib/dietRecordContext';
 import HealthNewsFeed from '@/components/HealthNewsFeed';
 import NextVisitSummary from '@/components/NextVisitSummary';
 
@@ -474,7 +472,6 @@ const SUBSTITUTE_GROUPS: SubstituteGroup[] = [
 ];
 
 const TWO_WEEK_DAYS = 14;
-const NO_REPEAT_DAYS = 30;
 const MEDICATION_TIMING_ORDER: MedicationTiming[] = ['breakfast', 'lunch', 'dinner'];
 
 function medicationTimingLabel(timing: MedicationTiming) {
@@ -594,231 +591,6 @@ function stripLeadingFieldLabel(value: string, pattern: RegExp) {
     }
     const stripped = normalized.replace(pattern, '').trim();
     return stripped || '미입력';
-}
-
-function cloneDayPlan(plan: DayPlan): DayPlan {
-    return {
-        date: plan.date,
-        breakfast: { ...plan.breakfast, sides: [...plan.breakfast.sides], recipeSteps: [...plan.breakfast.recipeSteps] },
-        lunch: { ...plan.lunch, sides: [...plan.lunch.sides], recipeSteps: [...plan.lunch.recipeSteps] },
-        dinner: { ...plan.dinner, sides: [...plan.dinner.sides], recipeSteps: [...plan.dinner.recipeSteps] },
-        snack: { ...plan.snack, sides: [...plan.snack.sides], recipeSteps: [...plan.snack.recipeSteps] },
-    };
-}
-
-function rebalanceMealNutrient(nutrient: MealNutrient, carbDelta: number, proteinDelta: number) {
-    let carb = clamp(Math.round(nutrient.carb + carbDelta), 20, 60);
-    let protein = clamp(Math.round(nutrient.protein + proteinDelta), 20, 60);
-    let fat = 100 - carb - protein;
-
-    if (fat < 20) {
-        const need = 20 - fat;
-        const proteinReducible = Math.max(0, protein - 20);
-        const proteinCut = Math.min(need, proteinReducible);
-        protein -= proteinCut;
-        const remain = need - proteinCut;
-        if (remain > 0) {
-            carb = Math.max(20, carb - remain);
-        }
-        fat = 100 - carb - protein;
-    }
-
-    if (fat > 35) {
-        const excess = fat - 35;
-        carb = clamp(carb + excess, 20, 60);
-        fat = 100 - carb - protein;
-    }
-
-    return {
-        carb,
-        protein,
-        fat,
-    };
-}
-
-type IntakeCorrectionContext = {
-    stageType: StageType;
-    bmi: number | null;
-};
-
-function computeIntakeRecordReliability(log: DayLog) {
-    const allItems = SLOT_ORDER.flatMap((slot) => log.meals[slot]);
-    if (allItems.length === 0) {
-        return 0;
-    }
-    const checkedCount = allItems.filter((item) => item.eaten || item.notEaten).length;
-    return checkedCount / allItems.length;
-}
-
-function stageRiskWeight(stageType: StageType) {
-    if (stageType === 'chemo' || stageType === 'chemo_2nd' || stageType === 'radiation') {
-        return 1.15;
-    }
-    if (stageType === 'surgery') {
-        return 1.1;
-    }
-    if (
-        stageType === 'hormone_therapy' ||
-        stageType === 'medication' ||
-        stageType === 'targeted' ||
-        stageType === 'immunotherapy'
-    ) {
-        return 1.05;
-    }
-    return 1;
-}
-
-function getOvereatCorrectionStrength(context: IntakeCorrectionContext, reliability: number) {
-    let bmiWeight = 1;
-    if (context.bmi !== null) {
-        if (context.bmi >= 30) {
-            bmiWeight = 1.3;
-        } else if (context.bmi >= 25) {
-            bmiWeight = 1.18;
-        } else if (context.bmi < 18.5) {
-            bmiWeight = 0.85;
-        }
-    }
-    const reliabilityWeight = clamp(0.65 + reliability * 0.45, 0.65, 1.1);
-    return clamp(stageRiskWeight(context.stageType) * bmiWeight * reliabilityWeight, 0.65, 1.5);
-}
-
-function getUndereatCorrectionStrength(context: IntakeCorrectionContext, reliability: number) {
-    let bmiWeight = 1;
-    if (context.bmi !== null) {
-        if (context.bmi < 18.5) {
-            bmiWeight = 1.25;
-        } else if (context.bmi >= 25) {
-            bmiWeight = 0.9;
-        }
-    }
-    let stageWeight = 1;
-    if (context.stageType === 'surgery') {
-        stageWeight = 1.15;
-    } else if (context.stageType === 'chemo' || context.stageType === 'chemo_2nd' || context.stageType === 'radiation') {
-        stageWeight = 1.1;
-    }
-    const reliabilityWeight = clamp(0.6 + reliability * 0.5, 0.6, 1.1);
-    return clamp(stageWeight * bmiWeight * reliabilityWeight, 0.7, 1.6);
-}
-
-function applyYesterdayIntakeCorrection(
-    dateKey: string,
-    plan: DayPlan,
-    logs: Record<string, DayLog>,
-    context: IntakeCorrectionContext
-) {
-    const yesterdayKey = offsetDateKey(dateKey, -1);
-    const yesterdayLog = logs[yesterdayKey];
-
-    if (!yesterdayLog) {
-        return {
-            plan,
-            notes: [] as string[],
-        };
-    }
-
-    const eatenItems = eatenTrackItems(yesterdayLog);
-    if (eatenItems.length === 0) {
-        return {
-            plan,
-            notes: [] as string[],
-        };
-    }
-
-    const eatenText = eatenItems.map((item) => stripPortionLabel(item.name)).join(' ');
-    const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛'];
-    const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림', '시럽', '주스'];
-    const heavyKeywords = ['튀김', '치킨', '야식', '족발', '보쌈', '술', '맥주', '소주', '곱창'];
-    const proteinKeywords = ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유'];
-
-    const flourSugarCount = countKeywords(eatenText, flourKeywords) + countKeywords(eatenText, sugarKeywords);
-    const heavyCount = countKeywords(eatenText, heavyKeywords);
-    const proteinCount = countKeywords(eatenText, proteinKeywords);
-    const skippedMeals = (['breakfast', 'lunch', 'dinner'] as MealSlot[]).reduce((count, slot) => {
-        const hasEaten = yesterdayLog.meals[slot].some((item) => item.eaten);
-        return hasEaten ? count : count + 1;
-    }, 0);
-
-    const adjusted = cloneDayPlan(plan);
-    const notes: string[] = [];
-    const reliability = computeIntakeRecordReliability(yesterdayLog);
-    const heavySignalThreshold = reliability >= 0.7 ? 3 : 4;
-
-    if (flourSugarCount + heavyCount >= heavySignalThreshold) {
-        const strength = getOvereatCorrectionStrength(context, reliability);
-        const mealCarbDelta = Math.round(-6 * strength);
-        const mealProteinDelta = Math.round(+4 * strength);
-        const snackCarbDelta = Math.round(-8 * strength);
-        const snackProteinDelta = Math.round(+5 * strength);
-
-        (['breakfast', 'lunch', 'dinner'] as MealSlot[]).forEach((slot) => {
-            const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
-            meal.nutrient = rebalanceMealNutrient(meal.nutrient, mealCarbDelta, mealProteinDelta);
-            if (
-                (meal.riceType.includes('밥') || meal.riceType.includes('죽') || meal.riceType.includes('덮밥')) &&
-                !meal.riceType.includes('소량')
-            ) {
-                meal.riceType = `${meal.riceType}(소량)`;
-                meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
-            }
-        });
-
-        adjusted.snack.main = '그릭요거트';
-        adjusted.snack.sides = ['베리류', '아몬드 소량'];
-        adjusted.snack.soup = '물';
-        adjusted.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량 + 물';
-        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, snackCarbDelta, snackProteinDelta);
-        adjusted.snack.recipeName = '전날 과식 보정 간식';
-        adjusted.snack.recipeSteps = [
-            '그릭요거트를 1회 분량(90g)으로 준비해 주세요.',
-            '베리류는 한 줌(50~60g)만 곁들여 주세요.',
-            '아몬드는 5~6알 이내로 제한해 주세요.',
-            '당류가 많은 음료는 피하고 물과 함께 드세요.',
-        ];
-
-        notes.push('전날 기록을 반영해 오늘은 탄수화물·당류를 낮추고 단백질 중심으로 자동 조정했어요.');
-        notes.push(
-            `보정 강도: ${strength.toFixed(2)}배 (치료 단계 ${STAGE_TYPE_LABELS[context.stageType]}, BMI ${
-                context.bmi ? context.bmi.toFixed(1) : '미입력'
-            }, 기록 신뢰도 ${Math.round(reliability * 100)}%)`
-        );
-    } else if (skippedMeals >= 2 || proteinCount === 0) {
-        const strength = getUndereatCorrectionStrength(context, reliability);
-        const mealCarbDelta = Math.round(+2 * strength);
-        const mealProteinDelta = Math.round(+3 * strength);
-        const snackCarbDelta = Math.round(+2 * strength);
-        const snackProteinDelta = Math.round(+4 * strength);
-
-        (['breakfast', 'lunch', 'dinner'] as MealSlot[]).forEach((slot) => {
-            const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
-            meal.nutrient = rebalanceMealNutrient(meal.nutrient, mealCarbDelta, mealProteinDelta);
-        });
-
-        adjusted.snack.main = '무가당 요거트';
-        adjusted.snack.sides = ['바나나 반 개'];
-        adjusted.snack.soup = '따뜻한 물';
-        adjusted.snack.summary = '무가당 요거트 + 바나나 반 개 + 따뜻한 물';
-        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, snackCarbDelta, snackProteinDelta);
-        adjusted.snack.recipeName = '전날 결식 보정 간식';
-        adjusted.snack.recipeSteps = [
-            '무가당 요거트를 1회 분량으로 준비해 주세요.',
-            '바나나 반 개를 추가해 부족한 에너지를 보충해 주세요.',
-            '따뜻한 물과 함께 천천히 드세요.',
-        ];
-
-        notes.push('전날 섭취 부족 기록을 반영해 오늘은 결식을 막는 회복형 구성을 보강했어요.');
-        notes.push(
-            `보정 강도: ${strength.toFixed(2)}배 (치료 단계 ${STAGE_TYPE_LABELS[context.stageType]}, BMI ${
-                context.bmi ? context.bmi.toFixed(1) : '미입력'
-            }, 기록 신뢰도 ${Math.round(reliability * 100)}%)`
-        );
-    }
-
-    return {
-        plan: adjusted,
-        notes,
-    };
 }
 
 type PortionGuideItem = {
@@ -1022,7 +794,7 @@ function mealPortionGuideFromPlan(meal: MealPlanItem, slot: MealSlot) {
     if (meal.nutritionUnavailable) {
         return {
             items: uniqueNames.map((name) => ({ name, amount: '개인 섭취량 확인 필요' })),
-            notes: ['맞춤 변경한 메뉴의 영양량과 섭취량은 아직 계산하지 않아요. 의료진과 정한 식사량을 따라 주세요.'],
+            notes: ['상세 영양량과 섭취량은 아직 계산하지 않아요. 의료진과 정한 식사량을 따라 주세요.'],
         };
     }
     const items: PortionGuideItem[] = uniqueNames.map((name) => ({
@@ -1973,44 +1745,6 @@ function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey
     return suggestions.slice(0, 8);
 }
 
-const PREFERENCE_TO_DIET_SIGNAL: Partial<Record<PreferenceType, string>> = {
-    healthy: '건강식',
-    vegetable: '채소 보강',
-    high_protein: '단백질 보강',
-    digestive: '소화 편한 식사',
-    low_salt: '저염식',
-    fish: '생선/해산물',
-    spicy: '매운맛',
-    sweet: '단맛',
-    noodle: '면 요리',
-    pizza: '피자',
-    fried_chicken: '치킨',
-    sandwich: '샌드위치',
-    beef: '소고기',
-    pork: '돼지고기',
-    chicken: '닭고기',
-    duck: '오리고기',
-};
-
-function buildRecentDietSignalsFromLogs(logs: Record<string, DayLog>, referenceDateKey: string) {
-    const hasEatenInLookback = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => {
-        const dateKey = offsetDateKey(referenceDateKey, -index);
-        const log = logs[dateKey];
-        return log ? eatenTrackItems(log).length > 0 : false;
-    }).some(Boolean);
-
-    if (!hasEatenInLookback) {
-        return [] as string[];
-    }
-
-    const preferenceSignals = recommendPreferencesByRecentLogs(logs, referenceDateKey)
-        .map((preference) => PREFERENCE_TO_DIET_SIGNAL[preference] ?? preferenceLabel(preference))
-        .map((item) => item.trim())
-        .filter(Boolean);
-
-    return Array.from(new Set(preferenceSignals)).slice(0, 8);
-}
-
 function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, referenceDateKey: string) {
     const lookbackKeys = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => offsetDateKey(referenceDateKey, -(index + 1)));
     const lookbackItems = lookbackKeys
@@ -2074,81 +1808,6 @@ function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, 
     }
 
     return suggestions.slice(0, 4);
-}
-
-function buildRecentDietPattern(logs: Record<string, DayLog>, referenceDateKey: string): RecentDietPattern {
-    const lookbackKeys = Array.from({ length: TWO_WEEK_DAYS }, (_, index) => offsetDateKey(referenceDateKey, -(index + 1)));
-    const proteinKeywords = ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유'];
-    const vegetableKeywords = ['브로콜리', '양배추', '시금치', '오이', '당근', '버섯', '샐러드', '채소', '나물'];
-    const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛', '햄버거'];
-    const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림', '시럽', '주스'];
-    const sodiumKeywords = ['라면', '찌개', '국밥', '젓갈', '장아찌', '햄', '소시지', '가공육', '짠'];
-    const spicyHeavyKeywords = ['매운', '불닭', '짬뽕', '떡볶이', '튀김', '치킨', '야식', '술', '맥주', '소주'];
-
-    let analyzedDays = 0;
-    let skippedMealDays = 0;
-    let lowProteinDays = 0;
-    let lowVegetableDays = 0;
-    let highFlourSugarDays = 0;
-    let highSodiumDays = 0;
-    let spicyHeavyDays = 0;
-
-    lookbackKeys.forEach((dateKey) => {
-        const log = logs[dateKey];
-        if (!log || !hasMeaningfulDayLog(log)) {
-            return;
-        }
-
-        analyzedDays += 1;
-        const eatenItems = eatenTrackItems(log);
-        const eatenCount = eatenItems.length;
-        if (eatenCount === 0) {
-            skippedMealDays += 1;
-            lowProteinDays += 1;
-            lowVegetableDays += 1;
-            return;
-        }
-
-        const eatenMeals = (['breakfast', 'lunch', 'dinner'] as MealSlot[]).reduce((count, slot) => {
-            const hasEaten = log.meals[slot].some((item) => item.eaten);
-            return hasEaten ? count + 1 : count;
-        }, 0);
-        if (eatenMeals <= 1) {
-            skippedMealDays += 1;
-        }
-
-        const proteinCount = countKeywordsByItems(eatenItems, proteinKeywords);
-        const vegetableCount = countKeywordsByItems(eatenItems, vegetableKeywords);
-        const flourSugarCount = countKeywordsByItems(eatenItems, flourKeywords) + countKeywordsByItems(eatenItems, sugarKeywords);
-        const sodiumCount = countKeywordsByItems(eatenItems, sodiumKeywords);
-        const spicyHeavyCount = countKeywordsByItems(eatenItems, spicyHeavyKeywords);
-
-        if (proteinCount <= 1 || proteinCount / eatenCount < 0.22) {
-            lowProteinDays += 1;
-        }
-        if (vegetableCount <= 1 || vegetableCount / eatenCount < 0.24) {
-            lowVegetableDays += 1;
-        }
-        if (flourSugarCount >= 2 || flourSugarCount / eatenCount >= 0.35) {
-            highFlourSugarDays += 1;
-        }
-        if (sodiumCount >= 2 || sodiumCount / eatenCount >= 0.3) {
-            highSodiumDays += 1;
-        }
-        if (spicyHeavyCount >= 2 || spicyHeavyCount / eatenCount >= 0.3) {
-            spicyHeavyDays += 1;
-        }
-    });
-
-    return {
-        analyzedDays,
-        skippedMealDays,
-        lowProteinDays,
-        lowVegetableDays,
-        highFlourSugarDays,
-        highSodiumDays,
-        spicyHeavyDays,
-    };
 }
 
 function plannedNamesBySlot(plan: DayPlan, slot: MealSlot) {
@@ -2468,8 +2127,7 @@ export default function DietPage() {
     const userDietContext = useMemo<UserDietContext>(() => {
         const nowYear = new Date().getFullYear();
         const age = profile?.birth_year ? Math.max(0, nowYear - profile.birth_year) : undefined;
-        const recentDietPattern = buildRecentDietPattern(logs, todayKey);
-        const recentDietSignals = buildRecentDietSignalsFromLogs(logs, todayKey);
+        const recordContext = buildDietRecordContext(logs, todayKey);
         const contextMedicationSchedules: UserMedicationSchedule[] = medicationSchedules.map((item) => ({
             name: item.name,
             category: item.category,
@@ -2495,15 +2153,14 @@ export default function DietPage() {
             activeStageStatus: activeStage?.status ?? undefined,
             medicationSchedules: contextMedicationSchedules,
             additionalConditions: contextAdditionalConditions,
-            recentDietSignals,
-            recentDietPattern,
+            ...recordContext,
         };
     }, [profile, treatmentMeta, activeStage, medicationSchedules, additionalConditions, logs, todayKey]);
 
     const applyRecommendationAdjustments = useCallback(
         (basePlan: DayPlan, targetPreferences: PreferenceType[], dateKey: string) => {
-            const userContextAdjusted = optimizePlanByUserContext(basePlan, userDietContext);
             if (hasRenalDietRestrictions(userDietContext)) {
+                const userContextAdjusted = optimizePlanByUserContext(basePlan, userDietContext);
                 const reviewed = applyFoodPersonalization(userContextAdjusted.plan, foodPersonalization, userDietContext);
                 return {
                     plan: reviewed.plan,
@@ -2514,7 +2171,7 @@ export default function DietPage() {
                     ])),
                 };
             }
-            const medicationAdjusted = optimizePlanByMedications(userContextAdjusted.plan, medications);
+            const medicationAdjusted = optimizePlanByMedications(basePlan, medications);
             const validHeight = userDietContext.heightCm && userDietContext.heightCm > 0 ? userDietContext.heightCm : null;
             const validWeight = userDietContext.weightKg && userDietContext.weightKg > 0 ? userDietContext.weightKg : null;
             const bmi =
@@ -2542,8 +2199,9 @@ export default function DietPage() {
             });
             const yesterdayAdjusted = lowAppetiteRisk
                 ? { plan: dinnerCarbSafetyAdjusted.plan, notes: [] as string[] }
-                : applyYesterdayIntakeCorrection(dateKey, dinnerCarbSafetyAdjusted.plan, logs, { stageType, bmi });
-            const personalized = applyFoodPersonalization(yesterdayAdjusted.plan, foodPersonalization, userDietContext);
+                : applyMealRecordGuidance(dinnerCarbSafetyAdjusted.plan, logs[offsetDateKey(dateKey, -1)]);
+            const userContextAdjusted = optimizePlanByUserContext(yesterdayAdjusted.plan, userDietContext);
+            const personalized = applyFoodPersonalization(userContextAdjusted.plan, foodPersonalization, userDietContext);
             return {
                 plan: personalized.plan,
                 notes: [
@@ -2558,18 +2216,8 @@ export default function DietPage() {
                 ],
             };
         },
-        [userDietContext, medications, logs, stageType, foodPersonalization]
+        [userDietContext, medications, logs, foodPersonalization]
     );
-    const finalizeVariedPlan = useCallback((plan: DayPlan) => {
-        const conditionAdjusted = optimizePlanByUserContext(plan, userDietContext);
-        const medicationAdjusted = optimizePlanByMedications(conditionAdjusted.plan, medications);
-        const personalized = applyFoodPersonalization(medicationAdjusted.plan, foodPersonalization, userDietContext);
-        return {
-            plan: personalized.plan,
-            notes: [...conditionAdjusted.notes, ...medicationAdjusted.notes, ...personalized.notes],
-        };
-    }, [userDietContext, medications, foodPersonalization]);
-
     const personalizationSummary = useMemo(() => {
         const ageText = stripLeadingFieldLabel(
             userDietContext.age && userDietContext.age > 0 ? `${userDietContext.age}세` : '미입력',
@@ -2700,72 +2348,19 @@ export default function DietPage() {
         [dailyPreferences, logs]
     );
 
-    const getAdjustedPlanWithoutNoRepeat = useCallback(
-        (dateKey: string) => {
-            if (dateKey === todayKey) {
-                return optimizedToday;
-            }
-            const basePlan = generatePlanForDate(dateKey, stageType, previousMonthScore);
-            const appliedPreferences = resolveAppliedPreferences(dateKey);
-            return applyRecommendationAdjustments(basePlan, appliedPreferences, dateKey);
-        },
-        [todayKey, optimizedToday, stageType, previousMonthScore, resolveAppliedPreferences, applyRecommendationAdjustments]
-    );
+    // The monthly schedule is generated before clinical adjustments. Do not
+    // reshuffle afterwards: that would overwrite symptoms and excluded foods.
+    const getRecommendedPlan = useCallback((dateKey: string) => {
+        if (dateKey === todayKey) return optimizedToday;
+        const basePlan = generatePlanForDate(dateKey, stageType, previousMonthScore);
+        return applyRecommendationAdjustments(basePlan, resolveAppliedPreferences(dateKey), dateKey);
+    }, [todayKey, optimizedToday, stageType, previousMonthScore, resolveAppliedPreferences, applyRecommendationAdjustments]);
 
-    const getRecentHistoryPlans = useCallback(
-        (dateKey: string, todayOverridePlan?: DayPlan) =>
-            Array.from({ length: NO_REPEAT_DAYS }, (_, index) => {
-                const historyDateKey = offsetDateKey(dateKey, -(index + 1));
-                if (todayOverridePlan && historyDateKey === todayKey) {
-                    return todayOverridePlan;
-                }
-                return getAdjustedPlanWithoutNoRepeat(historyDateKey).plan;
-            }).reverse(),
-        [todayKey, getAdjustedPlanWithoutNoRepeat]
-    );
-
-    const optimizedTodayWithNoRepeat = useMemo(() => {
-        if (hasRenalDietRestrictions(userDietContext)) return optimizedToday;
-        const recentHistoryPlans = getRecentHistoryPlans(todayKey);
-        const noRepeatAdjusted = applySevenDayNoRepeatRule(optimizedToday.plan, recentHistoryPlans, NO_REPEAT_DAYS);
-        const personalized = finalizeVariedPlan(noRepeatAdjusted.plan);
-        return {
-            plan: personalized.plan,
-            notes: Array.from(new Set([...optimizedToday.notes, ...noRepeatAdjusted.notes, ...personalized.notes])),
-        };
-    }, [todayKey, optimizedToday, getRecentHistoryPlans, finalizeVariedPlan, userDietContext]);
-
-    const todayPlan = optimizedTodayWithNoRepeat.plan;
-
-    const getPlanForDate = useCallback(
-        (dateKey: string) => {
-            if (dateKey === todayKey) {
-                return todayPlan;
-            }
-
-            const adjusted = getAdjustedPlanWithoutNoRepeat(dateKey);
-            const recentHistoryPlans = hasRenalDietRestrictions(userDietContext) ? [] : getRecentHistoryPlans(dateKey, todayPlan);
-            if (hasRenalDietRestrictions(userDietContext)) return adjusted.plan;
-            const varied = applySevenDayNoRepeatRule(adjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS);
-            return finalizeVariedPlan(varied.plan).plan;
-        },
-        [todayKey, todayPlan, getAdjustedPlanWithoutNoRepeat, getRecentHistoryPlans, finalizeVariedPlan, userDietContext]
-    );
-
+    const todayPlan = optimizedToday.plan;
+    const getPlanForDate = useCallback((dateKey: string) => getRecommendedPlan(dateKey).plan, [getRecommendedPlan]);
     const getPlanNotesForDate = useCallback(
-        (dateKey: string) => {
-            if (dateKey === todayKey) {
-                return optimizedTodayWithNoRepeat.notes;
-            }
-
-            const adjusted = getAdjustedPlanWithoutNoRepeat(dateKey);
-            const recentHistoryPlans = hasRenalDietRestrictions(userDietContext) ? [] : getRecentHistoryPlans(dateKey, todayPlan);
-            if (hasRenalDietRestrictions(userDietContext)) return adjusted.notes;
-            const noRepeatAdjusted = applySevenDayNoRepeatRule(adjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS);
-            const personalized = finalizeVariedPlan(noRepeatAdjusted.plan);
-            return Array.from(new Set([...adjusted.notes, ...noRepeatAdjusted.notes, ...personalized.notes]));
-        },
-        [todayKey, optimizedTodayWithNoRepeat.notes, getAdjustedPlanWithoutNoRepeat, getRecentHistoryPlans, todayPlan, finalizeVariedPlan, userDietContext]
+        (dateKey: string) => Array.from(new Set(getRecommendedPlan(dateKey).notes)),
+        [getRecommendedPlan]
     );
 
     const proposalWarnings = useMemo(() => {
@@ -3009,12 +2604,14 @@ export default function DietPage() {
     const timingGuide = useMemo(() => getSnackCoffeeTimingGuide(stageType), [stageType]);
     const beverageCaution = useMemo(() => coffeeGuidanceByStage(stageType), [stageType]);
     const dailyTeaRecommendations = useMemo(
-        () => buildDailyTeaRecommendations(stageType, viewedTodayPlan),
-        [stageType, viewedTodayPlan]
+        () => hasRenalDietRestrictions(userDietContext) ? [] : buildDailyTeaRecommendations(stageType, viewedTodayPlan)
+            .filter((item) => !matchesAvoidedIngredient(item.name, foodPersonalization.avoidedIngredients)),
+        [stageType, viewedTodayPlan, userDietContext, foodPersonalization.avoidedIngredients]
     );
     const dailyCoffeeRecommendations = useMemo(
-        () => buildDailyCoffeeRecommendations(stageType, viewedTodayPlan),
-        [stageType, viewedTodayPlan]
+        () => hasRenalDietRestrictions(userDietContext) ? [] : buildDailyCoffeeRecommendations(stageType, viewedTodayPlan)
+            .filter((item) => !matchesAvoidedIngredient(item.name, foodPersonalization.avoidedIngredients)),
+        [stageType, viewedTodayPlan, userDietContext, foodPersonalization.avoidedIngredients]
     );
     const snackCoffeeRecommendedTime = useMemo(() => {
         if (stageType === 'chemo' || stageType === 'chemo_2nd') {
@@ -3046,6 +2643,13 @@ export default function DietPage() {
         }
 
         if (openRecipeSlot === 'coffee') {
+            if (hasRenalDietRestrictions(userDietContext)) {
+                return {
+                    title: '음료 섭취 안내',
+                    recipeName: '의료진과 정한 수분 섭취량을 따라 주세요.',
+                    recipeSteps: ['신장 상태에 따라 음료 종류와 양이 달라질 수 있어 자동 추천을 보류했어요.'],
+                };
+            }
             return {
                 title: '커피/차 가이드',
                 recipeName: '치료 중 음료(커피·차) 섭취 방법',
@@ -3101,6 +2705,7 @@ export default function DietPage() {
         dailyCoffeeRecommendations,
         dailyTeaRecommendations,
         viewedTodayPlan,
+        userDietContext,
     ]);
 
     const weeklyScore = useMemo(() => {
@@ -3917,7 +3522,7 @@ export default function DietPage() {
                 <header className="uiPageHeader min-w-0">
                     <p>{profile?.nickname ? `${profile.nickname} 님의 하루 한 끼` : '나를 돌보는 한 끼'}</p>
                     <h1>{openRecordView ? '오늘의 식사를 기록해요.' : '오늘도 편안한 식사.'}</h1>
-                    <p>{openRecordView ? '먹은 음식을 한 끼씩 남겨 보세요.' : '내 몸에 맞춰 준비한 하루 식단이에요.'}</p>
+                    {openRecordView && <p>먹은 음식을 한 끼씩 남겨 보세요.</p>}
                 </header>
                 {!openRecordView && <NextVisitSummary />}
             </div>
@@ -3950,7 +3555,7 @@ export default function DietPage() {
                                     <span className="text-xs text-[var(--ui-muted)]">{time}</span>
                                 </div>
                                 <div className="flex-1 pb-5 pt-5">
-                                    <p className="text-xl font-semibold leading-relaxed tracking-tight">{meal.main}</p>
+                                    <p className="text-xl font-semibold leading-relaxed tracking-tight">{meal.main || '식사 구성 확인 필요'}</p>
                                     <p className="mt-2 text-sm leading-relaxed text-[var(--ui-muted)]">{slot === 'snack' ? [...meal.sides, meal.soup].filter(Boolean).join(' · ') : [meal.riceType, meal.soup].filter(Boolean).join(' · ')}</p>
                                     {mealMedicationList.length > 0 && <p className="mt-3 text-xs leading-relaxed text-[var(--ui-accent)]">식후 복용 · {mealMedicationList.map((medication) => `${medication.name}${viewedTodayMedicationTakenSet.has(medication.id) ? ' ✓' : ''}`).join(', ')}</p>}
                                 </div>
@@ -3965,7 +3570,7 @@ export default function DietPage() {
                                         const guide = mealPortionGuideFromPlan(meal, slot);
                                         setOpenPortionGuideContent({ title: `${mealTypeLabel(slot)} 식사량 참고`, slot, guide, substitutes: guide.items.map((item) => { const substitute = buildSubstituteCandidates(item.name, slot, manualFoodCandidates, foodPersonalization.avoidedIngredients); return { hint: substitute.hint, options: substitute.options.slice(0, 5) }; }) });
                                     }} className="uiButton uiButton--secondary uiButton--small">먹는 양 확인하기</button>
-                                    {meal.nutritionUnavailable ? <p className="mt-3 text-xs leading-relaxed text-[var(--ui-muted)]">변경한 메뉴의 영양 수치는 아직 계산하지 않아요.</p> : <><p className="mt-3 text-xs leading-relaxed text-[var(--ui-muted)]">기본 구성 비율이며 실제 영양 분석값은 아니에요.</p><MealNutrientBalance nutrient={meal.nutrient} /></>}
+                                    {meal.nutritionUnavailable ? <p className="mt-3 text-xs leading-relaxed text-[var(--ui-muted)]">상세 영양량은 아직 계산하지 않아요.</p> : <><p className="mt-3 text-xs leading-relaxed text-[var(--ui-muted)]">기본 구성 비율이며 실제 영양 분석값은 아니에요.</p><MealNutrientBalance nutrient={meal.nutrient} /></>}
                                 </details>
                             </article>
                         );
@@ -4012,6 +3617,7 @@ export default function DietPage() {
 
                 <details className="mt-3 rounded-xl border border-gray-200 px-3 pb-3 dark:border-gray-700">
                     <summary className="cursor-pointer py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">간식과 음료 안내</summary>
+                    {hasRenalDietRestrictions(userDietContext) ? <p className="text-sm leading-relaxed text-[var(--ui-muted)]">간식과 음료 종류·양은 의료진과 정한 식사·수분 지침을 따라 주세요.</p> : <>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 간식 권장 시간: {snackCoffeeRecommendedTime.snack}</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.snack}</p>
                     <div className="mt-3 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
@@ -4051,6 +3657,7 @@ export default function DietPage() {
                             커피/차 가이드 보기
                         </button>
                     </div>
+                    </>}
                 </details>
 
                 <details className="mt-3 rounded-xl border border-gray-200 px-3 pb-3 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-200">
@@ -4062,7 +3669,7 @@ export default function DietPage() {
                         {viewedTodayNotes.length > 0 ? (
                             viewedTodayNotes.map((note) => <p key={note}>- {note}</p>)
                         ) : (
-                            <p>- 개인 조건이 없거나 매칭되지 않아 기본 안전식 기준으로 추천됐어요.</p>
+                            <p>- 개인 조건이 없거나 매칭되지 않아 월간 재료와 조리법의 다양성을 고려해 구성했어요.</p>
                         )}
                     </div>
                 </details>
@@ -4426,7 +4033,7 @@ export default function DietPage() {
                                                 className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40"
                                             >
                                                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{mealTypeLabel(slot)}</p>
-                                                <p className="mt-1 text-sm text-gray-800 dark:text-gray-100">{meal.summary}</p>
+                                                <p className="mt-1 text-sm text-gray-800 dark:text-gray-100">{meal.summary || '식사 구성 확인 필요'}</p>
                                                 {slot !== 'snack' && (
                                                     <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">반찬: {meal.sides.join(', ')}</p>
                                                 )}
@@ -4454,7 +4061,7 @@ export default function DietPage() {
                                                     </div>
                                                 )}
                                                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                                                    {meal.nutritionUnavailable ? '맞춤 변경한 메뉴는 영양량 계산 전이에요.' : `기본 구성 참고: 탄수화물 ${meal.nutrient.carb}% · 단백질 ${meal.nutrient.protein}% · 지방 ${meal.nutrient.fat}%`}
+                                                    {meal.nutritionUnavailable ? '상세 영양량은 계산 전이에요.' : `기본 구성 참고: 탄수화물 ${meal.nutrient.carb}% · 단백질 ${meal.nutrient.protein}% · 지방 ${meal.nutrient.fat}%`}
                                                 </p>
                                             </article>
                                         );
@@ -4710,7 +4317,7 @@ export default function DietPage() {
                                 <p>아래 비율은 추천 식단의 기본 구성 비율이에요. 실제 먹은 음식의 영양 분석값은 아니에요.</p>
                                 {SLOT_ORDER.map((slot) => (
                                     <p key={slot} className="mt-2">{mealTypeLabel(slot)}: {selectedPlan[slot].nutritionUnavailable
-                                        ? '맞춤 변경한 메뉴는 영양량 계산 전이에요.'
+                                        ? '상세 영양량은 계산 전이에요.'
                                         : `탄수화물 ${selectedPlan[slot].nutrient.carb}% · 단백질 ${selectedPlan[slot].nutrient.protein}% · 지방 ${selectedPlan[slot].nutrient.fat}%`}</p>
                                 ))}
                             </div>

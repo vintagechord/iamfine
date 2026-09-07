@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { CircleHelp, ShoppingCart } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import {
-    applySevenDayNoRepeatRule,
+    applyDinnerCarbSafety,
     formatDateKey,
     formatDateLabel,
     generatePlanForDate,
@@ -20,7 +20,9 @@ import {
     type UserMedicationSchedule,
 } from '@/lib/dietEngine';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
+import { applyFoodPersonalization, hasRenalDietRestrictions, parseFoodPersonalization, readFoodPersonalization } from '@/lib/personalization';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { buildDietRecordContext, applyMealRecordGuidance } from '@/lib/dietRecordContext';
 
 type StageStatus = 'planned' | 'active' | 'completed';
 
@@ -119,7 +121,6 @@ const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TWO_WEEK_DAYS = 14;
-const NO_REPEAT_DAYS = 30;
 const PREFERENCE_KEYS = new Set<PreferenceType>(PREFERENCE_OPTIONS.map((option) => option.key));
 
 const CATEGORY_ORDER: CategoryKey[] = [
@@ -232,8 +233,9 @@ const INGREDIENT_RULES: Array<{ pattern: RegExp; ingredient: string }> = [
     { pattern: /베리/, ingredient: '베리류' },
     { pattern: /복숭아/, ingredient: '복숭아' },
     { pattern: /자두/, ingredient: '자두' },
-    { pattern: /감/, ingredient: '감' },
+    { pattern: /(?:^|\s)감(?:\s|$)|단감|홍시|연시|곶감/, ingredient: '감' },
     { pattern: /귤/, ingredient: '귤' },
+    { pattern: /감자/, ingredient: '감자' },
     { pattern: /고구마/, ingredient: '고구마' },
     { pattern: /호두/, ingredient: '호두' },
     { pattern: /아몬드/, ingredient: '아몬드' },
@@ -241,6 +243,7 @@ const INGREDIENT_RULES: Array<{ pattern: RegExp; ingredient: string }> = [
 ];
 
 const QUANTITY_RULES: Array<{ pattern: RegExp; rule: QuantityRule }> = [
+    { pattern: /^감자$/, rule: { kind: 'count', unit: '개', perUse: 1 } },
     { pattern: /현미|잡곡쌀|귀리|보리|흑미|기장|수수|렌틸콩|퀴노아|쌀/, rule: { kind: 'weight', perUseGram: 70, preferKg: true } },
     { pattern: /닭가슴살|닭안심/, rule: { kind: 'weight', perUseGram: 100 } },
     { pattern: /소고기|돼지안심/, rule: { kind: 'weight', perUseGram: 90 } },
@@ -748,11 +751,6 @@ function normalizeText(input: string) {
     return input.trim().toLowerCase();
 }
 
-function countKeywords(text: string, keywords: string[]) {
-    const normalized = normalizeText(text);
-    return keywords.reduce((count, keyword) => count + (normalized.includes(keyword) ? 1 : 0), 0);
-}
-
 function countKeywordsByItems(items: Array<Pick<TrackItem, 'name' | 'servings'>>, keywords: string[]) {
     const normalizedKeywords = keywords.map((keyword) => normalizeText(keyword));
     return items.reduce((count, item) => {
@@ -844,229 +842,10 @@ function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, 
     return suggestions.slice(0, 4);
 }
 
-function clamp(value: number, min: number, max: number) {
-    return Math.max(min, Math.min(max, value));
-}
-
-function cloneDayPlan(plan: DayPlan): DayPlan {
-    return {
-        date: plan.date,
-        breakfast: { ...plan.breakfast, sides: [...plan.breakfast.sides], recipeSteps: [...plan.breakfast.recipeSteps] },
-        lunch: { ...plan.lunch, sides: [...plan.lunch.sides], recipeSteps: [...plan.lunch.recipeSteps] },
-        dinner: { ...plan.dinner, sides: [...plan.dinner.sides], recipeSteps: [...plan.dinner.recipeSteps] },
-        snack: { ...plan.snack, sides: [...plan.snack.sides], recipeSteps: [...plan.snack.recipeSteps] },
-    };
-}
-
-function rebalanceMealNutrient(
-    nutrient: { carb: number; protein: number; fat: number },
-    carbDelta: number,
-    proteinDelta: number
-) {
-    let carb = clamp(Math.round(nutrient.carb + carbDelta), 20, 60);
-    let protein = clamp(Math.round(nutrient.protein + proteinDelta), 20, 60);
-    let fat = 100 - carb - protein;
-
-    if (fat < 20) {
-        const need = 20 - fat;
-        const proteinReducible = Math.max(0, protein - 20);
-        const proteinCut = Math.min(need, proteinReducible);
-        protein -= proteinCut;
-        const remain = need - proteinCut;
-        if (remain > 0) {
-            carb = Math.max(20, carb - remain);
-        }
-        fat = 100 - carb - protein;
-    }
-
-    if (fat > 35) {
-        const excess = fat - 35;
-        carb = clamp(carb + excess, 20, 60);
-        fat = 100 - carb - protein;
-    }
-
-    return { carb, protein, fat };
-}
-
-type IntakeCorrectionContext = {
-    stageType: StageType;
-    bmi: number | null;
-};
-
-function computeIntakeRecordReliability(log: DayLog) {
-    const slots: Array<'breakfast' | 'lunch' | 'dinner' | 'snack'> = ['breakfast', 'lunch', 'dinner', 'snack'];
-    const allItems = slots.flatMap((slot) => slotItems(log, slot));
-    if (allItems.length === 0) {
-        return 0;
-    }
-    const checkedCount = allItems.filter((item) => item.eaten || item.notEaten).length;
-    return checkedCount / allItems.length;
-}
-
-function stageRiskWeight(stageType: StageType) {
-    if (stageType === 'chemo' || stageType === 'chemo_2nd' || stageType === 'radiation') {
-        return 1.15;
-    }
-    if (stageType === 'surgery') {
-        return 1.1;
-    }
-    if (
-        stageType === 'hormone_therapy' ||
-        stageType === 'medication' ||
-        stageType === 'targeted' ||
-        stageType === 'immunotherapy'
-    ) {
-        return 1.05;
-    }
-    return 1;
-}
-
-function getOvereatCorrectionStrength(context: IntakeCorrectionContext, reliability: number) {
-    let bmiWeight = 1;
-    if (context.bmi !== null) {
-        if (context.bmi >= 30) {
-            bmiWeight = 1.3;
-        } else if (context.bmi >= 25) {
-            bmiWeight = 1.18;
-        } else if (context.bmi < 18.5) {
-            bmiWeight = 0.85;
-        }
-    }
-    const reliabilityWeight = clamp(0.65 + reliability * 0.45, 0.65, 1.1);
-    return clamp(stageRiskWeight(context.stageType) * bmiWeight * reliabilityWeight, 0.65, 1.5);
-}
-
-function getUndereatCorrectionStrength(context: IntakeCorrectionContext, reliability: number) {
-    let bmiWeight = 1;
-    if (context.bmi !== null) {
-        if (context.bmi < 18.5) {
-            bmiWeight = 1.25;
-        } else if (context.bmi >= 25) {
-            bmiWeight = 0.9;
-        }
-    }
-    let stageWeight = 1;
-    if (context.stageType === 'surgery') {
-        stageWeight = 1.15;
-    } else if (context.stageType === 'chemo' || context.stageType === 'chemo_2nd' || context.stageType === 'radiation') {
-        stageWeight = 1.1;
-    }
-    const reliabilityWeight = clamp(0.6 + reliability * 0.5, 0.6, 1.1);
-    return clamp(stageWeight * bmiWeight * reliabilityWeight, 0.7, 1.6);
-}
-
-function applyYesterdayIntakeCorrection(
-    dateKey: string,
-    plan: DayPlan,
-    logs: Record<string, DayLog>,
-    context: IntakeCorrectionContext
-) {
-    const yesterdayKey = offsetDateKey(dateKey, -1);
-    const yesterdayLog = logs[yesterdayKey];
-
-    if (!yesterdayLog) {
-        return {
-            plan,
-            notes: [] as string[],
-        };
-    }
-
-    const eatenItems = eatenTrackItems(yesterdayLog);
-    if (eatenItems.length === 0) {
-        return {
-            plan,
-            notes: [] as string[],
-        };
-    }
-
-    const eatenText = eatenItems.map((item) => stripPortionLabel(item.name)).join(' ');
-    const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '도넛'];
-    const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림', '시럽', '주스'];
-    const heavyKeywords = ['튀김', '치킨', '야식', '족발', '보쌈', '술', '맥주', '소주', '곱창'];
-    const proteinKeywords = ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유'];
-
-    const flourSugarCount = countKeywords(eatenText, flourKeywords) + countKeywords(eatenText, sugarKeywords);
-    const heavyCount = countKeywords(eatenText, heavyKeywords);
-    const proteinCount = countKeywords(eatenText, proteinKeywords);
-    const skippedMeals = (['breakfast', 'lunch', 'dinner'] as const).reduce((count, slot) => {
-        const hasEaten = slotItems(yesterdayLog, slot).some((item) => item.eaten);
-        return hasEaten ? count : count + 1;
-    }, 0);
-
-    const adjusted = cloneDayPlan(plan);
-    const notes: string[] = [];
-    const reliability = computeIntakeRecordReliability(yesterdayLog);
-    const heavySignalThreshold = reliability >= 0.7 ? 3 : 4;
-
-    if (flourSugarCount + heavyCount >= heavySignalThreshold) {
-        const strength = getOvereatCorrectionStrength(context, reliability);
-        const mealCarbDelta = Math.round(-6 * strength);
-        const mealProteinDelta = Math.round(+4 * strength);
-        const snackCarbDelta = Math.round(-8 * strength);
-        const snackProteinDelta = Math.round(+5 * strength);
-
-        (['breakfast', 'lunch', 'dinner'] as const).forEach((slot) => {
-            const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
-            meal.nutrient = rebalanceMealNutrient(meal.nutrient, mealCarbDelta, mealProteinDelta);
-            if (
-                (meal.riceType.includes('밥') || meal.riceType.includes('죽') || meal.riceType.includes('덮밥')) &&
-                !meal.riceType.includes('소량')
-            ) {
-                meal.riceType = `${meal.riceType}(소량)`;
-                meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
-            }
-        });
-
-        adjusted.snack.main = '그릭요거트';
-        adjusted.snack.sides = ['베리류', '아몬드 소량'];
-        adjusted.snack.soup = '물';
-        adjusted.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량 + 물';
-        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, snackCarbDelta, snackProteinDelta);
-        adjusted.snack.recipeName = '전날 과식 보정 간식';
-        adjusted.snack.recipeSteps = [
-            '그릭요거트를 1회 분량(90g)으로 준비해 주세요.',
-            '베리류는 한 줌(50~60g)만 곁들여 주세요.',
-            '아몬드는 5~6알 이내로 제한해 주세요.',
-            '당류가 많은 음료는 피하고 물과 함께 드세요.',
-        ];
-
-        notes.push('전날 기록을 반영해 오늘은 탄수화물·당류를 낮추고 단백질 중심으로 자동 조정했어요.');
-    } else if (skippedMeals >= 2 || proteinCount === 0) {
-        const strength = getUndereatCorrectionStrength(context, reliability);
-        const mealCarbDelta = Math.round(+2 * strength);
-        const mealProteinDelta = Math.round(+3 * strength);
-        const snackCarbDelta = Math.round(+2 * strength);
-        const snackProteinDelta = Math.round(+4 * strength);
-
-        (['breakfast', 'lunch', 'dinner'] as const).forEach((slot) => {
-            const meal = slot === 'breakfast' ? adjusted.breakfast : slot === 'lunch' ? adjusted.lunch : adjusted.dinner;
-            meal.nutrient = rebalanceMealNutrient(meal.nutrient, mealCarbDelta, mealProteinDelta);
-        });
-
-        adjusted.snack.main = '무가당 요거트';
-        adjusted.snack.sides = ['바나나 반 개'];
-        adjusted.snack.soup = '따뜻한 물';
-        adjusted.snack.summary = '무가당 요거트 + 바나나 반 개 + 따뜻한 물';
-        adjusted.snack.nutrient = rebalanceMealNutrient(adjusted.snack.nutrient, snackCarbDelta, snackProteinDelta);
-        adjusted.snack.recipeName = '전날 결식 보정 간식';
-        adjusted.snack.recipeSteps = [
-            '무가당 요거트를 1회 분량으로 준비해 주세요.',
-            '바나나 반 개를 추가해 부족한 에너지를 보충해 주세요.',
-            '따뜻한 물과 함께 천천히 드세요.',
-        ];
-
-        notes.push('전날 섭취 부족 기록을 반영해 오늘은 결식을 막는 회복형 구성을 보강했어요.');
-    }
-
-    return {
-        plan: adjusted,
-        notes,
-    };
-}
-
 function classifyItem(item: string): CategoryKey {
     if (
-        /요거트|두유|바나나|사과|키위|딸기|베리|고구마|아몬드|호두|견과|복숭아|자두|감|귤|리코타|오트밀/.test(item) ||
+        /요거트|두유|바나나|사과|키위|딸기|베리|고구마|아몬드|호두|견과|복숭아|자두|귤|리코타|오트밀/.test(item) ||
+        item === '감' ||
         item === '배' ||
         item === '제철 과일'
     ) {
@@ -1079,7 +858,7 @@ function classifyItem(item: string): CategoryKey {
         return '단백질 식품';
     }
     if (
-        /브로콜리|버섯|시금치|오이|당근|애호박|단호박|양배추|배추|무|미나리|채소|해초|토마토|가지|상추|나물|냉이|달래|두릅|아스파라거스|쑥|완두콩|옥수수|레몬|숙주|콩나물|연근|우엉|파프리카|청경채|새송이|곤드레/.test(
+        /브로콜리|버섯|시금치|오이|당근|감자|애호박|단호박|양배추|배추|무|미나리|채소|해초|토마토|가지|상추|나물|냉이|달래|두릅|아스파라거스|쑥|완두콩|옥수수|레몬|숙주|콩나물|연근|우엉|파프리카|청경채|새송이|곤드레/.test(
             item
         )
     ) {
@@ -1249,9 +1028,11 @@ export default function ShoppingPage() {
     const [profile, setProfile] = useState<ProfileRow | null>(null);
     const [treatmentMeta, setTreatmentMeta] = useState<TreatmentMeta | null>(null);
     const [stageType, setStageType] = useState<StageType>('other');
+    const [activeStage, setActiveStage] = useState<TreatmentStageRow | null>(null);
     const [medications, setMedications] = useState<string[]>([]);
     const [medicationSchedules, setMedicationSchedules] = useState<MedicationSchedule[]>([]);
     const [additionalConditions, setAdditionalConditions] = useState<AdditionalCondition[]>([]);
+    const [foodPersonalization, setFoodPersonalization] = useState(() => parseFoodPersonalization(null));
     const [dailyPreferences, setDailyPreferences] = useState<Record<string, PreferenceType[]>>({});
     const [logs, setLogs] = useState<Record<string, DayLog>>({});
 
@@ -1278,6 +1059,7 @@ export default function ShoppingPage() {
         }));
 
         return {
+            ...buildDietRecordContext(logs, todayKey),
             age,
             sex: profile?.sex ?? 'unknown',
             heightCm: profile?.height_cm ?? undefined,
@@ -1286,10 +1068,13 @@ export default function ShoppingPage() {
             cancerType: treatmentMeta?.cancerType ?? '',
             cancerStage: treatmentMeta?.cancerStage ?? '',
             activeStageType: stageType,
+            activeStageLabel: activeStage?.stage_label ?? '',
+            activeStageOrder: activeStage?.stage_order,
+            activeStageStatus: activeStage?.status,
             medicationSchedules: contextMedicationSchedules,
             additionalConditions: contextAdditionalConditions,
         };
-    }, [profile, treatmentMeta, stageType, medicationSchedules, additionalConditions]);
+    }, [profile, treatmentMeta, stageType, activeStage, medicationSchedules, additionalConditions, logs, todayKey]);
     const bmi = useMemo(() => {
         const validHeight = userDietContext.heightCm && userDietContext.heightCm > 0 ? userDietContext.heightCm : null;
         const validWeight = userDietContext.weightKg && userDietContext.weightKg > 0 ? userDietContext.weightKg : null;
@@ -1314,9 +1099,11 @@ export default function ShoppingPage() {
                 setProfile(null);
                 setTreatmentMeta(null);
                 setStageType('other');
+                setActiveStage(null);
                 setMedications([]);
                 setMedicationSchedules([]);
                 setAdditionalConditions([]);
+                setFoodPersonalization(parseFoodPersonalization(null));
                 setDailyPreferences({});
                 setLogs({});
                 setMemo(localStorage.getItem(getShoppingMemoKey(null)) ?? '');
@@ -1327,6 +1114,7 @@ export default function ShoppingPage() {
             const uid = user.id;
             setUserId(uid);
             const metadata = readIamfineMetadata(user.user_metadata);
+            setFoodPersonalization(readFoodPersonalization(user.user_metadata));
             const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             const resolvedTreatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
             setTreatmentMeta(resolvedTreatmentMeta);
@@ -1348,6 +1136,7 @@ export default function ShoppingPage() {
 
             const rows = (stageData ?? []) as TreatmentStageRow[];
             const activeStage = rows.find((row) => row.status === 'active') ?? rows[0];
+            setActiveStage(activeStage ?? null);
             if (activeStage) {
                 setStageType(activeStage.stage_type);
             } else {
@@ -1443,13 +1232,28 @@ export default function ShoppingPage() {
     );
 
     const planRows = useMemo(() => {
-        const buildAdjustedPlanByDate = (dateKey: string) => {
+        return dateKeys.map((dateKey) => {
             const basePlan = generatePlanForDate(dateKey, stageType, 70);
-            const contextAdjusted = optimizePlanByUserContext(basePlan, userDietContext);
-            const medicationAdjusted = optimizePlanByMedications(contextAdjusted.plan, medications);
+            if (hasRenalDietRestrictions(userDietContext)) {
+                const contextAdjusted = optimizePlanByUserContext(basePlan, userDietContext);
+                const personalized = applyFoodPersonalization(contextAdjusted.plan, foodPersonalization, userDietContext);
+                return {
+                    dateKey,
+                    plan: personalized.plan,
+                    requiresMealReview: personalized.plan !== contextAdjusted.plan,
+                };
+            }
+            const medicationAdjusted = optimizePlanByMedications(basePlan, medications);
             const byDatePreferences = dailyPreferences[dateKey];
             const adaptivePreferences = recommendAdaptivePreferencesByRecentLogs(logs, dateKey);
-            const appliedPreferences = mergePreferences(adaptivePreferences, byDatePreferences ?? []);
+            const targetPreferences = mergePreferences(adaptivePreferences, byDatePreferences ?? []);
+            const yesterdayLog = logs[offsetDateKey(dateKey, -1)];
+            const lowAppetiteRisk = foodPersonalization.symptoms.length > 0
+                || targetPreferences.includes('appetite_boost')
+                || (yesterdayLog ? eatenTrackItems(yesterdayLog).length <= 2 : false);
+            const appliedPreferences = lowAppetiteRisk
+                ? targetPreferences.filter((preference) => preference !== 'weight_loss')
+                : targetPreferences;
             const preferenceAdjusted =
                 appliedPreferences.length === 0
                     ? {
@@ -1457,34 +1261,23 @@ export default function ShoppingPage() {
                       }
                     : optimizePlanByPreference(medicationAdjusted.plan, appliedPreferences);
 
-            return {
-                plan: applyYesterdayIntakeCorrection(dateKey, preferenceAdjusted.plan, logs, { stageType, bmi }).plan,
-            };
-        };
-
-        const firstDateKey = dateKeys[0];
-        const rollingHistory =
-            firstDateKey === undefined
-                ? ([] as DayPlan[])
-                : Array.from({ length: NO_REPEAT_DAYS }, (_, index) => {
-                      const historyDateKey = offsetDateKey(firstDateKey, -(NO_REPEAT_DAYS - index));
-                      return buildAdjustedPlanByDate(historyDateKey).plan;
-                  });
-
-        return dateKeys.map((dateKey) => {
-            const adjusted = buildAdjustedPlanByDate(dateKey);
-            const noRepeatAdjusted = applySevenDayNoRepeatRule(adjusted.plan, rollingHistory, NO_REPEAT_DAYS);
-            rollingHistory.push(noRepeatAdjusted.plan);
-            if (rollingHistory.length > NO_REPEAT_DAYS) {
-                rollingHistory.shift();
-            }
+            const dinnerAdjusted = applyDinnerCarbSafety(preferenceAdjusted.plan, {
+                bmi,
+                lowAppetiteRisk,
+                weightLossPreference: appliedPreferences.includes('weight_loss'),
+            });
+            const yesterdayAdjusted = lowAppetiteRisk
+                ? dinnerAdjusted
+                : applyMealRecordGuidance(dinnerAdjusted.plan, logs[offsetDateKey(dateKey, -1)]);
+            const contextAdjusted = optimizePlanByUserContext(yesterdayAdjusted.plan, userDietContext);
 
             return {
                 dateKey,
-                plan: noRepeatAdjusted.plan,
+                plan: applyFoodPersonalization(contextAdjusted.plan, foodPersonalization, userDietContext).plan,
+                requiresMealReview: false,
             };
         });
-    }, [dateKeys, stageType, userDietContext, medications, dailyPreferences, logs, bmi]);
+    }, [dateKeys, stageType, userDietContext, medications, dailyPreferences, logs, bmi, foodPersonalization]);
 
     const plans = useMemo(
         () => planRows.map((row) => row.plan),
@@ -1724,6 +1517,11 @@ export default function ShoppingPage() {
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                     적용 기간: {formatDateLabel(startDateKey)} ~ {formatDateLabel(endDateKey)} ({rangeDays}일)
                 </p>
+                {planRows.some((row) => row.requiresMealReview) && (
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--ui-muted)]">
+                        피할 재료를 제외했어요. 대체 음식과 식사량은 의료진과 확인해 주세요.
+                    </p>
+                )}
             </section>
 
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -1857,13 +1655,13 @@ export default function ShoppingPage() {
                                         </p>
                                         <div className="mt-2 grid gap-2 text-sm text-gray-700 dark:text-gray-200 sm:grid-cols-3">
                                             <p>
-                                                <span className="font-semibold">아침</span>: {row.plan.breakfast.summary}
+                                                <span className="font-semibold">아침</span>: {row.plan.breakfast.summary.trim() || '식사 구성 확인 필요'}
                                             </p>
                                             <p>
-                                                <span className="font-semibold">점심</span>: {row.plan.lunch.summary}
+                                                <span className="font-semibold">점심</span>: {row.plan.lunch.summary.trim() || '식사 구성 확인 필요'}
                                             </p>
                                             <p>
-                                                <span className="font-semibold">저녁</span>: {row.plan.dinner.summary}
+                                                <span className="font-semibold">저녁</span>: {row.plan.dinner.summary.trim() || '식사 구성 확인 필요'}
                                             </p>
                                         </div>
                                     </article>

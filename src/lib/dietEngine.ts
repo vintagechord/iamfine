@@ -64,7 +64,7 @@ export const PREFERENCE_OPTIONS: Array<{ key: PreferenceType; label: string; gui
     { key: 'digestive', label: '소화 편한 음식', guide: '속이 편한 메뉴 위주로 조정해요.' },
     { key: 'low_salt', label: '저염식', guide: '염분이 높은 반찬을 줄이고 싱겁게 맞춰요.' },
     { key: 'noodle', label: '면 요리', guide: '자극이 적은 면 요리를 가끔 반영해요.' },
-    { key: 'weight_loss', label: '체중감량(다이어트)', guide: '단백질을 유지하고 정제 탄수화물을 줄인 감량형 식단으로 조정해요.' },
+    { key: 'weight_loss', label: '체중감량(다이어트)', guide: '치료 중 영양 상태와 의료진의 체중 조절 목표를 먼저 확인해요.' },
 ];
 
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -242,20 +242,6 @@ const SIDES = [
     '청경채볶음',
     '미나리무침',
     '새송이버섯구이',
-];
-const SNACKS = [
-    '무가당 요거트',
-    '바나나 반 개',
-    '찐고구마',
-    '무가당 두유',
-    '사과 조각',
-    '아몬드 소량',
-    '그릭요거트',
-    '배 조각',
-    '키위',
-    '베리류',
-    '찐단호박',
-    '호두 소량',
 ];
 const SNACK_FRUITS = ['사과 조각', '바나나 반 개', '배 조각', '키위', '딸기', '베리류', '귤', '복숭아 조각'];
 const BREAKFAST_MAIN_VARIANTS = [
@@ -467,20 +453,153 @@ const SNACK_TEMPLATES: SnackTemplate[] = [
     { main: '토마토 조각', side: '삶은 달걀 1개', hydration: '루이보스차' },
 ];
 
-const SEASONAL_FOOD: Record<number, string[]> = {
-    1: ['배추', '무', '시금치'],
-    2: ['브로콜리', '당근', '양배추'],
-    3: ['달래', '냉이', '두릅'],
-    4: ['아스파라거스', '미나리', '쑥'],
-    5: ['오이', '상추', '완두콩'],
-    6: ['애호박', '가지', '토마토'],
-    7: ['옥수수', '오이', '복숭아'],
-    8: ['가지', '토마토', '자두'],
-    9: ['버섯', '배', '고구마'],
-    10: ['단호박', '무', '사과'],
-    11: ['브로콜리', '배추', '감'],
-    12: ['무', '양배추', '귤'],
-};
+// A calendar-wide rotation is sliced into months. It does not restart on the
+// first day of a month, or depend on which date the user opens first.
+const MAIN_SLOTS = ['breakfast', 'lunch', 'dinner'] as const;
+type MainSlot = typeof MAIN_SLOTS[number];
+type ScheduledProtein = 'egg' | 'fish' | 'tofu_bean' | 'chicken' | 'beef';
+const WEEKLY_PROTEIN_ROTATION: ScheduledProtein[][] = [
+    ['egg', 'fish', 'tofu_bean'],
+    ['chicken', 'tofu_bean', 'fish'],
+    ['tofu_bean', 'egg', 'chicken'],
+    ['fish', 'chicken', 'tofu_bean'],
+    ['egg', 'tofu_bean', 'fish'],
+    ['tofu_bean', 'beef', 'egg'],
+    ['chicken', 'fish', 'tofu_bean'],
+];
+
+const MONTHLY_MEAL_CATALOG: MealTemplate[] = Array.from(new Map([
+    ...MEAL_TEMPLATES.breakfast,
+    ...MEAL_TEMPLATES.lunch,
+    ...MEAL_TEMPLATES.dinner,
+    { main: '달걀찜', soup: '애호박맑은국', sides: ['당근나물', '배추찜', '가지나물'] },
+    { main: '달걀채소찜', soup: '버섯맑은국', sides: ['브로콜리찜', '무나물', '숙주나물'] },
+    { main: '채소달걀죽', soup: '맑은채소국', sides: ['애호박볶음', '배추찜', '당근나물'] },
+    { main: '계란말이', soup: '두부맑은국', sides: ['시금치나물', '구운채소', '오이무침'] },
+    { main: '스크램블에그', soup: '양배추수프', sides: ['토마토샐러드', '버섯볶음', '단호박찜'] },
+    { main: '닭안심찜', soup: '당근수프', sides: ['가지나물', '청경채볶음', '배추찜'] },
+    { main: '닭가슴살구이', soup: '브로콜리수프', sides: ['시금치나물', '오이무침', '새송이버섯구이'] },
+    { main: '닭가슴살채소찜', soup: '무맑은국', sides: ['숙주나물', '당근나물', '양배추찜'] },
+    { main: '닭가슴살채소볶음(저염)', soup: '배추맑은국', sides: ['브로콜리찜', '무나물', '오이채무침'] },
+    { main: '닭안심버섯찜', soup: '애호박맑은국', sides: ['청경채볶음', '구운채소', '콩나물무침'] },
+    { main: '귀리닭죽', soup: '맑은채소국', sides: ['당근나물', '배추찜', '애호박볶음'] },
+    { main: '흰살생선찜', soup: '연두부국', sides: ['브로콜리찜', '무나물', '배추찜'] },
+    { main: '흰살생선구이(저염)', soup: '양송이버섯수프', sides: ['애호박볶음', '시금치나물', '오이무침'] },
+    { main: '연어채소찜', soup: '감자양파수프', sides: ['청경채볶음', '가지나물', '무나물'] },
+    { main: '고등어구이', soup: '버섯맑은국', sides: ['배추찜', '당근나물', '숙주나물'] },
+    { main: '흰살생선두부찜', soup: '애호박맑은국', sides: ['양배추찜', '버섯볶음', '당근나물'] },
+    { main: '두부조림', soup: '브로콜리수프', sides: ['무나물', '시금치나물', '파프리카구이'] },
+    { main: '두부버섯조림', soup: '배추맑은국', sides: ['애호박볶음', '당근나물', '오이채무침'] },
+    { main: '연두부덮밥', soup: '무맑은국', sides: ['가지나물', '청경채볶음', '배추찜'] },
+    { main: '연두부달걀찜', soup: '맑은채소국', sides: ['당근나물', '애호박볶음', '무나물'] },
+    { main: '두부채소볶음(저염)', soup: '감자양파수프', sides: ['브로콜리찜', '숙주나물', '파프리카구이'] },
+    { main: '저지방 소고기볶음', soup: '버섯맑은국', sides: ['양배추찜', '당근나물', '오이무침'] },
+].filter((template) => template.main !== '연어두부샐러드').map((template) => [template.main, template as MealTemplate])).values());
+
+function cookingMethod(main: string) {
+    if (/죽|국밥/.test(main)) return 'porridge';
+    if (/구이|스테이크/.test(main)) return 'grill';
+    if (/조림/.test(main)) return 'braise';
+    if (/볶음|오믈렛|계란말이|스크램블/.test(main)) return 'saute';
+    if (/수육/.test(main)) return 'boil';
+    if (/덮밥/.test(main)) return 'rice_bowl';
+    return 'steam';
+}
+
+// Interleave cooking methods inside each protein family, without synthesizing
+// dish names. The count of entries exceeds that family's weekly occurrences.
+function interleaveCookingMethods(templates: MealTemplate[]) {
+    const groups = new Map<string, MealTemplate[]>();
+    templates.forEach((template) => {
+        const method = cookingMethod(template.main);
+        groups.set(method, [...(groups.get(method) ?? []), template]);
+    });
+    const ordered: MealTemplate[] = [];
+    for (let index = 0; ordered.length < templates.length; index += 1) {
+        groups.forEach((group) => { if (group[index]) ordered.push(group[index]); });
+    }
+    return ordered;
+}
+
+const MONTHLY_PROTEIN_POOLS = Object.fromEntries(
+    ['egg', 'fish', 'tofu_bean', 'chicken', 'beef'].map((family) => [
+        family,
+        interleaveCookingMethods(MONTHLY_MEAL_CATALOG.filter((template) => proteinFamilyForMain(template.main) === family)),
+    ])
+) as Record<ScheduledProtein, MealTemplate[]>;
+
+function calendarDayIndex(dateKey: string) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+    if (!match) throw new RangeError('식단 날짜는 YYYY-MM-DD 형식이어야 합니다.');
+    const parsed = new Date(`${dateKey}T00:00:00.000Z`);
+    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== dateKey) {
+        throw new RangeError('유효하지 않은 식단 날짜입니다.');
+    }
+    return Math.floor(parsed.getTime() / 86400000);
+}
+
+function scheduledTemplate(dayIndex: number, slotIndex: number) {
+    const dayOfWeek = positiveModulo(dayIndex, WEEKLY_PROTEIN_ROTATION.length);
+    const weekIndex = Math.floor(dayIndex / 7);
+    // Also rotate meal positions weekly. Otherwise a pool length divisible by
+    // its weekly frequency can pin the same dishes to breakfast indefinitely.
+    const dayFamilies = WEEKLY_PROTEIN_ROTATION[dayOfWeek];
+    const family = dayFamilies[positiveModulo(slotIndex + weekIndex, dayFamilies.length)];
+    const weeklyCount = WEEKLY_PROTEIN_ROTATION.flat().filter((item) => item === family).length;
+    const earlierOccurrences = WEEKLY_PROTEIN_ROTATION.slice(0, dayOfWeek).flat()
+        .filter((item) => item === family).length;
+    const occurrenceIndex = weekIndex * weeklyCount + earlierOccurrences;
+    const pool = MONTHLY_PROTEIN_POOLS[family];
+    return pool[positiveModulo(occurrenceIndex, pool.length)];
+}
+
+function hasIntegratedGrain(main: string) {
+    return /죽|덮밥|국밥|초밥|국수|우동|피자|샌드위치/.test(main);
+}
+
+function syncMealDetails(meal: MealSuggestion, slot: MealSlot) {
+    meal.summary = (slot === 'snack' ? [meal.main, ...meal.sides, meal.soup] : [meal.riceType, meal.main, meal.soup]).filter(Boolean).join(' + ');
+    meal.nutritionUnavailable = true;
+    if (slot === 'snack') {
+        const recipe = buildSnackRecipe(meal.main, meal.sides.join(' · '), meal.soup);
+        meal.recipeName = recipe.recipeName;
+        meal.recipeSteps = recipe.recipeSteps;
+        return;
+    }
+    const method = cookingMethod(meal.main);
+    const cookingGuide: Record<string, string> = {
+        porridge: '곡물과 잘게 썬 재료를 충분히 익혀 부드럽게 준비해요.',
+        grill: '속까지 충분히 익히고 표면이 타지 않게 구워요.',
+        braise: '양념을 조금씩 넣어 간을 맞추고 속까지 익혀 조려요.',
+        saute: '기름을 적게 두르고 재료가 충분히 익도록 조리해요.',
+        boil: '고기 속까지 충분히 익도록 삶고 먹기 좋은 크기로 썰어요.',
+        rice_bowl: '속재료를 충분히 익혀 준비한 밥 위에 올려요.',
+        steam: '재료의 속까지 충분히 익도록 쪄서 준비해요.',
+    };
+    meal.recipeName = `${meal.main} 한 끼`;
+    meal.recipeSteps = [
+        '손과 조리도구를 씻고 재료를 먹기 좋은 크기로 준비해요.',
+        cookingGuide[method],
+        `${meal.soup}과 채소 반찬을 곁들이고, 양념은 드실 때 조절해요.`,
+        '먹는 양과 식감은 현재 컨디션과 의료진의 식사 지침에 맞춰요.',
+    ];
+}
+
+function buildScheduledMeal(dayIndex: number, slotIndex: number, stageType: StageType): MealSuggestion {
+    const template = scheduledTemplate(dayIndex, slotIndex);
+    const riceType = hasIntegratedGrain(template.main) ? '' : RICE_TYPES[positiveModulo(dayIndex * 3 + slotIndex, RICE_TYPES.length)];
+    const meal: MealSuggestion = {
+        main: template.main, soup: template.soup, sides: [...template.sides], riceType,
+        summary: '', recipeName: '', recipeSteps: [],
+        // The catalog has no weighed portions or nutrient database calculation.
+        nutrient: { carb: 0, protein: 0, fat: 0 }, nutritionUnavailable: true,
+        cautionFlour: stageType === 'surgery'
+            ? '수술 후 식사 단계와 허용 식감은 의료진의 안내를 우선해 주세요.'
+            : '먹는 양과 조리법은 현재 컨디션과 안내받은 식사 지침에 맞춰 주세요.',
+    };
+    syncMealDetails(meal, MAIN_SLOTS[slotIndex]);
+    return meal;
+}
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
@@ -520,55 +639,6 @@ function pickFromPool(pool: string[], seed: number, fallback = '') {
     return candidates[positiveModulo(seed, candidates.length)] ?? fallback;
 }
 
-function pickDistinctFromPool(pool: string[], seed: number, count: number, blocked = new Set<string>()) {
-    const seen = new Set<string>();
-    const ranked = pool
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0 && !blocked.has(item))
-        .map((item, index) => ({
-            item,
-            score: mixSeed(seed, index + 17),
-        }))
-        .sort((a, b) => a.score - b.score);
-
-    const picked: string[] = [];
-    ranked.forEach(({ item }) => {
-        if (picked.length >= count || seen.has(item)) {
-            return;
-        }
-        seen.add(item);
-        picked.push(item);
-    });
-
-    if (picked.length >= count) {
-        return picked;
-    }
-
-    pool.forEach((item) => {
-        const normalized = item.trim();
-        if (picked.length >= count || !normalized || seen.has(normalized) || blocked.has(normalized)) {
-            return;
-        }
-        seen.add(normalized);
-        picked.push(normalized);
-    });
-
-    return picked;
-}
-
-function mainPoolForMealType(mealType: '아침' | '점심' | '저녁' | '간식') {
-    if (mealType === '아침') {
-        return BREAKFAST_MAIN_VARIANTS;
-    }
-    if (mealType === '점심') {
-        return LUNCH_MAIN_VARIANTS;
-    }
-    if (mealType === '저녁') {
-        return DINNER_MAIN_VARIANTS;
-    }
-    return SNACK_MAIN_VARIANTS;
-}
-
 function mainPoolForSlot(slot: MealSlot) {
     if (slot === 'breakfast') {
         return BREAKFAST_MAIN_VARIANTS;
@@ -593,16 +663,6 @@ function slotSalt(slot: MealSlot) {
         return 307;
     }
     return 419;
-}
-
-function buildSeasonalSide(seasonal: string, seed: number) {
-    const fruitLike = new Set(['배', '키위', '딸기', '복숭아', '자두', '사과', '귤', '감']);
-    if (fruitLike.has(seasonal)) {
-        return `${seasonal} 조각`;
-    }
-
-    const styles = ['찜', '볶음', '무침', '구이', '나물'];
-    return `${seasonal}${styles[positiveModulo(seed, styles.length)]}`;
 }
 
 function isRiceEligibleForDiversity(riceType: string) {
@@ -636,16 +696,19 @@ function proteinFamilyForMain(main: string) {
     if (!normalized) {
         return 'unknown';
     }
-    if (normalized.includes('닭')) {
+    if (normalized.includes('닭') || normalized.includes('치킨')) {
         return 'chicken';
     }
     if (normalized.includes('연어') || normalized.includes('고등어') || normalized.includes('대구') || normalized.includes('흰살') || normalized.includes('생선')) {
         return 'fish';
     }
+    if (/새우|오징어|조개|전복|홍합|게살/.test(normalized)) {
+        return 'seafood';
+    }
     if (normalized.includes('두부') || normalized.includes('콩')) {
         return 'tofu_bean';
     }
-    if (normalized.includes('달걀') || normalized.includes('계란')) {
+    if (normalized.includes('달걀') || normalized.includes('계란') || normalized.includes('에그')) {
         return 'egg';
     }
     if (normalized.includes('소고기')) {
@@ -661,7 +724,7 @@ function proteinFamilyForMain(main: string) {
 }
 
 function isCoreProteinFamily(family: string) {
-    return ['chicken', 'fish', 'tofu_bean', 'egg', 'beef', 'pork', 'duck'].includes(family);
+    return ['chicken', 'fish', 'seafood', 'tofu_bean', 'egg', 'beef', 'pork', 'duck'].includes(family);
 }
 
 function pickMealTemplate(slot: Exclude<MealSlot, 'snack'>, seed: number) {
@@ -824,114 +887,13 @@ function buildSnackRecipe(main: string, side: string, hydration: string, recipeN
     };
 }
 
-function baseMealNutrientByStage(stageType: StageType, mealType: '아침' | '점심' | '저녁' | '간식'): MealNutrient {
-    if (mealType === '간식') {
-        return { carb: 35, protein: 30, fat: 35 };
-    }
-
-    const stageSoft = stageType === 'chemo' || stageType === 'chemo_2nd' || stageType === 'radiation';
-    const stageLowerCarb =
-        stageType === 'hormone_therapy' ||
-        stageType === 'medication' ||
-        stageType === 'targeted' ||
-        stageType === 'immunotherapy';
-
-    // 저녁 탄수화물은 아침/점심 대비 단계적으로 낮춰 야간 과식·혈당 급상승을 줄이도록 조정.
-    if (stageLowerCarb) {
-        if (mealType === '아침') {
-            return { carb: 36, protein: 34, fat: 30 };
-        }
-        if (mealType === '점심') {
-            return { carb: 34, protein: 36, fat: 30 };
-        }
-        return { carb: 30, protein: 40, fat: 30 };
-    }
-
-    if (stageSoft) {
-        if (mealType === '아침') {
-            return { carb: 42, protein: 31, fat: 27 };
-        }
-        if (mealType === '점심') {
-            return { carb: 40, protein: 33, fat: 27 };
-        }
-        return { carb: 36, protein: 35, fat: 29 };
-    }
-
-    if (mealType === '아침') {
-        return { carb: 40, protein: 32, fat: 28 };
-    }
-    if (mealType === '점심') {
-        return { carb: 38, protein: 34, fat: 28 };
-    }
-    return { carb: 34, protein: 36, fat: 30 };
-}
-
-function createMealSuggestion(
-    seed: number,
-    stageType: StageType,
-    mealType: '아침' | '점심' | '저녁' | '간식',
-    prevMonthScore: number,
-    monthOneBased: number,
-    fixedRiceType?: string
-): MealSuggestion {
-    const seasonalSet = SEASONAL_FOOD[monthOneBased] ?? ['채소'];
-    const seasonal = seasonalSet[positiveModulo(mixSeed(seed, 3), seasonalSet.length)];
-    const riceType = fixedRiceType ?? pickFromPool(RICE_TYPES, mixSeed(seed, 5), RICE_TYPES[0]);
-    const isSnack = mealType === '간식';
-    const mainPool = mainPoolForMealType(mealType);
-    const main = isSnack
-        ? pickFromPool(mainPool.length > 0 ? mainPool : SNACKS, mixSeed(seed, 11), SNACKS[0])
-        : pickFromPool(mainPool.length > 0 ? mainPool : PROTEIN_MAINS, mixSeed(seed, 11), PROTEIN_MAINS[0]);
-    const soup = isSnack
-        ? pickFromPool(SNACK_HYDRATION_VARIANTS, mixSeed(seed, 13), '따뜻한 물')
-        : pickFromPool(SOUPS, mixSeed(seed, 13), SOUPS[0]);
-    const seasonalSide = buildSeasonalSide(seasonal, mixSeed(seed, 17));
-    const snackSideBlocked = new Set([main]);
-    const sideA = isSnack
-        ? pickFromPool(SNACK_SIDE_VARIANTS.length > 0 ? SNACK_SIDE_VARIANTS : SNACK_FRUITS, mixSeed(seed, 17), SNACK_FRUITS[0])
-        : seasonalSide;
-    const [sideB = SIDES[0], sideC = SIDES[1]] = pickDistinctFromPool(
-        SIDES,
-        mixSeed(seed, 23),
-        2,
-        new Set([sideA])
-    );
-    const actualSnackSide = snackSideBlocked.has(sideA)
-        ? pickDistinctFromPool(SNACK_SIDE_VARIANTS, mixSeed(seed, 29), 1, snackSideBlocked)[0] ?? SNACK_FRUITS[0]
-        : sideA;
-
-    const easierMenu = prevMonthScore < 60;
-    const nutrient = baseMealNutrientByStage(stageType, mealType);
-
-    const flourGuide = easierMenu
-        ? '밀가루 음식은 주 2회 이하로 줄여보세요.'
-        : '밀가루 음식은 가능한 한 적게 드세요.';
-
-    const summary = isSnack ? `${main} + ${actualSnackSide} + ${soup}` : `${riceType} + ${main} + ${soup}`;
-    const sides = isSnack ? [actualSnackSide] : [sideA, sideB, sideC];
-
-    const recipe = isSnack ? buildSnackRecipe(main, actualSnackSide, soup) : buildRecipe(main, soup, sideA, seasonal);
-
-    return {
-        summary,
-        riceType,
-        main,
-        soup,
-        sides,
-        cautionFlour: flourGuide,
-        nutrient,
-        recipeName: recipe.recipeName,
-        recipeSteps: recipe.recipeSteps,
-    };
-}
-
 function clonePlan(plan: DayPlan): DayPlan {
     return {
         date: plan.date,
-        breakfast: { ...plan.breakfast, sides: [...plan.breakfast.sides], recipeSteps: [...plan.breakfast.recipeSteps] },
-        lunch: { ...plan.lunch, sides: [...plan.lunch.sides], recipeSteps: [...plan.lunch.recipeSteps] },
-        dinner: { ...plan.dinner, sides: [...plan.dinner.sides], recipeSteps: [...plan.dinner.recipeSteps] },
-        snack: { ...plan.snack, sides: [...plan.snack.sides], recipeSteps: [...plan.snack.recipeSteps] },
+        breakfast: { ...plan.breakfast, nutrient: { ...plan.breakfast.nutrient }, sides: [...plan.breakfast.sides], recipeSteps: [...plan.breakfast.recipeSteps] },
+        lunch: { ...plan.lunch, nutrient: { ...plan.lunch.nutrient }, sides: [...plan.lunch.sides], recipeSteps: [...plan.lunch.recipeSteps] },
+        dinner: { ...plan.dinner, nutrient: { ...plan.dinner.nutrient }, sides: [...plan.dinner.sides], recipeSteps: [...plan.dinner.recipeSteps] },
+        snack: { ...plan.snack, nutrient: { ...plan.snack.nutrient }, sides: [...plan.snack.sides], recipeSteps: [...plan.snack.recipeSteps] },
     };
 }
 
@@ -976,6 +938,13 @@ export function applyDinnerCarbSafety(plan: DayPlan, context: DinnerCarbSafetyCo
         return {
             plan,
             notes: [] as string[],
+        };
+    }
+
+    if (plan.dinner.nutritionUnavailable || plan.lunch.nutritionUnavailable) {
+        return {
+            plan,
+            notes: ['체중이나 식사량이 줄고 있다면 저녁 식사량을 임의로 줄이지 말고 의료진과 확인해 주세요.'],
         };
     }
 
@@ -1200,7 +1169,7 @@ function refreshMealRecipe(meal: MealSuggestion, slot: MealSlot) {
     }
 
     const firstSide = meal.sides[0] ?? SIDES[0];
-    meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
+    meal.summary = [meal.riceType, meal.main, meal.soup].filter(Boolean).join(' + ');
     const recipe = buildRecipe(meal.main, meal.soup, firstSide, seasonalFromSide(firstSide));
     meal.recipeName = recipe.recipeName;
     meal.recipeSteps = recipe.recipeSteps;
@@ -1489,7 +1458,7 @@ export function applySevenDayNoRepeatRule(plan: DayPlan, recentPlans: DayPlan[],
                 const recentSoupValues = new Set(recent.map((item) => mealBySlot(item, slot).soup));
                 meal.soup = pickNextNonRepeatingWithOffset(meal.soup, SOUPS, recentSoupValues, attempt + recentWindow);
                 const firstSide = meal.sides[0] ?? SIDES[0];
-                meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
+                meal.summary = [meal.riceType, meal.main, meal.soup].filter(Boolean).join(' + ');
                 const recipe = buildRecipe(meal.main, meal.soup, firstSide, seasonalFromSide(firstSide));
                 meal.recipeName = recipe.recipeName;
                 meal.recipeSteps = recipe.recipeSteps;
@@ -1643,1072 +1612,256 @@ export function detectCancerProfileMatch(cancerType?: string): CancerProfileMatc
     return null;
 }
 
-function applyCancerTypeProfile(
-    plan: DayPlan,
-    cancerTypeNormalized: string,
-    syncSummary: (meal: MealSuggestion) => void,
-    addNote: (text: string) => void
-) {
-    if (!cancerTypeNormalized) {
-        return null;
-    }
-
-    const breastMatched = findMatchedKeyword(cancerTypeNormalized, BREAST_PROFILE_KEYWORDS);
-    if (breastMatched) {
-        plan.breakfast.riceType = '현미밥';
-        plan.lunch.riceType = '잡곡밥';
-        plan.dinner.riceType = '현미밥';
-        plan.breakfast.main = '달걀두부찜';
-        plan.lunch.main = '연어구이';
-        plan.dinner.main = '닭가슴살구이';
-        plan.breakfast.sides = ['브로콜리찜', '버섯볶음', '당근볶음'];
-        plan.lunch.sides = ['양배추볶음', '시금치나물', '오이무침'];
-        plan.dinner.sides = ['구운채소', '버섯볶음', '저염 나물'];
-        plan.snack.summary = '무가당 요거트 + 베리류 + 호두 소량';
-        plan.snack.main = '무가당 요거트';
-        plan.snack.soup = '물';
-        plan.snack.sides = ['베리류', '호두 소량'];
-        plan.snack.recipeName = '유방암 고려 간식 조합';
-        plan.snack.recipeSteps = [
-            '무가당 요거트를 1회 분량으로 담아 주세요.',
-            '베리류와 호두를 소량 곁들여 주세요.',
-            '당 함량이 높은 소스나 시럽은 피해주세요.',
-        ];
-        syncSummary(plan.breakfast);
-        syncSummary(plan.lunch);
-        syncSummary(plan.dinner);
-        addNote('암 종류(유방암)를 직접 반영해 저당·채소·생선/두부 중심으로 조정했어요.');
-        return '유방암';
-    }
-
-    const digestiveMatched = findMatchedKeyword(cancerTypeNormalized, DIGESTIVE_PROFILE_KEYWORDS);
-    if (digestiveMatched) {
-        plan.breakfast.main = '부드러운 죽';
-        plan.lunch.main = '연두부덮밥';
-        plan.dinner.main = '흰살생선찜';
-        plan.breakfast.soup = '단호박수프';
-        plan.lunch.soup = '두부맑은국';
-        plan.dinner.soup = '맑은채소국';
-        plan.breakfast.sides = ['데친브로콜리', '애호박볶음', '저염 채소볶음'];
-        plan.lunch.sides = ['담백한 두부무침', '버섯볶음', '저염 나물'];
-        plan.dinner.sides = ['저염 채소무침', '시금치나물', '구운채소'];
-        plan.snack.summary = '두유 + 바나나 반 개 + 따뜻한 물';
-        plan.snack.main = '무가당 두유';
-        plan.snack.soup = '따뜻한 물';
-        plan.snack.sides = ['바나나 반 개'];
-        plan.snack.recipeName = '소화기 암종 고려 간식 조합';
-        plan.snack.recipeSteps = [
-            '무가당 두유를 작은 컵에 준비해 주세요.',
-            '바나나 반 개를 소량 곁들여 주세요.',
-            '속이 불편하면 천천히 나눠 드세요.',
-        ];
-        syncSummary(plan.breakfast);
-        syncSummary(plan.lunch);
-        syncSummary(plan.dinner);
-        addNote(
-            '암 종류(소화기 계열)를 반영해 부드럽고 소화가 편한 저자극 메뉴 중심으로 조정했어요.'
-        );
-        return '소화기계 암';
-    }
-
-    const lungMatched = findMatchedKeyword(cancerTypeNormalized, LUNG_PROFILE_KEYWORDS);
-    if (lungMatched) {
-        plan.breakfast.main = '달걀두부찜';
-        plan.lunch.main = '닭안심찜';
-        plan.dinner.main = '고등어구이';
-        plan.breakfast.soup = '들깨버섯수프';
-        plan.lunch.soup = '맑은채소국';
-        plan.dinner.soup = '미역국(저염)';
-        plan.breakfast.sides = ['브로콜리찜', '버섯볶음', '당근볶음'];
-        plan.lunch.sides = ['양배추볶음', '오이무침', '저염 나물'];
-        plan.dinner.sides = ['구운채소', '시금치나물', '저염 버섯볶음'];
-        syncSummary(plan.breakfast);
-        syncSummary(plan.lunch);
-        syncSummary(plan.dinner);
-        addNote('암 종류(폐암)를 반영해 수분·단백질 보강과 저자극 조합을 우선 배치했어요.');
-        return '폐암';
-    }
-
-    const hepatobiliaryMatched = findMatchedKeyword(cancerTypeNormalized, HEPATOBILIARY_PROFILE_KEYWORDS);
-    if (hepatobiliaryMatched) {
-        plan.breakfast.riceType = '귀리밥';
-        plan.lunch.riceType = '보리밥';
-        plan.dinner.riceType = '현미밥';
-        plan.breakfast.main = '닭안심찜';
-        plan.lunch.main = '두부조림';
-        plan.dinner.main = '흰살생선찜';
-        plan.breakfast.soup = '두부맑은국';
-        plan.lunch.soup = '맑은채소국';
-        plan.dinner.soup = '미역국(저염)';
-        plan.breakfast.sides = ['데친브로콜리', '애호박볶음', '저염 채소볶음'];
-        plan.lunch.sides = ['담백한 두부무침', '버섯볶음', '저염 나물'];
-        plan.dinner.sides = ['구운채소', '시금치나물', '저염 버섯볶음'];
-        syncSummary(plan.breakfast);
-        syncSummary(plan.lunch);
-        syncSummary(plan.dinner);
-        addNote(
-            '암 종류(간·담도 계열)를 반영해 저염·저지방 조리 기준으로 조정했어요.'
-        );
-        return '간담도계 암';
-    }
-
-    const hematologicMatched = findMatchedKeyword(cancerTypeNormalized, HEMATOLOGIC_PROFILE_KEYWORDS);
-    if (hematologicMatched) {
-        plan.breakfast.main = '달걀두부찜';
-        plan.lunch.main = '닭안심찜';
-        plan.dinner.main = '흰살생선찜';
-        plan.breakfast.soup = '두부맑은국';
-        plan.lunch.soup = '맑은채소국';
-        plan.dinner.soup = '미역국(저염)';
-        plan.breakfast.sides = ['데친브로콜리', '버섯볶음', '저염 채소볶음'];
-        plan.lunch.sides = ['저염 나물', '구운채소', '오이무침'];
-        plan.dinner.sides = ['애호박볶음', '시금치나물', '저염 버섯볶음'];
-        plan.snack.summary = '무가당 요거트 + 사과 조각 + 따뜻한 물';
-        plan.snack.main = '무가당 요거트';
-        plan.snack.soup = '따뜻한 물';
-        plan.snack.sides = ['사과 조각'];
-        plan.snack.recipeName = '혈액암 고려 간식 조합';
-        plan.snack.recipeSteps = [
-            '무가당 요거트를 1회 분량으로 준비해 주세요.',
-            '씻은 과일은 소량만 곁들여 주세요.',
-            '익힌 메뉴 위주 식사를 유지해 주세요.',
-        ];
-        syncSummary(plan.breakfast);
-        syncSummary(plan.lunch);
-        syncSummary(plan.dinner);
-        addNote(
-            '암 종류(혈액암 계열)를 반영해 익힌 음식 중심의 저자극 구성으로 조정했어요.'
-        );
-        return '혈액암';
-    }
-
-    const thyroidMatched = findMatchedKeyword(cancerTypeNormalized, THYROID_PROFILE_KEYWORDS);
-    if (thyroidMatched) {
-        plan.breakfast.main = '달걀두부찜';
-        plan.lunch.main = '닭가슴살구이';
-        plan.dinner.main = '두부조림';
-        plan.breakfast.soup = '두부맑은국';
-        plan.lunch.soup = '맑은채소국';
-        plan.dinner.soup = '단호박수프';
-        plan.breakfast.sides = ['브로콜리찜', '당근볶음', '버섯볶음'];
-        plan.lunch.sides = ['양배추볶음', '저염 나물', '구운채소'];
-        plan.dinner.sides = ['애호박볶음', '버섯볶음', '오이무침'];
-        syncSummary(plan.breakfast);
-        syncSummary(plan.lunch);
-        syncSummary(plan.dinner);
-        addNote('암 종류(갑상선암)를 반영해 담백한 조리 중심으로 조정했어요.');
-        addNote('갑상선암은 치료 방식에 따라 요오드 제한 필요 여부가 달라질 수 있어, 해조류 제한은 의료진 지시를 우선해 주세요.');
-        return '갑상선암';
-    }
-
-    const kidneyMatched = findMatchedKeyword(cancerTypeNormalized, KIDNEY_PROFILE_KEYWORDS);
-    if (kidneyMatched) {
-        plan.breakfast.riceType = '귀리밥';
-        plan.lunch.riceType = '보리밥';
-        plan.dinner.riceType = '현미밥';
-        plan.breakfast.main = '닭안심찜';
-        plan.lunch.main = '두부조림';
-        plan.dinner.main = '흰살생선찜';
-        plan.breakfast.soup = '두부맑은국';
-        plan.lunch.soup = '맑은채소국';
-        plan.dinner.soup = '미역국(저염)';
-        plan.breakfast.sides = ['저염 채소볶음', '버섯볶음', '오이무침'];
-        plan.lunch.sides = ['담백한 두부무침', '양배추볶음', '저염 나물'];
-        plan.dinner.sides = ['구운채소', '당근볶음', '저염 버섯볶음'];
-        plan.snack.summary = '무가당 요거트 + 사과 조각 + 물';
-        plan.snack.main = '무가당 요거트';
-        plan.snack.soup = '물';
-        plan.snack.sides = ['사과 조각'];
-        syncSummary(plan.breakfast);
-        syncSummary(plan.lunch);
-        syncSummary(plan.dinner);
-        addNote('암 종류(신장암)를 반영해 저염·저자극 구성으로 조정했어요.');
+function applyCancerTypeProfile(cancerType: string, addNote: (text: string) => void) {
+    const matched = detectCancerProfileMatch(cancerType);
+    if (!matched) return null;
+    if (matched.profileLabel === '신장암') {
         addNote('신장암은 신기능 수치(eGFR/칼륨/인)에 따라 제한이 달라지므로, 검사 결과 기반 조정을 의료진과 확인해 주세요.');
-        return '신장암';
+    } else if (matched.profileLabel === '갑상선암') {
+        addNote('갑상선암의 요오드 제한은 치료 방식에 따라 달라요. 별도 제한이 안내되었다면 그 지침을 우선해 주세요.');
+    } else if (matched.profileLabel === '소화기계 암') {
+        addNote('수술 범위와 현재 소화 상태에 따라 먹는 양과 식감을 조절해 주세요.');
+    } else if (matched.profileLabel === '혈액암') {
+        addNote('면역 상태에 따른 식품 위생·생식 제한은 담당 의료진의 안내를 우선해 주세요.');
     }
+    return matched.profileLabel;
+}
 
-    const cervicalMatched = findMatchedKeyword(cancerTypeNormalized, CERVICAL_PROFILE_KEYWORDS);
-    if (cervicalMatched) {
-        plan.breakfast.main = '달걀두부찜';
-        plan.lunch.main = '닭안심찜';
-        plan.dinner.main = '연어구이';
-        plan.breakfast.soup = '들깨버섯수프';
-        plan.lunch.soup = '맑은채소국';
-        plan.dinner.soup = '두부맑은국';
-        plan.breakfast.sides = ['브로콜리찜', '시금치나물', '당근볶음'];
-        plan.lunch.sides = ['양배추볶음', '버섯볶음', '저염 나물'];
-        plan.dinner.sides = ['구운채소', '오이무침', '저염 채소볶음'];
-        syncSummary(plan.breakfast);
-        syncSummary(plan.lunch);
-        syncSummary(plan.dinner);
-        addNote('암 종류(자궁경부암)을 반영해 단백질·채소 균형과 저자극 조합을 우선했어요.');
-        return '자궁경부암';
-    }
+type MenuGuard = {
+    lowSalt?: boolean;
+    bland?: boolean;
+    soft?: boolean;
+    soreMouth?: boolean;
+    diarrhea?: boolean;
+    avoidRaw?: boolean;
+    ensureProtein?: boolean;
+    ensureVegetables?: boolean;
+    lessSugar?: boolean;
+};
 
-    return null;
+const COOKED_VEGETABLES = ['애호박볶음', '당근나물', '무나물', '배추찜', '단호박찜', '양배추찜', '가지나물', '청경채볶음'];
+const MILD_SOUPS = ['무맑은국', '두부맑은국', '맑은채소국', '애호박맑은국', '감자양파수프', '배추맑은국', '연두부국', '당근수프'];
+
+function foodConflictsWithGuard(food: string, guard: MenuGuard) {
+    const normalized = normalizeForMatch(food);
+    if (guard.lowSalt && !normalized.includes('저염') && /김치|젓갈|장아찌|라면|찌개|햄|소시지|가공육/.test(normalized)) return true;
+    if ((guard.bland || guard.soft || guard.diarrhea) && /매운|매콤|고추|불닭|마라|튀김|후라이드|프라이드|치킨|피자|삼겹살|베이컨/.test(normalized)) return true;
+    if (guard.soreMouth && /레몬|새콤|식초|피클|토마토|키위|귤|오렌지|파인애플/.test(normalized)) return true;
+    if ((guard.soft || guard.diarrhea) && /샐러드|스틱|견과|아몬드|호두|우엉|연근|해초/.test(normalized)) return true;
+    if (guard.diarrhea && /요거트|우유|치즈|생크림|미역|콩나물|숙주/.test(normalized)) return true;
+    if (guard.avoidRaw && !/익힌|숙회/.test(normalized) && /육회|날달걀|날계란|생굴|생연어|생선회|사시미|회덮밥|광어회|연어회|참치회|초밥/.test(normalized)) return true;
+    if (guard.lessSugar && !/무가당|무당|저당/.test(normalized) && /가당|설탕|시럽|콜라|탄산음료|케이크|사탕|초콜릿/.test(normalized)) return true;
+    return false;
+}
+
+function mainFitsGuard(main: string, guard: MenuGuard) {
+    if (foodConflictsWithGuard(main, guard)) return false;
+    if (guard.ensureProtein && !isCoreProteinFamily(proteinFamilyForMain(main))) return false;
+    if (guard.soft && !/찜|죽|연두부|달걀|계란|스크램블|수육/.test(main)) return false;
+    return true;
+}
+
+function chooseGuardedMain(plan: DayPlan, slot: MainSlot, guard: MenuGuard, candidates = MONTHLY_MEAL_CATALOG) {
+    const slotIndex = MAIN_SLOTS.indexOf(slot);
+    const used = new Set(MAIN_SLOTS.filter((key) => key !== slot).map((key) => plan[key].main));
+    const suitable = candidates.filter((item) => mainFitsGuard(item.main, guard));
+    const distinct = suitable.filter((item) => !used.has(item.main));
+    const currentFamily = proteinFamilyForMain(plan[slot].main);
+    const sameFamily = distinct.filter((item) => proteinFamilyForMain(item.main) === currentFamily);
+    const usedFamilies = new Set(MAIN_SLOTS.filter((key) => key !== slot).map((key) => proteinFamilyForMain(plan[key].main)));
+    const newFamily = distinct.filter((item) => !usedFamilies.has(proteinFamilyForMain(item.main)));
+    // Preserve the day's protein groups when possible; safety takes priority
+    // over variety when only a few dishes are suitable.
+    const pool = sameFamily.length ? sameFamily : newFamily.length ? newFamily : distinct.length ? distinct : suitable;
+    return pool[positiveModulo(calendarDayIndex(plan.date) * 3 + slotIndex, pool.length)]?.main;
+}
+
+function applyMenuGuard(plan: DayPlan, guard: MenuGuard) {
+    const dayIndex = calendarDayIndex(plan.date);
+    MAIN_SLOTS.forEach((slot, slotIndex) => {
+        const meal = plan[slot];
+        const before = JSON.stringify([meal.riceType, meal.main, meal.soup, meal.sides]);
+        if (!mainFitsGuard(meal.main, guard)) {
+            meal.main = chooseGuardedMain(plan, slot, guard) ?? meal.main;
+        }
+        if (hasIntegratedGrain(meal.main)) meal.riceType = '';
+        else if (!meal.riceType || /생략/.test(meal.riceType)) meal.riceType = RICE_TYPES[positiveModulo(dayIndex * 3 + slotIndex, RICE_TYPES.length)];
+        if ((guard.soft || guard.diarrhea) && meal.riceType) meal.riceType = guard.soft ? '진밥' : '흰쌀밥';
+        if (foodConflictsWithGuard(meal.soup, guard)) {
+            meal.soup = MILD_SOUPS[positiveModulo(dayIndex + slotIndex, MILD_SOUPS.length)];
+        }
+        const usedSides = new Set(meal.sides.filter((side) => !foodConflictsWithGuard(side, guard)));
+        meal.sides = meal.sides.map((side, index) => {
+            if (!foodConflictsWithGuard(side, guard)) return side;
+            const pool = COOKED_VEGETABLES.filter((item) => !usedSides.has(item) && !foodConflictsWithGuard(item, guard));
+            const replacement = pool[positiveModulo(dayIndex + slotIndex + index, pool.length)] ?? '';
+            usedSides.add(replacement);
+            return replacement;
+        }).filter(Boolean);
+        if (guard.ensureVegetables && !meal.sides.some((side) => /채소|샐러드|나물|브로콜리|배추|버섯|오이|당근|호박|가지|청경채|파프리카|연근|우엉/.test(side))) {
+            meal.sides.push(COOKED_VEGETABLES[positiveModulo(dayIndex + slotIndex, COOKED_VEGETABLES.length)]);
+        }
+        if (JSON.stringify([meal.riceType, meal.main, meal.soup, meal.sides]) !== before) syncMealDetails(meal, slot);
+    });
+    const snack = plan.snack;
+    const beforeSnack = JSON.stringify([snack.main, snack.soup, snack.sides]);
+    const snackPool = SNACK_TEMPLATES.filter((item) => !foodConflictsWithGuard(item.main, guard) && !foodConflictsWithGuard(item.side, guard));
+    const snackAlternative = snackPool[positiveModulo(dayIndex, snackPool.length)];
+    if (foodConflictsWithGuard(snack.main, guard) && snackAlternative) snack.main = snackAlternative.main;
+    snack.sides = snack.sides.map((side) => foodConflictsWithGuard(side, guard) ? snackAlternative?.side ?? '' : side).filter(Boolean);
+    if (foodConflictsWithGuard(snack.soup, guard)) snack.soup = '물';
+    snack.sides = Array.from(new Set(snack.sides)).filter((side) => side !== snack.main);
+    if (JSON.stringify([snack.main, snack.soup, snack.sides]) !== beforeSnack) syncMealDetails(snack, 'snack');
 }
 
 export function optimizePlanByUserContext(plan: DayPlan, context: UserDietContext) {
     const optimized = clonePlan(plan);
     const notes: string[] = [];
+    const addNote = (text: string) => { if (!notes.includes(text)) notes.push(text); };
+    const cancerProfile = applyCancerTypeProfile(context.cancerType ?? '', addNote);
+    const conditionText = normalizeForMatch((context.additionalConditions ?? []).map((item) => `${item.name} ${item.code ?? ''}`).join(' '));
+    const hasCondition = (keywords: string[]) => keywords.some((item) => conditionText.includes(normalizeForMatch(item)));
+    const signals = normalizeForMatch((context.recentDietSignals ?? []).join(' '));
+    const hasSignal = (keywords: string[]) => keywords.some((item) => signals.includes(normalizeForMatch(item)));
 
-    const addNote = (text: string) => {
-        if (!notes.includes(text)) {
-            notes.push(text);
-        }
+    // Cancer site, age and stage alone do not identify a tolerated texture or
+    // a nutrient prescription. Preserve the varied menu until a constraint is known.
+    if (context.age && context.age >= 65) addNote('씹기나 식사량에 불편이 있다면 컨디션에 기록해 주세요. 먹기 편한 메뉴로 조정할 수 있어요.');
+    if (parseCancerStageLevel(context.cancerStage) !== null) addNote('암 기수만으로 특정 음식을 제한하지 않으며, 현재 증상과 안내받은 식사 지침을 우선해요.');
+    const bmi = context.heightCm && context.weightKg && context.heightCm > 0 && context.weightKg > 0
+        ? context.weightKg / Math.pow(context.heightCm / 100, 2) : null;
+    if (bmi !== null && bmi < 18.5) addNote('체중과 식사량이 줄고 있다면 의료진과 상의하고, 먹을 수 있는 식사와 간식을 나누어 드세요.');
+    if (bmi !== null && bmi >= 25) addNote('치료 중 체중 조절은 현재 영양 상태를 확인한 뒤 의료진과 목표를 정해 주세요.');
+
+    const renal = cancerProfile === '신장암'
+        || hasCondition(['신장', '신부전', '콩팥', '투석', '고칼륨', 'kidney', 'renal', 'dialysis', 'hyperkal', 'CKD'])
+        || (context.additionalConditions ?? []).some((item) => /^(N0[0-8]|N1[7-9]|Z49|Z99\.?2|E87\.?5)/i.test(item.code ?? ''));
+    if (renal) {
+        addNote('신장 관련 질환은 신기능·투석 여부에 따라 단백질, 칼륨, 인, 수분 조절이 달라요. 제한량을 확인하기 전에는 자동으로 증감하지 않아요.');
+        return { plan: optimized, notes };
+    }
+
+    const recent = context.recentDietPattern;
+    const hasPattern = (key: keyof RecentDietPattern) => !!recent && recent.analyzedDays >= 4 && recent[key] >= (recent.analyzedDays >= 10 ? 4 : 3);
+    const soreMouth = hasSignal(['구내염', '구강통증', '입안통증']);
+    const soft = soreMouth || hasSignal(['씹기어려움', '저작곤란']);
+    const nausea = hasSignal(['메스꺼움', '오심']);
+    const diarrhea = hasSignal(['설사', '묽은변', '장염']);
+    const activeTreatment = context.activeStageStatus === 'active' && ['chemo', 'chemo_2nd', 'radiation', 'immunotherapy'].includes(context.activeStageType ?? 'other');
+    const guard: MenuGuard = {
+        lowSalt: hasCondition(['고혈압', 'I10']) || hasPattern('highSodiumDays'),
+        bland: nausea || diarrhea || hasPattern('spicyHeavyDays') || hasCondition(['고지혈증', '콜레스테롤', '지방간', '간염', 'E78', 'K76', 'K75']),
+        soft, soreMouth, diarrhea,
+        avoidRaw: activeTreatment || cancerProfile === '혈액암',
+        ensureProtein: hasPattern('lowProteinDays'),
+        ensureVegetables: hasPattern('lowVegetableDays'),
+        lessSugar: hasPattern('highFlourSugarDays'),
     };
-
-    const syncSummary = (meal: MealSuggestion) => {
-        meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
-    };
-
-    const age = context.age && context.age > 0 ? context.age : null;
-    const validHeight = context.heightCm && context.heightCm > 0 ? context.heightCm : null;
-    const validWeight = context.weightKg && context.weightKg > 0 ? context.weightKg : null;
-    const bmi =
-        validHeight && validWeight
-            ? Number((validWeight / Math.pow(validHeight / 100, 2)).toFixed(1))
-            : null;
-    const cancerTypeNormalized = normalizeForMatch(context.cancerType ?? '');
-    const cancerStageLevel = parseCancerStageLevel(context.cancerStage);
-    const activeStageType = context.activeStageType ?? 'other';
-    const isActiveTreatment = context.activeStageStatus === 'active';
-    const recentSignalsNormalized = normalizeForMatch((context.recentDietSignals ?? []).join(' '));
-    const hasRecentSignal = (keywords: string[]) =>
-        keywords.some((keyword) => recentSignalsNormalized.includes(normalizeForMatch(keyword)));
-
-    if (age !== null && age >= 65) {
-        optimized.breakfast.main = '달걀두부찜';
-        optimized.lunch.main = '닭안심찜';
-        optimized.dinner.main = '흰살생선찜';
-        optimized.breakfast.soup = '들깨버섯수프';
-        optimized.lunch.soup = '두부맑은국';
-        optimized.dinner.soup = '단호박수프';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('연령 정보를 반영해 씹기 쉽고 소화가 편한 메뉴 비중을 높였어요.');
-    }
-
-    if (bmi !== null && bmi < 18.5) {
-        optimized.breakfast.main = '달걀두부찜';
-        optimized.lunch.main = '닭가슴살구이';
-        optimized.dinner.main = '연어구이';
-        optimized.snack.summary = '그릭요거트 + 두유 + 바나나 반 개';
-        optimized.snack.main = '그릭요거트';
-        optimized.snack.soup = '물';
-        optimized.snack.sides = ['두유', '바나나 반 개'];
-        optimized.snack.recipeName = '체중 보완 간식 조합';
-        optimized.snack.recipeSteps = [
-            '그릭요거트를 작은 그릇에 담아 주세요.',
-            '무가당 두유를 작은 컵으로 곁들여 주세요.',
-            '바나나 반 개를 추가해 에너지를 보충해 주세요.',
-        ];
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('키/몸무게 정보를 반영해 체중 유지에 도움되는 단백질·간식 구성을 보강했어요.');
-    } else if (bmi !== null && bmi >= 25) {
-        optimized.breakfast.riceType = '귀리밥';
-        optimized.lunch.riceType = '보리밥';
-        optimized.dinner.riceType = '현미밥';
-        optimized.snack.summary = '무가당 요거트 + 베리류 + 견과류 소량';
-        optimized.snack.main = '무가당 요거트';
-        optimized.snack.soup = '물';
-        optimized.snack.sides = ['베리류', '견과류 소량'];
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('키/몸무게 정보를 반영해 정제 탄수화물 비중을 줄인 곡류·간식으로 조정했어요.');
-    }
-
-    // Demographics alone do not justify specific food substitutions. Explicit
-    // eating symptoms and food preferences are applied after this context pass.
-
-    const matchedCancerProfile = applyCancerTypeProfile(optimized, cancerTypeNormalized, syncSummary, addNote);
-    if (cancerTypeNormalized && !matchedCancerProfile) {
-        addNote(
-            `암 종류(${context.cancerType?.trim() ?? '미입력'}) 전용 규칙이 아직 없어 기본 안전식 + 치료 단계 기준으로 추천했어요.`
-        );
-    }
-
-    if (cancerStageLevel !== null && cancerStageLevel >= 3) {
-        optimized.breakfast.main = '부드러운 죽';
-        optimized.lunch.main = '두부덮밥';
-        optimized.dinner.main = '닭안심찜';
-        optimized.breakfast.soup = '단호박수프';
-        optimized.lunch.soup = '두부맑은국';
-        optimized.dinner.soup = '들깨버섯수프';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('암 기수 정보를 반영해 자극을 낮추고 회복 중심 메뉴 비중을 높였어요.');
-    }
-
-    if (isActiveTreatment && (activeStageType === 'chemo' || activeStageType === 'chemo_2nd' || activeStageType === 'radiation')) {
-        optimized.breakfast.soup = '두부맑은국';
-        optimized.lunch.soup = '맑은채소국';
-        optimized.dinner.soup = '단호박수프';
-        optimized.lunch.sides[2] = '저염 나물';
-        optimized.dinner.sides[2] = '저염 버섯볶음';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('현재 치료 단계 상태(진행중)를 반영해 속이 편한 저자극 메뉴로 보정했어요.');
-    }
-
-    const additionalConditions = (context.additionalConditions ?? []).filter(
-        (item) => typeof item.name === 'string' && item.name.trim().length > 0
-    );
-    const additionalConditionText = normalizeForMatch(
-        additionalConditions.map((item) => `${item.name} ${item.code ?? ''} ${item.category ?? ''}`).join(' ')
-    );
-    const hasAdditionalCondition = (keywords: string[]) =>
-        keywords.some((keyword) => additionalConditionText.includes(normalizeForMatch(keyword)));
-
-    if (additionalConditions.length > 0) {
-        const conditionNames = Array.from(new Set(additionalConditions.map((item) => item.name.trim())));
-        addNote(
-            `추가 질병(${conditionNames.join(', ')}) 정보를 반영해 암환자 기본 식단 원칙 안에서 보수적으로 조정했어요.`
-        );
-    }
-
-    if (hasAdditionalCondition(['감기', '독감', '인플루엔자', 'J00', 'J10'])) {
-        optimized.breakfast.soup = '두부맑은국';
-        optimized.lunch.soup = '맑은채소국';
-        optimized.dinner.soup = '단호박수프';
-        optimized.snack.main = '무가당 요거트';
-        optimized.snack.sides = ['바나나 반 개'];
-        optimized.snack.soup = '따뜻한 물';
-        optimized.snack.summary = '무가당 요거트 + 바나나 반 개 + 따뜻한 물';
-        optimized.snack.recipeName = '감기/호흡기 불편 고려 간식';
-        optimized.snack.recipeSteps = [
-            '무가당 요거트를 소량으로 준비해 주세요.',
-            '바나나 반 개를 곁들여 에너지를 보충해 주세요.',
-            '따뜻한 물을 천천히 마셔 수분을 보충해 주세요.',
-        ];
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('감기/호흡기 증상을 고려해 따뜻하고 자극이 적은 조합으로 조정했어요.');
-    }
-
-    if (hasAdditionalCondition(['고혈압', 'I10'])) {
-        optimized.breakfast.sides = ['브로콜리찜', '저염 나물', '당근볶음'];
-        optimized.lunch.sides = ['양배추볶음', '저염 채소무침', '버섯볶음'];
-        optimized.dinner.sides = ['구운채소', '저염 나물', '저염 버섯볶음'];
-        optimized.breakfast.soup = '두부맑은국';
-        optimized.lunch.soup = '맑은채소국';
-        optimized.dinner.soup = '미역국(저염)';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('고혈압 정보를 반영해 저염 반찬·국물 중심으로 조정했어요.');
-    }
-
-    if (hasAdditionalCondition(['고지혈증', '고콜레스테롤혈증', '콜레스테롤', 'E78.0', 'E78.5'])) {
-        optimized.breakfast.main = '달걀두부찜';
-        optimized.lunch.main = '흰살생선찜';
-        optimized.dinner.main = '닭안심찜';
-        optimized.snack.main = '무가당 요거트';
-        optimized.snack.sides = ['베리류', '아몬드 소량'];
-        optimized.snack.soup = '물';
-        optimized.snack.summary = '무가당 요거트 + 베리류 + 아몬드 소량 + 물';
-        optimized.snack.recipeName = '지질 관리형 간식';
-        optimized.snack.recipeSteps = [
-            '무가당 요거트를 작은 그릇에 준비해 주세요.',
-            '베리류는 한 줌(50~60g)만 곁들여 주세요.',
-            '견과류는 소량(5~6알)으로 제한해 주세요.',
-        ];
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('고지혈증/콜레스테롤 정보를 반영해 포화지방이 낮은 단백질 조합으로 조정했어요.');
-    }
-
-    if (hasAdditionalCondition(['간 질환', '간질환', '지방간', '간염', 'K76.9', 'K76.0', 'K75.9'])) {
-        optimized.breakfast.main = '두부조림';
-        optimized.lunch.main = '연두부덮밥';
-        optimized.dinner.main = '흰살생선찜';
-        optimized.breakfast.soup = '맑은채소국';
-        optimized.lunch.soup = '두부맑은국';
-        optimized.dinner.soup = '단호박수프';
-        optimized.snack.summary = '사과 조각 + 무가당 두유 + 물';
-        optimized.snack.main = '사과 조각';
-        optimized.snack.sides = ['무가당 두유'];
-        optimized.snack.soup = '물';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('간 관련 질환 정보를 반영해 기름진 조리와 자극을 낮춘 담백한 구성으로 조정했어요.');
-    }
-
-    const stageLabelNormalized = normalizeForMatch(context.activeStageLabel ?? '');
-    if (
-        context.activeStageOrder &&
-        context.activeStageOrder >= 2 &&
-        (stageLabelNormalized.includes('항암') || activeStageType === 'chemo' || activeStageType === 'chemo_2nd')
-    ) {
-        optimized.snack.summary = '무가당 요거트 + 바나나 반 개 + 따뜻한 물';
-        optimized.snack.main = '무가당 요거트';
-        optimized.snack.soup = '따뜻한 물';
-        optimized.snack.sides = ['바나나 반 개'];
-        optimized.snack.recipeName = '치료 단계 고려 간식 조합';
-        optimized.snack.recipeSteps = [
-            '무가당 요거트를 소량 준비해 주세요.',
-            '바나나 반 개를 곁들여 부담을 줄여 주세요.',
-            '따뜻한 물과 함께 천천히 드세요.',
-        ];
-        addNote('치료 단계 순서를 반영해 간식을 더 부드럽게 조정했어요.');
-    }
-
-    const recentPattern = context.recentDietPattern;
-    if (recentPattern && recentPattern.analyzedDays >= 4) {
-        const threshold = recentPattern.analyzedDays >= 10 ? 4 : 3;
-
-        if (recentPattern.highFlourSugarDays >= threshold) {
-            optimized.breakfast.riceType = '귀리밥';
-            optimized.lunch.riceType = '보리밥';
-            optimized.dinner.riceType = '현미밥';
-            optimized.snack.main = '그릭요거트';
-            optimized.snack.sides = ['베리류', '아몬드 소량'];
-            optimized.snack.soup = '물';
-            optimized.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량 + 물';
-            optimized.snack.recipeName = '최근 당류·정제탄수 관리형 간식';
-            optimized.snack.recipeSteps = [
-                '그릭요거트를 1회 분량으로 준비해 주세요.',
-                '베리류를 한 줌(50~60g) 곁들여 주세요.',
-                '견과류는 소량(5~6알)으로 제한해 주세요.',
-                '가당 음료 대신 물을 함께 드세요.',
-            ];
-            syncSummary(optimized.breakfast);
-            syncSummary(optimized.lunch);
-            syncSummary(optimized.dinner);
-            addNote(
-                `최근 ${recentPattern.analyzedDays}일 기록 중 ${recentPattern.highFlourSugarDays}일에서 당류·정제탄수 비중이 높아, 저당·저정제 탄수 패턴으로 보정했어요.`
-            );
-        }
-
-        if (recentPattern.lowProteinDays >= threshold) {
-            optimized.breakfast.main = '달걀두부찜';
-            optimized.lunch.main = '닭안심찜';
-            optimized.dinner.main = '흰살생선찜';
-            optimized.snack.main = '무가당 요거트';
-            optimized.snack.sides = ['무가당 두유', '바나나 반 개'];
-            optimized.snack.soup = '물';
-            optimized.snack.summary = '무가당 요거트 + 무가당 두유 + 바나나 반 개 + 물';
-            optimized.snack.recipeName = '최근 단백질 보강 간식';
-            optimized.snack.recipeSteps = [
-                '무가당 요거트를 작은 그릇에 담아 주세요.',
-                '무가당 두유를 작은 컵으로 곁들여 주세요.',
-                '바나나 반 개를 추가해 에너지를 보충해 주세요.',
-            ];
-            syncSummary(optimized.breakfast);
-            syncSummary(optimized.lunch);
-            syncSummary(optimized.dinner);
-            addNote(
-                `최근 ${recentPattern.analyzedDays}일 기록 중 ${recentPattern.lowProteinDays}일에서 단백질 섭취가 낮아, 단백질 중심으로 재구성했어요.`
-            );
-        }
-
-        if (recentPattern.lowVegetableDays >= threshold) {
-            optimized.breakfast.sides = ['브로콜리찜', '시금치나물', '당근볶음'];
-            optimized.lunch.sides = ['양배추볶음', '버섯볶음', '오이무침'];
-            optimized.dinner.sides = ['구운채소', '저염 나물', '저염 채소무침'];
-            syncSummary(optimized.breakfast);
-            syncSummary(optimized.lunch);
-            syncSummary(optimized.dinner);
-            addNote(
-                `최근 ${recentPattern.analyzedDays}일 기록 중 ${recentPattern.lowVegetableDays}일에서 채소 섭취가 부족해, 채소 반찬 다양성을 강화했어요.`
-            );
-        }
-
-        if (recentPattern.highSodiumDays >= threshold) {
-            optimized.breakfast.soup = '두부맑은국';
-            optimized.lunch.soup = '맑은채소국';
-            optimized.dinner.soup = '미역국(저염)';
-            optimized.breakfast.sides = ['브로콜리찜', '저염 나물', '당근볶음'];
-            optimized.lunch.sides = ['양배추볶음', '저염 채소무침', '버섯볶음'];
-            optimized.dinner.sides = ['구운채소', '저염 나물', '저염 버섯볶음'];
-            syncSummary(optimized.breakfast);
-            syncSummary(optimized.lunch);
-            syncSummary(optimized.dinner);
-            addNote(
-                `최근 ${recentPattern.analyzedDays}일 기록 중 ${recentPattern.highSodiumDays}일에서 염분이 높아, 저염 국물·반찬 중심으로 보정했어요.`
-            );
-        }
-
-        if (recentPattern.skippedMealDays >= 3) {
-            optimized.breakfast.main = '부드러운 죽';
-            optimized.lunch.main = '연두부덮밥';
-            optimized.dinner.main = '닭안심찜';
-            optimized.breakfast.soup = '단호박수프';
-            optimized.lunch.soup = '두부맑은국';
-            optimized.dinner.soup = '맑은채소국';
-            optimized.snack.main = '무가당 요거트';
-            optimized.snack.sides = ['바나나 반 개'];
-            optimized.snack.soup = '따뜻한 물';
-            optimized.snack.summary = '무가당 요거트 + 바나나 반 개 + 따뜻한 물';
-            optimized.snack.recipeName = '최근 결식 보완 간식';
-            optimized.snack.recipeSteps = [
-                '무가당 요거트를 소량으로 준비해 주세요.',
-                '바나나 반 개를 곁들여 에너지를 보충해 주세요.',
-                '따뜻한 물을 천천히 마셔 수분을 보충해 주세요.',
-            ];
-            syncSummary(optimized.breakfast);
-            syncSummary(optimized.lunch);
-            syncSummary(optimized.dinner);
-            addNote(
-                `최근 ${recentPattern.analyzedDays}일 기록 중 ${recentPattern.skippedMealDays}일에서 결식 경향이 있어, 소량·고빈도 회복형 식사 구조로 보정했어요.`
-            );
-        }
-
-        if (recentPattern.spicyHeavyDays >= threshold) {
-            optimized.breakfast.soup = '들깨버섯수프';
-            optimized.lunch.soup = '맑은채소국';
-            optimized.dinner.soup = '단호박수프';
-            optimized.breakfast.sides[0] = '데친브로콜리';
-            optimized.lunch.sides[0] = '담백한 두부무침';
-            optimized.dinner.sides[0] = '구운채소';
-            syncSummary(optimized.breakfast);
-            syncSummary(optimized.lunch);
-            syncSummary(optimized.dinner);
-            addNote(
-                `최근 ${recentPattern.analyzedDays}일 기록 중 ${recentPattern.spicyHeavyDays}일에서 자극적 메뉴 비중이 높아, 저자극·부드러운 조리 위주로 재조정했어요.`
-            );
-        }
-    }
-
-    if (hasRecentSignal(['메스꺼움', '오심', '식욕저하', '구내염', '연하곤란'])) {
-        optimized.breakfast.main = '부드러운 죽';
-        optimized.lunch.main = '연두부덮밥';
-        optimized.dinner.main = '흰살생선찜';
-        optimized.breakfast.soup = '단호박수프';
-        optimized.lunch.soup = '두부맑은국';
-        optimized.dinner.soup = '맑은채소국';
-        optimized.snack.summary = '무가당 두유 + 바나나 반 개 + 따뜻한 물';
-        optimized.snack.main = '무가당 두유';
-        optimized.snack.sides = ['바나나 반 개'];
-        optimized.snack.soup = '따뜻한 물';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('최근 식단 신호(식욕저하/메스꺼움)를 반영해 삼키기 쉽고 부드러운 식감 위주로 조정했어요.');
-    }
-
-    if (hasRecentSignal(['변비'])) {
-        optimized.breakfast.sides = ['브로콜리찜', '시금치나물', '당근볶음'];
-        optimized.lunch.sides = ['양배추볶음', '버섯볶음', '저염 채소무침'];
-        optimized.dinner.sides = ['구운채소', '저염 나물', '오이무침'];
-        optimized.snack.summary = '무가당 요거트 + 키위 + 물';
-        optimized.snack.main = '무가당 요거트';
-        optimized.snack.sides = ['키위'];
-        optimized.snack.soup = '물';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('최근 식단 신호(변비)를 반영해 채소·수분·발효유 기반 구성을 보강했어요.');
-    }
-
-    if (hasRecentSignal(['설사', '묽은변', '장염'])) {
-        optimized.breakfast.main = '부드러운 죽';
-        optimized.lunch.main = '닭안심찜';
-        optimized.dinner.main = '연두부덮밥';
-        optimized.breakfast.soup = '맑은채소국';
-        optimized.lunch.soup = '두부맑은국';
-        optimized.dinner.soup = '단호박수프';
-        optimized.breakfast.sides = ['데친브로콜리', '당근볶음', '애호박볶음'];
-        optimized.lunch.sides = ['담백한 두부무침', '버섯볶음', '저염 나물'];
-        optimized.dinner.sides = ['구운채소', '시금치나물', '저염 채소무침'];
-        optimized.snack.summary = '무가당 두유 + 바나나 반 개 + 따뜻한 물';
-        optimized.snack.main = '무가당 두유';
-        optimized.snack.sides = ['바나나 반 개'];
-        optimized.snack.soup = '따뜻한 물';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        addNote('최근 식단 신호(설사)를 반영해 기름진 음식과 자극을 낮춘 회복형 조합으로 조정했어요.');
-    }
-
-    const schedules = (context.medicationSchedules ?? []).filter((item) => item.name.trim().length > 0);
-    if (schedules.length > 0) {
-        const timings = new Set(schedules.map((item) => item.timing));
-        if (timings.has('breakfast')) {
-            optimized.breakfast.soup = '두부맑은국';
-            syncSummary(optimized.breakfast);
-        }
-        if (timings.has('lunch')) {
-            optimized.lunch.soup = '맑은채소국';
-            syncSummary(optimized.lunch);
-        }
-        if (timings.has('dinner')) {
-            optimized.dinner.soup = '미역국(저염)';
-            syncSummary(optimized.dinner);
-        }
-        addNote('복용 시기 정보를 반영해 약 복용 전후 부담이 적은 식사 구성으로 맞췄어요.');
-    }
-
-    return {
-        plan: optimized,
-        notes,
-    };
+    applyMenuGuard(optimized, guard);
+    if (guard.lowSalt) addNote('짠 메뉴가 포함된 경우 담백한 메뉴로 바꾸고, 국물과 양념의 양은 조절해 주세요.');
+    if (guard.bland) addNote('기름지거나 자극적인 메뉴가 포함된 경우 담백한 조리로 바꿨어요.');
+    if (soft) addNote('구강·씹기 불편에 맞춰 거칠거나 자극적인 메뉴를 부드러운 선택지로 바꿨어요.');
+    if (nausea) addNote('메스꺼울 때는 냄새와 온도를 조절하고, 드실 수 있는 음식을 소량씩 나누어 드세요.');
+    if (diarrhea) addNote('설사가 있을 때 불편을 주는 유제품·거친 재료·기름진 음식은 조절하고, 지속되면 의료진에게 알려 주세요.');
+    if (hasSignal(['연하곤란', '삼키기어려움'])) addNote('삼키기 어렵다면 음식의 질감과 음료의 점도를 의료진에게 확인해 주세요. 일반 죽이나 맑은 국도 맞지 않을 수 있어요.');
+    if (hasSignal(['식욕저하', '식욕부진']) || hasPattern('skippedMealDays')) addNote('식사량이 줄었다면 먹을 수 있는 메뉴를 소량씩 자주 드시고, 체중 변화를 의료진과 확인해 주세요.');
+    if (hasSignal(['변비'])) addNote('변비가 있을 때는 수분·섬유소 섭취를 현재 치료와 장 상태에 맞춰 의료진과 확인해 주세요.');
+    if (guard.ensureProtein || guard.ensureVegetables) addNote('최근 기록에 단백질·채소 식품 이름이 빠진 날이 있어요. 기록을 확인하고, 이미 포함된 메뉴는 다양하게 유지해요.');
+    if (guard.avoidRaw) addNote('고기·생선·달걀은 속까지 익히고, 식품 위생과 개인별 생식 제한 지침을 따라 주세요.');
+    if ((context.medicationSchedules ?? []).some((item) => item.name.trim())) addNote('약과 식사의 간격은 처방받은 복용 안내를 따라 주세요. 복용 시간만으로 메뉴를 바꾸지는 않아요.');
+    return { plan: optimized, notes };
 }
 
 export function optimizePlanByPreference(plan: DayPlan, preferences: PreferenceType[]) {
     const optimized = clonePlan(plan);
     const notes: string[] = [];
     const has = (key: PreferenceType) => preferences.includes(key);
-    const syncSummary = (meal: MealSuggestion) => {
-        meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
+    const dayIndex = calendarDayIndex(plan.date);
+    const setMain = (slot: MainSlot, main: string) => {
+        if (optimized[slot].main === main) return;
+        optimized[slot].main = main;
+        optimized[slot].riceType = hasIntegratedGrain(main) ? '' : optimized[slot].riceType || RICE_TYPES[positiveModulo(dayIndex + MAIN_SLOTS.indexOf(slot), RICE_TYPES.length)];
+        syncMealDetails(optimized[slot], slot);
+    };
+    const preferFamily = (families: string[]) => {
+        if (MAIN_SLOTS.some((slot) => families.includes(proteinFamilyForMain(optimized[slot].main)))) return;
+        const pool = MONTHLY_MEAL_CATALOG.filter((item) => families.includes(proteinFamilyForMain(item.main)));
+        const chosen = chooseGuardedMain(optimized, 'dinner', {}, pool);
+        if (chosen) setMain('dinner', chosen);
     };
 
-    const rebalanceMealNutrient = (nutrient: MealNutrient, carbDelta: number, proteinDelta: number) => {
-        let carb = clamp(Math.round(nutrient.carb + carbDelta), 18, 60);
-        let protein = clamp(Math.round(nutrient.protein + proteinDelta), 20, 60);
-        let fat = 100 - carb - protein;
+    // General preferences are suitability checks, not a new fixed daily menu.
+    const soft = has('soft_food') || has('digestive');
+    applyMenuGuard(optimized, {
+        lowSalt: has('healthy') || has('low_salt'),
+        bland: has('bland') || has('digestive') || has('healthy'),
+        soft,
+        ensureProtein: has('high_protein'),
+        ensureVegetables: has('vegetable') || has('healthy'),
+        lessSugar: has('healthy'),
+    });
+    if (has('healthy')) notes.push('곡류·단백질·채소가 이미 있는 식사는 유지하고, 짜거나 기름진 메뉴만 조정했어요.');
+    if (soft) notes.push('부드러운 메뉴는 유지하고 씹기 부담스러운 메뉴만 바꿨어요.');
+    if (has('high_protein')) notes.push('끼니마다 단백질 식품이 있는지 확인했어요. 필요한 양은 개인의 영양 상태에 따라 달라요.');
+    if (has('vegetable')) notes.push('채소 반찬이 빠진 끼니를 보완하고 기존 반찬은 다양하게 유지했어요.');
+    if (has('low_salt') || has('bland')) notes.push('담백한 메뉴는 유지하고, 양념과 국물의 양을 조절해 주세요.');
+    if (has('weight_loss')) notes.push('치료 중에는 임의로 식사량을 줄이기보다 의료진과 체중 조절 목표를 먼저 확인해 주세요.');
 
-        if (fat < 18) {
-            const need = 18 - fat;
-            const reducibleProtein = Math.min(need, Math.max(0, protein - 20));
-            protein -= reducibleProtein;
-            const remainingNeed = need - reducibleProtein;
-            carb = Math.max(18, carb - remainingNeed);
-            fat = 100 - carb - protein;
-        }
-
-        if (fat > 42) {
-            const excess = fat - 42;
-            const addProtein = Math.min(excess, 60 - protein);
-            protein += addProtein;
-            const remainingExcess = excess - addProtein;
-            carb = Math.min(60, carb + remainingExcess);
-            fat = 100 - carb - protein;
-        }
-
-        return {
-            carb,
-            protein,
-            fat,
-        };
-    };
-
-    const adjustSlotNutrient = (slot: MealSlot, carbDelta: number, proteinDelta: number) => {
-        const meal = slot === 'breakfast' ? optimized.breakfast : slot === 'lunch' ? optimized.lunch : slot === 'dinner' ? optimized.dinner : optimized.snack;
-        meal.nutrient = rebalanceMealNutrient(meal.nutrient, carbDelta, proteinDelta);
-    };
-
-    const applyIndulgentLunchRebalance = (label: string) => {
-        adjustSlotNutrient('breakfast', -4, 4);
-        adjustSlotNutrient('dinner', -8, 8);
-        adjustSlotNutrient('snack', -5, 4);
-        notes.push(`${label}를 점심에 반영해 아침·저녁·간식은 탄수화물을 낮추고 단백질 중심으로 재분배했어요.`);
-    };
-
-    const applyIndulgentDinnerRebalance = (label: string) => {
-        adjustSlotNutrient('breakfast', -4, 4);
-        adjustSlotNutrient('lunch', -6, 6);
-        adjustSlotNutrient('snack', -5, 4);
-        notes.push(`${label}를 저녁에 반영해 아침·점심·간식은 단백질·채소 중심으로 재분배했어요.`);
-    };
-
-    if (has('spicy')) {
-        optimized.lunch.sides[0] = '저자극 매콤 두부무침';
-        optimized.dinner.sides[0] = '고춧가루 소량 채소무침';
-        notes.push('매운 맛은 유지하면서 자극은 줄인 양념으로 조정했어요.');
+    if (has('meat')) preferFamily(['chicken', 'beef', 'pork', 'duck']);
+    if (has('beef')) preferFamily(['beef']);
+    if (has('chicken')) preferFamily(['chicken']);
+    if (has('fish')) preferFamily(['fish']);
+    if (has('pork') && !MAIN_SLOTS.some((slot) => proteinFamilyForMain(optimized[slot].main) === 'pork')) {
+        setMain('dinner', ['돼지안심수육', '돼지안심구이', '돼지고기채소찜'][positiveModulo(dayIndex, 3)]);
     }
-
-    if (has('meat') && !has('beef') && !has('pork') && !has('chicken') && !has('duck')) {
-        optimized.dinner.main = MEAT_MAINS[0];
-        syncSummary(optimized.dinner);
-        notes.push('고기 메뉴는 기름이 적은 부위로 반영했어요.');
+    if (has('duck') && !MAIN_SLOTS.some((slot) => proteinFamilyForMain(optimized[slot].main) === 'duck')) {
+        setMain('dinner', ['오리고기구이', '오리고기채소볶음'][positiveModulo(dayIndex, 2)]);
     }
-
-    if (has('sweet')) {
-        optimized.snack.summary = '무가당 요거트 + 제철 과일 + 견과류 소량';
-        optimized.snack.main = '무가당 요거트';
-        optimized.snack.sides = ['제철 과일', '견과류 소량'];
-        optimized.snack.recipeName = '당이 낮은 간식 조합';
-        optimized.snack.recipeSteps = [
-            '무가당 요거트를 작은 그릇에 담아요.',
-            '제철 과일을 작은 조각으로 추가해요.',
-            '견과류는 한 줌 이내로 마무리해요.',
-        ];
-        notes.push('단맛 요청을 반영해 혈당 부담이 낮은 간식으로 바꿨어요.');
-    }
-
-    if (has('healthy')) {
-        optimized.breakfast.riceType = '잡곡밥';
-        optimized.lunch.riceType = '잡곡밥';
-        optimized.dinner.riceType = '잡곡밥';
-        optimized.breakfast.sides[1] = '데친브로콜리';
-        optimized.lunch.sides[1] = '저염 나물모둠';
-        optimized.dinner.sides[1] = '구운채소';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('건강식 방향으로 잡곡밥과 채소 반찬 비중을 높였어요.');
-    }
-
-    if (has('fish')) {
-        optimized.lunch.main = '고등어구이';
-        optimized.dinner.main = '흰살생선찜';
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('생선 메뉴를 늘려 단백질을 보강했어요.');
-    }
-
-    if (has('sashimi')) {
-        optimized.lunch.main = '익힌 생선 숙회무침';
-        optimized.lunch.sides[0] = '저염 해초무침';
-        syncSummary(optimized.lunch);
-        notes.push('회 느낌은 생식 대신 안전한 익힘 메뉴로 바꿨어요.');
-    }
-
-    if (has('sushi')) {
-        optimized.lunch.main = '익힌 생선 초밥(저염)';
-        optimized.lunch.sides[2] = '따뜻한 미소수프';
-        syncSummary(optimized.lunch);
-        notes.push('초밥 느낌은 익힌 재료 위주로 안전하게 반영했어요.');
-    }
-
-    if (has('cool_food')) {
-        optimized.lunch.soup = '오이냉국(저염)';
-        optimized.snack.summary = '시원한 두유 + 과일 조각';
-        optimized.snack.main = '시원한 두유';
-        optimized.snack.soup = '물';
-        optimized.snack.sides = ['제철 과일'];
-        optimized.snack.recipeName = '시원한 간식 조합';
-        optimized.snack.recipeSteps = [
-            '시원한 두유를 작은 컵 1잔으로 준비해요.',
-            '제철 과일은 한 줌 이내로 곁들여요.',
-            '차가운 간식 뒤에는 물을 조금 더 마셔 주세요.',
-        ];
-        syncSummary(optimized.lunch);
-        notes.push('시원한 음식 요청을 반영하되 자극은 낮췄어요.');
-    }
-
-    if (has('warm_food')) {
-        optimized.breakfast.soup = '들깨버섯수프';
-        optimized.lunch.soup = '두부맑은국';
-        optimized.dinner.soup = '단호박수프';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('따뜻한 국·수프 중심으로 구성했어요.');
-    }
-
-    if (has('soft_food')) {
-        optimized.breakfast.main = '두부달걀찜';
-        optimized.lunch.main = '연두부덮밥';
-        optimized.dinner.main = '흰살생선찜';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('씹기 편한 부드러운 메뉴를 중심으로 조정했어요.');
-    }
-
-    if (has('soupy')) {
-        optimized.breakfast.soup = '미역국(저염)';
-        optimized.lunch.soup = '맑은채소국';
-        optimized.dinner.soup = '두부맑은국';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('국물 음식은 저염 기준으로 반영했어요.');
-    }
-
-    if (has('high_protein')) {
-        optimized.breakfast.main = '달걀두부찜';
-        optimized.lunch.main = '닭가슴살구이';
-        optimized.dinner.main = '연어구이';
-        optimized.snack.summary = '그릭요거트 + 두유';
-        optimized.snack.main = '그릭요거트';
-        optimized.snack.soup = '물';
-        optimized.snack.sides = ['두유'];
-        optimized.snack.recipeName = '단백질 보강 간식';
-        optimized.snack.recipeSteps = [
-            '그릭요거트를 1회 분량으로 담아 주세요.',
-            '무가당 두유를 작은 컵으로 곁들여요.',
-            '당 함량이 높은 토핑은 생략하고 담백하게 드세요.',
-        ];
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('단백질 보충을 위해 닭·생선·두부 비중을 높였어요.');
-    }
-
-    if (has('vegetable')) {
-        optimized.breakfast.sides = ['브로콜리찜', '시금치나물', '당근볶음'];
-        optimized.lunch.sides = ['양배추볶음', '버섯볶음', '오이무침'];
-        optimized.dinner.sides = ['애호박볶음', '시금치나물', '구운채소'];
-        notes.push('채소 반찬 종류를 더 다양하게 넣었어요.');
-    }
-
-    if (has('bland')) {
-        optimized.breakfast.sides[0] = '저염 나물무침';
-        optimized.lunch.sides[0] = '담백한 두부무침';
-        optimized.dinner.sides[0] = '담백한 채소무침';
-        notes.push('강한 양념을 줄이고 담백하게 조정했어요.');
-    }
-
-    if (has('appetite_boost')) {
-        optimized.lunch.sides[2] = '새콤한 무피클(저염)';
-        optimized.dinner.sides[2] = '레몬채소무침';
-        notes.push('입맛을 돕는 새콤한 반찬을 소량 추가했어요.');
-    }
-
-    if (has('digestive')) {
-        optimized.breakfast.main = '부드러운 죽';
-        optimized.lunch.main = '두부덮밥';
-        optimized.dinner.main = '닭안심찜';
-        optimized.breakfast.soup = '단호박수프';
-        optimized.dinner.soup = '들깨버섯수프';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('속이 편한 소화 중심 메뉴로 조정했어요.');
-    }
-
-    if (has('low_salt')) {
-        optimized.breakfast.soup = '두부맑은국';
-        optimized.lunch.soup = '맑은채소국';
-        optimized.dinner.soup = '미역국(저염)';
-        optimized.breakfast.sides[2] = '저염 채소볶음';
-        optimized.lunch.sides[2] = '저염 나물';
-        optimized.dinner.sides[2] = '저염 버섯볶음';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('저염식 기준으로 국·반찬 간을 낮췄어요.');
-    }
-
-    if (has('noodle')) {
-        optimized.lunch.main = '잔치국수(저염)';
-        optimized.lunch.soup = '멸치육수국(저염)';
-        optimized.lunch.sides = ['데친채소', '달걀지단', '두부무침'];
-        syncSummary(optimized.lunch);
-        notes.push('면 요리는 자극을 줄인 저염 방식으로 반영했어요.');
-    }
-
-    if (has('weight_loss')) {
-        optimized.breakfast.riceType = '현미밥(소량)';
-        optimized.lunch.riceType = '잡곡밥(소량)';
-        optimized.dinner.riceType = '현미밥(소량)';
-        optimized.breakfast.main = '달걀두부찜';
-        optimized.lunch.main = '닭가슴살구이';
-        optimized.dinner.main = '흰살생선찜';
-        optimized.breakfast.sides = ['브로콜리찜', '버섯볶음', '당근볶음'];
-        optimized.lunch.sides = ['양배추볶음', '저염 나물', '구운채소'];
-        optimized.dinner.sides = ['애호박볶음', '버섯볶음', '오이무침'];
-        optimized.breakfast.nutrient = { carb: 30, protein: 45, fat: 25 };
-        optimized.lunch.nutrient = { carb: 28, protein: 47, fat: 25 };
-        optimized.dinner.nutrient = { carb: 24, protein: 48, fat: 28 };
-        optimized.snack.summary = '그릭요거트 + 베리류 + 아몬드 소량';
-        optimized.snack.main = '그릭요거트';
-        optimized.snack.soup = '물';
-        optimized.snack.sides = ['베리류', '아몬드 소량'];
-        optimized.snack.nutrient = { carb: 22, protein: 43, fat: 35 };
-        optimized.snack.recipeName = '체중감량형 간식 조합';
-        optimized.snack.recipeSteps = [
-            '그릭요거트를 1회 분량으로 담아 주세요.',
-            '베리류를 한 줌 이내로 곁들여 주세요.',
-            '아몬드는 5~6알 이내로 추가해 주세요.',
-        ];
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('체중감량 방향을 반영해 저녁 탄수화물 비율을 더 낮추고 단백질 중심으로 조정했어요.');
-    }
-
-    if (has('beef')) {
-        optimized.dinner.main = '소고기 안심구이(90g)';
-        optimized.dinner.soup = '맑은채소국';
-        optimized.dinner.sides = ['브로콜리찜', '구운채소', '저염 버섯볶음'];
-        optimized.dinner.nutrient = { carb: 30, protein: 42, fat: 28 };
-        syncSummary(optimized.dinner);
-        notes.push('소고기 태그를 반영해 저지방 부위 중심으로 저녁 한 끼를 구성했어요.');
-    }
-
-    if (has('pork')) {
-        optimized.dinner.main = '돼지안심구이(90g)';
-        optimized.dinner.soup = '양배추수프';
-        optimized.dinner.sides = ['데친브로콜리', '저염 나물', '구운채소'];
-        optimized.dinner.nutrient = { carb: 31, protein: 40, fat: 29 };
-        syncSummary(optimized.dinner);
-        notes.push('돼지고기 태그를 반영해 안심 등 저지방 부위를 기준으로 조정했어요.');
-    }
-
-    if (has('chicken')) {
-        optimized.dinner.main = '닭다리살 구이(껍질 제거, 100g)';
-        optimized.dinner.soup = '두부맑은국';
-        optimized.dinner.sides = ['그린샐러드', '오이무침', '구운버섯'];
-        optimized.dinner.nutrient = { carb: 30, protein: 43, fat: 27 };
-        syncSummary(optimized.dinner);
-        notes.push('닭고기 태그를 반영해 닭고기 중심 한 끼로 조정했어요.');
-    }
-
-    if (has('duck')) {
-        optimized.dinner.main = '오리고기 구이(기름 제거, 90g)';
-        optimized.dinner.soup = '미역국(저염)';
-        optimized.dinner.sides = ['양배추찜', '구운채소', '저염 나물'];
-        optimized.dinner.nutrient = { carb: 29, protein: 38, fat: 33 };
-        syncSummary(optimized.dinner);
-        notes.push('오리고기 태그를 반영하되 지방·염분 부담이 커지지 않게 조정했어요.');
-    }
-
-    if (has('pizza')) {
-        optimized.lunch.riceType = '밥 생략(피자 탄수 포함)';
-        optimized.lunch.main = '피자 2조각(얇은 도우)';
-        optimized.lunch.soup = '채소수프(저염)';
-        optimized.lunch.sides = ['그린샐러드', '방울토마토', '플레인요거트 소량'];
-        optimized.lunch.nutrient = { carb: 46, protein: 19, fat: 35 };
-        optimized.lunch.cautionFlour = '피자는 2조각 이내로 제한하고, 트랜스지방·재가열 튀김 토핑은 피하세요.';
-        optimized.lunch.recipeName = '피자 2조각 + 균형 보완 식사';
-        optimized.lunch.recipeSteps = [
-            '피자는 2조각까지만 담고 천천히 드세요.',
-            '도우가 두껍거나 가공육 토핑이 많은 메뉴는 피하세요.',
-            '샐러드와 채소수프를 함께 먹어 포만감을 보완해 주세요.',
-            '트랜스지방 가능성이 높은 튀김 사이드·재가열 기름은 피하세요.',
-        ];
-        syncSummary(optimized.lunch);
-        applyIndulgentLunchRebalance('피자');
-    }
-
-    if (has('sandwich')) {
-        optimized.lunch.riceType = '밥 생략(샌드위치 탄수 포함)';
-        optimized.lunch.main = '샌드위치 1개(통밀빵, 닭/달걀 기반)';
-        optimized.lunch.soup = '맑은채소국';
-        optimized.lunch.sides = ['그린샐러드', '오이스틱', '무가당 요거트 소량'];
-        optimized.lunch.nutrient = { carb: 44, protein: 24, fat: 32 };
-        optimized.lunch.cautionFlour = '샌드위치는 1개 이내로 제한하고, 가공육·마가린·튀김 패티는 피하세요.';
-        optimized.lunch.recipeName = '샌드위치 1끼 + 균형 보완 식사';
-        optimized.lunch.recipeSteps = [
-            '통밀빵 기반 샌드위치를 1개 이내로 준비해 주세요.',
-            '닭가슴살·달걀·채소 중심 속재료를 선택해 주세요.',
-            '마요네즈와 소스는 최소화하고 수프·샐러드를 함께 드세요.',
-            '트랜스지방 가능성이 높은 튀김 패티·가공소스는 피하세요.',
-        ];
-        syncSummary(optimized.lunch);
-        applyIndulgentLunchRebalance('샌드위치');
-    }
-
-    if (has('fried_chicken')) {
-        optimized.dinner.riceType = '현미밥(1/3공기)';
-        optimized.dinner.main = '치킨 2조각(가능하면 껍질/튀김옷 일부 제거)';
-        optimized.dinner.soup = '양배추수프';
-        optimized.dinner.sides = ['양배추샐러드', '방울토마토', '구운버섯'];
-        optimized.dinner.nutrient = { carb: 30, protein: 28, fat: 42 };
-        optimized.dinner.cautionFlour = '치킨은 2조각 이내로 제한하고, 재사용 기름·트랜스지방 가능 메뉴는 피하세요.';
-        optimized.dinner.recipeName = '치킨 2조각 + 저자극 보완 구성';
-        optimized.dinner.recipeSteps = [
-            '치킨은 2조각 이내로 양을 먼저 정해 주세요.',
-            '가능하면 껍질·튀김옷 일부를 덜어 지방 섭취를 낮춰 주세요.',
-            '샐러드와 수프를 먼저 먹고 치킨을 천천히 드세요.',
-            '트랜스지방 위험이 높은 오래된 튀김기름 사용 매장은 피하세요.',
-        ];
-        syncSummary(optimized.dinner);
-        applyIndulgentDinnerRebalance('치킨');
-    }
-
-    return {
-        plan: optimized,
-        notes,
-    };
+    if (has('sashimi')) setMain('lunch', ['익힌 생선 숙회', '익힌 새우 숙회', '익힌 오징어 숙회'][positiveModulo(dayIndex, 3)]);
+    if (has('sushi')) setMain('lunch', ['익힌 새우 초밥', '달걀 초밥', '익힌 생선 초밥'][positiveModulo(dayIndex, 3)]);
+    if (has('noodle')) setMain('lunch', ['잔치국수(저염)', '닭고기쌀국수(저염)', '달걀우동(저염)'][positiveModulo(dayIndex, 3)]);
+    if (has('pizza')) setMain('lunch', ['채소피자', '닭고기피자', '버섯피자'][positiveModulo(dayIndex, 3)]);
+    if (has('sandwich')) setMain('lunch', ['달걀샌드위치', '닭가슴살샌드위치', '두부샌드위치'][positiveModulo(dayIndex, 3)]);
+    if (has('fried_chicken')) setMain('dinner', '치킨');
+    if (has('pizza') || has('sandwich') || has('fried_chicken') || has('noodle')) notes.push('원하는 메뉴를 한 끼에 반영했어요. 먹는 양은 컨디션에 맞추고 단백질·채소 반찬을 함께 준비해 주세요.');
+    if (has('sashimi') || has('sushi')) notes.push('회·초밥 선호는 속까지 익힌 재료로 반영했어요.');
+    if (has('warm_food') || has('soupy')) notes.push('기존 국·수프를 드실 수 있는 온도와 양으로 준비해 주세요.');
+    if (has('cool_food')) notes.push('음식은 안전하게 보관하고, 드실 때 견디기 편한 온도로 맞춰 주세요.');
+    if (has('sweet')) notes.push('기존 과일·간식을 활용하고 단맛은 드실 수 있는 정도로 조절해 주세요.');
+    if (has('spicy')) notes.push('양념은 따로 준비해 드실 수 있는 만큼 넣어 주세요. 구강·소화 불편이 있으면 자극적인 양념을 줄여 주세요.');
+    if (has('appetite_boost')) notes.push('현재 먹고 싶은 메뉴와 온도를 선택하고 소량씩 나누어 드셔도 좋아요.');
+    // A specific food preference must not undo an explicitly requested texture.
+    if (soft) applyMenuGuard(optimized, { soft: true, bland: true });
+    return { plan: optimized, notes };
 }
 
 export function optimizePlanByMedications(plan: DayPlan, medications: string[]) {
     const optimized = clonePlan(plan);
     const notes: string[] = [];
-
-    if (medications.length === 0) {
-        return {
-            plan: optimized,
-            notes,
-        };
+    const normalized = medications.map(normalizeForMatch).filter(Boolean);
+    const hasMedication = (keywords: string[]) => normalized.some((item) => keywords.some((keyword) => item.includes(keyword)));
+    if (hasMedication(['타목시펜', 'tamoxifen', '레트로졸', 'letrozole', '아나스트로졸', 'anastrozole', '엑세메스탄', 'exemestane', '팔보시클립', 'palbociclib', '리보시클립', 'ribociclib'])) {
+        // A medicine name is not a reason to prescribe the same snack every day.
+        // Remove only an actual grapefruit item; exact interactions remain drug-specific.
+        (['breakfast', 'lunch', 'dinner', 'snack'] as const).forEach((slot) => {
+            const meal = optimized[slot];
+            const containsGrapefruit = (value: string) => /자몽|grapefruit/i.test(value);
+            const before = JSON.stringify([meal.main, meal.soup, meal.sides]);
+            if (containsGrapefruit(meal.main)) meal.main = slot === 'snack' ? '사과 조각' : chooseGuardedMain(optimized, slot, {}) ?? '';
+            if (containsGrapefruit(meal.soup)) meal.soup = '물';
+            meal.sides = meal.sides.filter((side) => !containsGrapefruit(side));
+            if (JSON.stringify([meal.main, meal.soup, meal.sides]) !== before) syncMealDetails(meal, slot);
+        });
+        notes.push('약에 따라 자몽 등과 상호작용이 있을 수 있어요. 약별 음식 주의사항은 처방 안내나 약사에게 확인해 주세요.');
     }
-
-    const normalizedMedications = medications
-        .map((item) => item.toLowerCase().replace(/\s+/g, '').trim())
-        .filter(Boolean);
-    const hasMedication = (keywords: string[]) =>
-        normalizedMedications.some((medication) => keywords.some((keyword) => medication.includes(keyword)));
-    const syncSummary = (meal: MealSuggestion) => {
-        meal.summary = `${meal.riceType} + ${meal.main} + ${meal.soup}`;
-    };
-
-    const hormoneOrTargetedKeywords = [
-        '타목시펜',
-        'tamoxifen',
-        '레트로졸',
-        'letrozole',
-        '아나스트로졸',
-        'anastrozole',
-        '엑세메스탄',
-        'exemestane',
-        '팔보시클립',
-        'palbociclib',
-        '리보시클립',
-        'ribociclib',
-    ];
-
-    if (hasMedication(hormoneOrTargetedKeywords)) {
-        optimized.snack.summary = '무가당 요거트 + 베리류 + 호두 소량';
-        optimized.snack.main = '무가당 요거트';
-        optimized.snack.soup = '따뜻한 물';
-        optimized.snack.sides = ['베리류', '호두 소량'];
-        optimized.snack.recipeName = '약물치료 고려 간식 조합';
-        optimized.snack.recipeSteps = [
-            '무가당 요거트를 작은 그릇에 담아 주세요.',
-            '베리류를 한 줌 정도 추가해 주세요.',
-            '호두는 소량(4~5알)만 곁들여 주세요.',
-            '자몽·자몽주스는 피하고 물을 함께 드세요.',
-        ];
-        notes.push('복용 약을 고려해 간식을 저당·저자극 조합으로 조정했어요.');
+    if (hasMedication(['덱사메타손', 'dexamethasone', '프레드니솔론', 'prednisolone', '프레드니손', 'prednisone', '스테로이드'])) {
+        applyMenuGuard(optimized, { lowSalt: true, lessSugar: true });
+        notes.push('스테로이드 복용 중 혈당·부종 관리가 필요하면 의료진과 상의하고, 짠 음식과 가당 음료의 양을 조절해 주세요.');
     }
-
-    const steroidKeywords = [
-        '덱사메타손',
-        'dexamethasone',
-        '프레드니솔론',
-        'prednisolone',
-        '프레드니손',
-        'prednisone',
-        '스테로이드',
-    ];
-
-    if (hasMedication(steroidKeywords)) {
-        optimized.breakfast.soup = '두부맑은국';
-        optimized.lunch.soup = '맑은채소국';
-        optimized.dinner.soup = '미역국(저염)';
-        optimized.breakfast.sides[2] = '저염 채소볶음';
-        optimized.lunch.sides[2] = '저염 나물';
-        optimized.dinner.sides[2] = '저염 버섯볶음';
-        syncSummary(optimized.breakfast);
-        syncSummary(optimized.lunch);
-        syncSummary(optimized.dinner);
-        notes.push('복용 약을 고려해 염분과 당 부담이 적은 구성으로 조정했어요.');
+    if (hasMedication(['와파린', 'warfarin', '쿠마딘', 'coumadin'])) {
+        notes.push('와파린 복용 시 비타민 K가 있는 채소를 임의로 빼지 말고, 평소 섭취량이 크게 바뀌지 않도록 의료진·약사와 확인해 주세요.');
     }
-
-    const anticoagulantKeywords = ['와파린', 'warfarin', '쿠마딘', 'coumadin'];
-    if (hasMedication(anticoagulantKeywords)) {
-        const normalizeSides = (sides: string[]) =>
-            sides.map((side) => {
-                if (side.includes('시금치')) {
-                    return '버섯볶음';
-                }
-                return side;
-            });
-
-        optimized.breakfast.sides = normalizeSides(optimized.breakfast.sides);
-        optimized.lunch.sides = normalizeSides(optimized.lunch.sides);
-        optimized.dinner.sides = normalizeSides(optimized.dinner.sides);
-        notes.push('복용 약을 고려해 특정 채소 섭취량이 급격히 바뀌지 않도록 반찬을 완만하게 조정했어요.');
-    }
-
-    return {
-        plan: optimized,
-        notes,
-    };
+    return { plan: optimized, notes };
 }
 
 export function getStageFoodGuides(stageType: StageType) {
@@ -2737,7 +1890,7 @@ export function getStageFoodGuides(stageType: StageType) {
         default:
             return {
                 help: ['다양한 채소', '잡곡밥', '적당한 단백질 반찬'],
-                caution: ['밀가루/당류 과다', '지나치게 짠 음식', '야식 습관'],
+                caution: ['가당 음료·간식 과다', '지나치게 짠 음식', '불규칙한 식사'],
             };
     }
 }
@@ -2772,18 +1925,23 @@ export function generatePlanForDate(
     prevMonthScore: number,
     preferences: PreferenceType[] = []
 ): DayPlan {
-    const [year, month, day] = dateKey.split('-').map(Number);
-    const seed = hashStringToSeed(`${dateKey}:${stageType}:${year}-${month}-${day}`);
-    const breakfastRiceType = pickFromPool(RICE_TYPES, mixSeed(seed, 31), RICE_TYPES[0]);
-    const lunchRiceType = pickFromPool(RICE_TYPES, mixSeed(seed, 43), RICE_TYPES[1]);
-    const dinnerRiceType = pickFromPool(RICE_TYPES, mixSeed(seed, 59), RICE_TYPES[2]);
-
+    // Retained for call compatibility; a prior score does not justify restricting foods.
+    void prevMonthScore;
+    const dayIndex = calendarDayIndex(dateKey);
+    const snackTemplate = SNACK_TEMPLATES[positiveModulo(dayIndex, SNACK_TEMPLATES.length)];
+    const snack: MealSuggestion = {
+        summary: '', riceType: '', main: snackTemplate.main, soup: snackTemplate.hydration,
+        sides: [snackTemplate.side], cautionFlour: '간식은 드실 수 있는 양으로 준비해 주세요.',
+        nutrient: { carb: 0, protein: 0, fat: 0 }, nutritionUnavailable: true,
+        recipeName: '', recipeSteps: [],
+    };
+    syncMealDetails(snack, 'snack');
     const base: DayPlan = {
         date: dateKey,
-        breakfast: createMealSuggestion(mixSeed(seed, 71), stageType, '아침', prevMonthScore, month, breakfastRiceType),
-        lunch: createMealSuggestion(mixSeed(seed, 83), stageType, '점심', prevMonthScore, month, lunchRiceType),
-        dinner: createMealSuggestion(mixSeed(seed, 97), stageType, '저녁', prevMonthScore, month, dinnerRiceType),
-        snack: createMealSuggestion(mixSeed(seed, 109), stageType, '간식', prevMonthScore, month),
+        breakfast: buildScheduledMeal(dayIndex, 0, stageType),
+        lunch: buildScheduledMeal(dayIndex, 1, stageType),
+        dinner: buildScheduledMeal(dayIndex, 2, stageType),
+        snack,
     };
 
     if (preferences.length === 0) {

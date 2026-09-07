@@ -92,8 +92,10 @@ export default function NextVisitSummary() {
             {!ready ? <span className="nextVisitSummary__empty" role="status">일정 확인 중…</span> : upcoming ? (
                 <>
                     <span className="nextVisitSummary__date">{formatVisitScheduleDate(upcoming.visitDate)} <span className="nextVisitSummary__dday">{formatVisitScheduleDday(upcoming.visitDate, now)}</span></span>
-                    <span className="nextVisitSummary__time">{formatVisitScheduleTime(upcoming.visitTime)}</span>
-                    <span className="nextVisitSummary__hospital">{upcoming.hospitalName || '예정된 진료'}</span>
+                    <span className="nextVisitSummary__details">
+                        <span className="nextVisitSummary__time">{formatVisitScheduleTime(upcoming.visitTime)}</span>
+                        {upcoming.hospitalName && <span className="nextVisitSummary__hospital" title={upcoming.hospitalName}>{upcoming.hospitalName}</span>}
+                    </span>
                 </>
             ) : (
                 <span className="nextVisitSummary__empty">{failed ? '일정 확인하기' : '일정 등록하기'} <ChevronRight size={14} aria-hidden="true" /></span>
