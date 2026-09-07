@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Leaf, Moon, Plus, Search, Sun, Sunrise, Utensils } from 'lucide-react';
+import { ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Leaf, Minus, Moon, Plus, Search, Sun, Sunrise, Utensils } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     applySevenDayNoRepeatRule,
@@ -32,6 +32,8 @@ import { searchFoods, normalizeFoodQuery, type FoodSearchResult } from '@/lib/fo
 import { applyFoodPersonalization, describeFoodPersonalization, hasRenalDietRestrictions, matchesAvoidedIngredient, parseFoodPersonalization, readFoodPersonalization, type AvoidedIngredient } from '@/lib/personalization';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import HealthNewsFeed from '@/components/HealthNewsFeed';
+import NextVisitSummary from '@/components/NextVisitSummary';
 
 type StageStatus = 'planned' | 'active' | 'completed';
 
@@ -2357,7 +2359,6 @@ export default function DietPage() {
     const selectedDate = isSelectableRecordDate(requestedRecordDate, todayKey) ? requestedRecordDate : todayKey;
     const requestedRecordSlot = searchParams.get('meal') as MealSlot | null;
     const activeRecordSlot: MealSlot = requestedRecordSlot && SLOT_ORDER.includes(requestedRecordSlot) ? requestedRecordSlot : 'breakfast';
-    const [editedItemIdsByRecord, setEditedItemIdsByRecord] = useState<Record<string, string[]>>({});
     const [todayPlanOffset, setTodayPlanOffset] = useState(0);
     const [openRecipeSlot, setOpenRecipeSlot] = useState<RecipeTarget | null>(null);
     const [openPortionGuideContent, setOpenPortionGuideContent] = useState<PortionGuideModalContent | null>(null);
@@ -2369,7 +2370,6 @@ export default function DietPage() {
         itemId: string;
     } | null>(null);
     const [showNutrients, setShowNutrients] = useState(false);
-    const [showSuggestedRecordItems, setShowSuggestedRecordItems] = useState<Partial<Record<MealSlot, boolean>>>({});
     const [newItemBySlot, setNewItemBySlot] = useState<Record<MealSlot, string>>({
         breakfast: '',
         lunch: '',
@@ -3497,14 +3497,6 @@ export default function DietPage() {
         changeRecordSelection(normalizedDateKey, activeRecordSlot);
     };
 
-    const keepEditedMealItemVisible = (slot: MealSlot, itemId: string) => {
-        const recordKey = `${selectedDate}:${slot}`;
-        setEditedItemIdsByRecord((previous) => {
-            const itemIds = previous[recordKey] ?? [];
-            return itemIds.includes(itemId) ? previous : { ...previous, [recordKey]: [...itemIds, itemId] };
-        });
-    };
-
     const updateCurrentLog = useCallback((updater: (current: DayLog) => DayLog) => {
         setLogs((prev) => {
             const current = prev[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
@@ -3582,7 +3574,6 @@ export default function DietPage() {
     };
 
     const toggleMealItem = (slot: MealSlot, itemId: string) => {
-        keepEditedMealItemVisible(slot, itemId);
         updateCurrentLog((current) => ({
             ...current,
             meals: {
@@ -3601,7 +3592,6 @@ export default function DietPage() {
     };
 
     const markMealAsNotEaten = (slot: MealSlot, itemId: string) => {
-        keepEditedMealItemVisible(slot, itemId);
         updateCurrentLog((current) => ({
             ...current,
             meals: {
@@ -3622,11 +3612,6 @@ export default function DietPage() {
     const setMealSlotStatus = (slot: MealSlot, status: 'eaten' | 'not_eaten' | 'reset') => {
         const resetItems = buildDefaultLog(selectedDate, selectedPlan).meals[slot];
         if (status === 'reset') {
-            setEditedItemIdsByRecord((previous) => {
-                const next = { ...previous };
-                delete next[`${selectedDate}:${slot}`];
-                return next;
-            });
             setOpenSubstituteTarget((prev) => (prev?.slot === slot ? null : prev));
         }
         updateCurrentLog((current) => ({
@@ -3893,9 +3878,12 @@ export default function DietPage() {
         return (
             <main className="dietWorkspace space-y-6 pb-6">
                 <section className="overflow-hidden rounded-[28px] bg-[var(--ui-accent-soft)] px-6 py-9 sm:px-10 sm:py-12">
-                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--ui-surface)] text-[var(--ui-accent)]" aria-hidden="true">
-                        {openRecordView ? <ClipboardList size={25} /> : <Leaf size={25} />}
-                    </span>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--ui-surface)] text-[var(--ui-accent)]" aria-hidden="true">
+                            {openRecordView ? <ClipboardList size={25} /> : <Leaf size={25} />}
+                        </span>
+                        {!openRecordView && <NextVisitSummary />}
+                    </div>
                     <p className="mt-7 text-sm font-medium text-[var(--ui-accent)]">{openRecordView ? '나를 돌보는 식단 관리' : '나를 위한 식단 제안'}</p>
                     <h1 className="mt-3 max-w-lg text-[2rem] font-semibold leading-[1.35] tracking-tight text-[var(--ui-ink)] sm:text-[2.75rem]">
                         {openRecordView ? <>오늘 먹은 음식을<br />편하게 기록해요.</> : <>오늘은 무엇을<br />먹으면 좋을까요?</>}
@@ -3907,6 +3895,7 @@ export default function DietPage() {
                         로그인하고 시작하기 <ArrowRight size={18} aria-hidden="true" />
                     </Link>
                 </section>
+                {!openRecordView && <HealthNewsFeed />}
                 <div className="grid gap-3 sm:grid-cols-2">
                     <section className="uiCard flex items-start gap-4 p-5">
                         <span className="mt-1 text-[var(--ui-accent)]" aria-hidden="true"><Utensils size={22} /></span>
@@ -3924,11 +3913,14 @@ export default function DietPage() {
 
     return (
         <main className="dietWorkspace space-y-5 pb-8">
-            <header className="uiPageHeader">
-                <p>{profile?.nickname ? `${profile.nickname} 님의 하루 한 끼` : '나를 돌보는 한 끼'}</p>
-                <h1>{openRecordView ? '오늘의 식사를 기록해요.' : '오늘도 편안한 식사.'}</h1>
-                <p>{openRecordView ? '먹은 음식을 한 끼씩 남겨 보세요.' : '내 몸에 맞춰 준비한 하루 식단이에요.'}</p>
-            </header>
+            <div className={openRecordView ? undefined : 'mealMainHeader'}>
+                <header className="uiPageHeader min-w-0">
+                    <p>{profile?.nickname ? `${profile.nickname} 님의 하루 한 끼` : '나를 돌보는 한 끼'}</p>
+                    <h1>{openRecordView ? '오늘의 식사를 기록해요.' : '오늘도 편안한 식사.'}</h1>
+                    <p>{openRecordView ? '먹은 음식을 한 끼씩 남겨 보세요.' : '내 몸에 맞춰 준비한 하루 식단이에요.'}</p>
+                </header>
+                {!openRecordView && <NextVisitSummary />}
+            </div>
             {!openRecordView && (
             <section className="space-y-4">
                 <div className="flex items-center justify-between gap-3 px-1">
@@ -3979,6 +3971,7 @@ export default function DietPage() {
                         );
                     })}
                 </div>
+                <HealthNewsFeed />
                 <details className="uiCard px-5 pb-2">
                     <summary className="cursor-pointer py-4 text-sm font-semibold">식단 설정과 추천 이유</summary>
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -4485,8 +4478,6 @@ export default function DietPage() {
                                 {[activeRecordSlot].map((slot) => {
                                     const items = selectedLog.meals[slot];
                                     const recordedCount = items.filter((item) => item.eaten).length;
-                                    const editedItemIds = editedItemIdsByRecord[`${selectedDate}:${slot}`] ?? [];
-                                    const visibleItems = items.filter((item) => showSuggestedRecordItems[slot] || item.eaten || item.notEaten || item.isManual || editedItemIds.includes(item.id));
 
                                     return (
                                         <article
@@ -4578,10 +4569,8 @@ export default function DietPage() {
                                                     {recordedCount}개 먹었어요
                                                 </span>
                                             </div>
-                                            <button type="button" aria-expanded={Boolean(showSuggestedRecordItems[slot])} onClick={() => setShowSuggestedRecordItems((previous) => ({ ...previous, [slot]: !previous[slot] }))} className="uiButton uiButton--ghost w-full">
-                                                {showSuggestedRecordItems[slot] ? '추천 메뉴 접기' : '추천 메뉴에서 고르기'}
-                                            </button>
-                                            {showSuggestedRecordItems[slot] && <div className="mt-2 flex flex-wrap gap-2">
+                                            <p className="text-sm leading-relaxed text-[var(--ui-muted)]">추천 메뉴가 미리 준비되어 있어요. 먹은 음식에 표시해 주세요.</p>
+                                            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={`${mealTypeLabel(slot)} 전체 메뉴 선택`}>
                                                 <button
                                                     type="button"
                                                     onClick={() => setMealSlotStatus(slot, 'eaten')}
@@ -4603,11 +4592,11 @@ export default function DietPage() {
                                                 >
                                                     초기화
                                                 </button>
-                                             </div>}
+                                            </div>
 
-                                            {visibleItems.length === 0 && <div className="uiEmptyState py-7"><Search size={24} className="mx-auto mb-3 text-[var(--ui-accent)]" aria-hidden="true" /><p className="text-sm text-[var(--ui-muted)]">먹은 음식을 검색해서 추가해 주세요.</p></div>}
+                                            {items.length === 0 && <div className="uiEmptyState py-7"><Search size={24} className="mx-auto mb-3 text-[var(--ui-accent)]" aria-hidden="true" /><p className="text-sm text-[var(--ui-muted)]">먹은 음식을 검색해서 추가해 주세요.</p></div>}
                                             <div className="mt-3 space-y-2">
-                                                {visibleItems.map((item) => {
+                                                {items.map((item) => {
                                                     const isSubstitutePanelOpen =
                                                         openSubstituteTarget?.slot === slot &&
                                                         openSubstituteTarget.itemId === item.id;
@@ -4620,37 +4609,39 @@ export default function DietPage() {
 
                                                     return (
                                                         <div key={item.id} className="space-y-1.5">
-                                                            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-2 dark:border-gray-800 dark:bg-gray-900">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => toggleMealItem(slot, item.id)}
-                                                                    aria-pressed={item.eaten}
-                                                                    className={`uiButton uiButton--small ${item.eaten ? 'uiButton--primary' : 'uiButton--secondary'}`}
-                                                                >
-                                                                    먹었어요
-                                                                </button>
+                                                            <div className="space-y-3 rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-3 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:space-y-0">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => toggleMealSubstitutePanel(slot, item.id)}
                                                                     aria-expanded={isSubstitutePanelOpen}
                                                                     aria-label={`${displayFoodName} 대신 먹은 음식 고르기`}
-                                                                    className="flex min-h-11 min-w-0 flex-col justify-center px-1 text-left leading-snug text-[var(--ui-ink)]"
+                                                                    className="flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-1 text-left leading-snug text-[var(--ui-ink)]"
                                                                 >
-                                                                    <span className="block break-words text-base font-bold">{displayFoodName}</span>
-                                                                    {displayAmount && (
-                                                                        <span className="block break-words text-xs font-medium text-gray-600 dark:text-gray-300">
-                                                                            {displayAmount}
-                                                                        </span>
-                                                                    )}
+                                                                    <span className="block break-words text-base font-semibold">{displayFoodName}</span>
+                                                                    {displayAmount && <span className="block break-words text-sm text-[var(--ui-muted)]">{displayAmount}</span>}
                                                                 </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => markMealAsNotEaten(slot, item.id)}
-                                                                    aria-pressed={Boolean(item.notEaten)}
-                                                                    className={`uiButton uiButton--small ${item.notEaten ? 'uiButton--secondary' : 'uiButton--ghost'}`}
-                                                                >
-                                                                    안 먹음
-                                                                </button>
+                                                                <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0" role="group" aria-label={`${displayFoodName} 식사 여부`}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => toggleMealItem(slot, item.id)}
+                                                                        aria-pressed={item.eaten}
+                                                                        aria-label={`${displayFoodName} 먹었어요`}
+                                                                        className="mealStatusButton mealStatusButton--eaten"
+                                                                    >
+                                                                        <Check size={17} aria-hidden="true" className={item.eaten ? undefined : 'invisible'} />
+                                                                        먹었어요
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => markMealAsNotEaten(slot, item.id)}
+                                                                        aria-pressed={Boolean(item.notEaten)}
+                                                                        aria-label={`${displayFoodName} 안 먹음`}
+                                                                        className="mealStatusButton mealStatusButton--skipped"
+                                                                    >
+                                                                        <Minus size={17} aria-hidden="true" className={item.notEaten ? undefined : 'invisible'} />
+                                                                        안 먹음
+                                                                    </button>
+                                                                </div>
                                                             </div>
 
                                                             {isSubstitutePanelOpen && (

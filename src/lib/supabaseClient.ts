@@ -244,3 +244,42 @@ export async function getAuthSessionUser(): Promise<AuthSessionUserResult> {
         error: userError ?? sessionError,
     };
 }
+
+/** Save metadata with the caller's captured token without replacing the SDK's active session. */
+export async function updateUserMetadataForSession(
+    accessToken: string,
+    metadata: Record<string, unknown>
+): Promise<AuthSessionUserResult> {
+    if (!supabaseUrl || !supabaseAnonKey || !accessToken.trim()) {
+        return { user: null, error: new Error('사용자 정보를 저장할 연결 정보가 없어요.') };
+    }
+
+    try {
+        // auth.updateUser() saves its captured session when a delayed response arrives.
+        // A direct authenticated request lets callers discard old-account responses safely.
+        const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/user`, {
+            method: 'PUT',
+            headers: {
+                apikey: supabaseAnonKey,
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ data: metadata }),
+            credentials: 'omit',
+            cache: 'no-store',
+        });
+        if (!response.ok) {
+            return { user: null, error: new Error(`사용자 정보를 저장하지 못했어요. (${response.status})`) };
+        }
+        const payload: unknown = await response.json();
+        const record = payload && typeof payload === 'object' && !Array.isArray(payload)
+            ? payload as Record<string, unknown> : {};
+        const user = record.user ?? record;
+        if (!user || typeof user !== 'object' || Array.isArray(user) || typeof (user as { id?: unknown }).id !== 'string') {
+            return { user: null, error: new Error('저장 결과를 확인하지 못했어요.') };
+        }
+        return { user: user as User, error: null };
+    } catch {
+        return { user: null, error: new Error('사용자 정보를 저장하지 못했어요. 연결을 확인해 주세요.') };
+    }
+}
