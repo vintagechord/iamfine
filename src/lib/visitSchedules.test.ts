@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import test from 'node:test';
-import { formatVisitScheduleDday, getUpcomingVisit, mergeVisitScheduleLists, parseVisitScheduleList, readIamfineVisitSchedules, resolveVisitSchedules, type VisitScheduleItem } from './visitSchedules.ts';
+import { formatVisitScheduleDday, getUpcomingVisit, mergeVisitScheduleLists, parseVisitScheduleCache, parseVisitScheduleList, readIamfineVisitSchedules, resolveVisitSchedules, type VisitScheduleItem } from './visitSchedules.ts';
 
 const visit = (id: string, visitDate: string, visitTime = ''): VisitScheduleItem => ({
     id, visitDate, visitTime, hospitalName: '검수 병원', treatmentNote: '정기 진료', preparationNote: '', createdAt: '2026-09-01T00:00:00Z',
@@ -46,4 +46,20 @@ test('saved account appointments prevent stale local edits and deletions from re
     assert.deepEqual(resolveVisitSchedules({ iamfine: { visitSchedules: [updated] } }, [stale]), [updated]);
     assert.deepEqual(resolveVisitSchedules({ iamfine: {} }, [stale]), [stale]);
     assert.deepEqual(resolveVisitSchedules(null, [stale]), [stale]);
+});
+
+test('offline session snapshots preserve confirmed device edits and deletions until a fresh server read', () => {
+    const old = visit('same', '2026-09-08', '09:00');
+    const updated = { ...old, visitTime: '14:00', hospitalName: '변경 병원' };
+    const oldMetadata = { iamfine: { visitSchedules: [old] } };
+    const editedCache = parseVisitScheduleCache(JSON.stringify([updated]));
+    const deletedCache = parseVisitScheduleCache('[]');
+    assert.deepEqual(resolveVisitSchedules(oldMetadata, editedCache, 'session'), [updated]);
+    assert.deepEqual(resolveVisitSchedules(oldMetadata, deletedCache, 'session'), []);
+    assert.deepEqual(resolveVisitSchedules(oldMetadata, editedCache, 'server'), [old]);
+    for (const raw of [null, 'broken', '{}', 'null']) {
+        const unavailableCache = parseVisitScheduleCache(raw);
+        assert.equal(unavailableCache, null);
+        assert.deepEqual(resolveVisitSchedules(oldMetadata, unavailableCache, 'session'), [old]);
+    }
 });

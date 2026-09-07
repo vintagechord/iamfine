@@ -17,7 +17,7 @@ import {
     hasSavedVisitSchedules,
     resolveVisitSchedules,
     normalizeVisitScheduleList,
-    parseVisitScheduleList,
+    parseVisitScheduleCache,
     type VisitScheduleItem,
 } from '@/lib/visitSchedules';
 
@@ -158,13 +158,14 @@ export default function MorePage() {
         if (!isCurrentAccount(account)) return null;
         if (!account.userId || !supabase) return false;
         try {
-            const { user, error } = await getAuthSessionUser();
+            const { user, error, metadataSource } = await getAuthSessionUser();
             if (!isCurrentAccount(account)) return null;
             if (error && !isMissingAuthSession(error)) return false;
             if (!user || user.id !== account.userId) {
                 changeAccountRef.current(user?.id ?? null);
                 return null;
             }
+            if (migration && metadataSource === 'session') return false;
             const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
             if (!isCurrentAccount(account)) return null;
             if (sessionError && !isMissingAuthSession(sessionError)) return false;
@@ -224,23 +225,25 @@ export default function MorePage() {
         const loadVisitContext = async () => {
             const revision = accountRef.current.revision;
             try {
-                const { user, error } = hasSupabaseEnv && supabase
+                const { user, error, metadataSource = 'server' } = hasSupabaseEnv && supabase
                     ? await getAuthSessionUser()
-                    : { user: null, error: null };
+                    : { user: null, error: null, metadataSource: 'server' as const };
                 if (!accountRef.current.mounted || revision !== accountRef.current.revision) return;
                 if (error && !isMissingAuthSession(error)) throw error;
                 const userId = user?.id ?? null;
                 if (accountRef.current.userId !== userId) beginAccount(userId);
                 const account = { userId, revision: accountRef.current.revision };
-                let resolved = parseVisitScheduleList(readLocalValue(getVisitScheduleKey(userId)));
+                const localCache = parseVisitScheduleCache(readLocalValue(getVisitScheduleKey(userId)));
+                let resolved = localCache ?? [];
                 if (user) {
                     const metadataMeta = readIamfineTreatmentMeta(user.user_metadata);
                     const localMeta = parseTreatmentMeta(readLocalValue(getTreatmentMetaKey(user.id)));
                     const meta = metadataMeta ?? localMeta;
                     const localVisits = resolved;
-                    resolved = resolveVisitSchedules(user.user_metadata, localVisits);
-                    const shouldMigrateVisits = !hasSavedVisitSchedules(user.user_metadata) && localVisits.length > 0;
-                    const shouldMigrateTreatment = !metadataMeta && Boolean(localMeta);
+                    resolved = resolveVisitSchedules(user.user_metadata, localCache, metadataSource);
+                    const shouldMigrateVisits = metadataSource === 'server'
+                        && !hasSavedVisitSchedules(user.user_metadata) && localVisits.length > 0;
+                    const shouldMigrateTreatment = metadataSource === 'server' && !metadataMeta && Boolean(localMeta);
                     if (shouldMigrateVisits || shouldMigrateTreatment) {
                         const result = await syncVisitSchedulesToMetadata(resolved, account, {
                             treatmentMeta: shouldMigrateTreatment ? meta : null,
@@ -254,9 +257,11 @@ export default function MorePage() {
                         }
                     }
                     if (!isCurrentAccount(account)) return;
-                    if (!localMeta && meta) writeLocalValue(getTreatmentMetaKey(user.id), JSON.stringify(meta));
-                    if (!areVisitScheduleListsSame(localVisits, resolved)) {
-                        writeLocalValue(getVisitScheduleKey(user.id), JSON.stringify(resolved));
+                    if (metadataSource === 'server') {
+                        if (!localMeta && meta) writeLocalValue(getTreatmentMetaKey(user.id), JSON.stringify(meta));
+                        if (localCache === null || !areVisitScheduleListsSame(localVisits, resolved)) {
+                            writeLocalValue(getVisitScheduleKey(user.id), JSON.stringify(resolved));
+                        }
                     }
                 }
                 if (!isCurrentAccount(account)) return;

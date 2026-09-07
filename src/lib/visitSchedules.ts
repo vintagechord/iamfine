@@ -136,17 +136,19 @@ export function parseVisitScheduleListFromUnknown(raw: unknown) {
     return normalizeVisitScheduleList(parsed);
 }
 
-export function parseVisitScheduleList(raw: string | null) {
-    if (!raw) {
-        return [] as VisitScheduleItem[];
-    }
-
+/** Null means no usable device cache; an empty array is a saved deletion. */
+export function parseVisitScheduleCache(raw: string | null): VisitScheduleItem[] | null {
+    if (!raw) return null;
     try {
         const parsed = JSON.parse(raw) as unknown;
-        return parseVisitScheduleListFromUnknown(parsed);
+        return Array.isArray(parsed) ? parseVisitScheduleListFromUnknown(parsed) : null;
     } catch {
-        return [] as VisitScheduleItem[];
+        return null;
     }
+}
+
+export function parseVisitScheduleList(raw: string | null) {
+    return parseVisitScheduleCache(raw) ?? [];
 }
 
 export function readIamfineVisitSchedules(raw: unknown) {
@@ -171,9 +173,14 @@ export function hasSavedVisitSchedules(raw: unknown): boolean {
         && Array.isArray((scoped as Record<string, unknown>).visitSchedules));
 }
 
-/** A saved account list, including an empty list, wins over stale device caches. */
-export function resolveVisitSchedules(metadata: unknown, local: VisitScheduleItem[]): VisitScheduleItem[] {
-    return hasSavedVisitSchedules(metadata) ? readIamfineVisitSchedules(metadata) : normalizeVisitScheduleList(local);
+/** Fresh account data wins; offline session metadata must not overwrite a confirmed device cache. */
+export function resolveVisitSchedules(
+    metadata: unknown,
+    local: VisitScheduleItem[] | null,
+    metadataSource: 'server' | 'session' = 'server'
+): VisitScheduleItem[] {
+    if (metadataSource === 'session' && local !== null) return normalizeVisitScheduleList(local);
+    return hasSavedVisitSchedules(metadata) ? readIamfineVisitSchedules(metadata) : normalizeVisitScheduleList(local ?? []);
 }
 
 export function formatVisitScheduleDate(rawDate: string) {

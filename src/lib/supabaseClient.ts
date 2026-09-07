@@ -60,6 +60,7 @@ export const supabase: SupabaseClient | null = hasSupabaseEnv
 type AuthSessionUserResult = {
     user: User | null;
     error: Error | null;
+    metadataSource?: 'server' | 'session';
 };
 
 type AuthSessionSnapshot = {
@@ -219,6 +220,7 @@ export async function getAuthSessionUser(): Promise<AuthSessionUserResult> {
         return {
             user: userData.user,
             error: null,
+            metadataSource: 'server',
         };
     }
 
@@ -226,6 +228,7 @@ export async function getAuthSessionUser(): Promise<AuthSessionUserResult> {
         return {
             user: sessionUser,
             error: null,
+            metadataSource: 'session',
         };
     }
 

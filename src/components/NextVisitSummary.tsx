@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { CalendarClock, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
-import { formatVisitScheduleDate, formatVisitScheduleDday, formatVisitScheduleTime, getUpcomingVisit, getVisitScheduleKey, parseVisitScheduleList, resolveVisitSchedules, type VisitScheduleItem } from '@/lib/visitSchedules';
+import { formatVisitScheduleDate, formatVisitScheduleDday, formatVisitScheduleTime, getUpcomingVisit, getVisitScheduleKey, hasSavedVisitSchedules, parseVisitScheduleCache, resolveVisitSchedules, type VisitScheduleItem } from '@/lib/visitSchedules';
 
 export default function NextVisitSummary() {
     const [visits, setVisits] = useState<VisitScheduleItem[]>([]);
@@ -20,19 +20,27 @@ export default function NextVisitSummary() {
         const refresh = async () => {
             const currentRequest = ++requestId;
             try {
-                const result = hasSupabaseEnv && supabase ? await getAuthSessionUser() : { user: null, error: null };
+                const result = hasSupabaseEnv && supabase ? await getAuthSessionUser() : { user: null, error: null, metadataSource: 'server' as const };
                 if (disposed || currentRequest !== requestId) return;
                 const missingSession = result.error?.name === 'AuthSessionMissingError'
                     || /auth session missing/i.test(result.error?.message ?? '');
                 if (result.error && !missingSession) throw result.error;
-                let local: VisitScheduleItem[] = [];
+                let local: VisitScheduleItem[] | null = null;
                 let localUnavailable = false;
                 try {
-                    local = parseVisitScheduleList(localStorage.getItem(getVisitScheduleKey(result.user?.id ?? null)));
+                    local = parseVisitScheduleCache(localStorage.getItem(getVisitScheduleKey(result.user?.id ?? null)));
                 } catch {
                     localUnavailable = true;
                 }
-                setVisits(resolveVisitSchedules(result.user?.user_metadata, local));
+                const resolved = resolveVisitSchedules(result.user?.user_metadata, local, result.metadataSource);
+                setVisits(resolved);
+                if (result.user && result.metadataSource === 'server' && hasSavedVisitSchedules(result.user.user_metadata)) {
+                    try {
+                        localStorage.setItem(getVisitScheduleKey(result.user.id), JSON.stringify(resolved));
+                    } catch {
+                        // A fresh server result remains usable without a device cache.
+                    }
+                }
                 setFailed(localUnavailable && !result.user);
                 setNow(new Date());
             } catch {
