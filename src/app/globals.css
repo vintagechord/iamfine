@@ -32,27 +32,148 @@ body {
 }
 
 .appShell {
-  background:
-    linear-gradient(180deg, rgba(236, 253, 245, 0.74) 0%, rgba(248, 250, 252, 0.98) 30%, rgba(239, 246, 255, 0.72) 100%);
+  background: #f6f8f7;
 }
 
 .dark .appShell {
-  background:
-    linear-gradient(180deg, rgba(6, 78, 59, 0.22) 0%, rgba(2, 6, 23, 0.98) 36%, rgba(15, 23, 42, 0.94) 100%);
+  background: #101a18;
 }
 
 .appHeader {
-  box-shadow:
-    0 14px 30px rgba(15, 23, 42, 0.06),
-    0 1px 0 rgba(255, 255, 255, 0.72) inset;
+  box-shadow: none;
 }
 
 .brandMark {
-  background:
-    linear-gradient(135deg, #059669 0%, #0891b2 58%, #2563eb 100%);
-  box-shadow:
-    0 10px 22px rgba(5, 150, 105, 0.24),
-    0 1px 0 rgba(255, 255, 255, 0.32) inset;
+  background: #16745b;
+  box-shadow: none;
+}
+
+/* Calm, readable surfaces and predictable controls across patient workflows. */
+html {
+  scroll-padding-top: 6rem;
+  scroll-padding-bottom: 6rem;
+}
+
+body {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+:is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #168566;
+  outline-offset: 3px;
+}
+
+:is(button, summary, input:not([type="checkbox"]):not([type="radio"]), select) {
+  min-height: 44px;
+}
+
+button, summary, a {
+  touch-action: manipulation;
+}
+
+button:not(:disabled), summary {
+  cursor: pointer;
+}
+
+summary {
+  align-content: center;
+}
+
+input, select, textarea {
+  max-width: 100%;
+}
+
+.skipLink {
+  position: fixed;
+  top: -100px;
+  left: 1rem;
+  z-index: 100;
+  padding: 0.7rem 1rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #125b48;
+}
+
+.skipLink:focus {
+  top: 1rem;
+}
+
+.bottomNavigation {
+  position: fixed;
+  z-index: 35;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0.35rem max(0.5rem, env(safe-area-inset-right)) max(0.35rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
+  border-top: 1px solid #dce5e0;
+  background: #fff;
+}
+
+.bottomNavigation a {
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 0.65rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  font-weight: 600;
+  text-decoration: none;
+  color: #596b63;
+}
+
+.bottomNavigation a[aria-current="page"] {
+  background: #eaf5ee;
+  color: #126349;
+}
+
+.dark .bottomNavigation {
+  background: #14231d;
+  border-color: #32443a;
+}
+
+.dark .bottomNavigation a {
+  color: #c2cfc7;
+}
+
+.dark .bottomNavigation a[aria-current="page"] {
+  background: #254c39;
+  color: #d3f5e0;
+}
+
+@media (min-width: 768px) {
+  .bottomNavigation { display: none; }
+}
+
+@media (max-width: 767px) {
+  .appMain {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
+
+  .appHeader {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .appHeader a, .appHeader button {
+    min-height: 44px;
+  }
+
+  :is(p, label, li, input, textarea).text-sm {
+    font-size: max(16px, 0.9375rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .navPill {
@@ -174,7 +295,7 @@ body {
   input,
   select,
   textarea {
-    font-size: 16px !important;
+    font-size: max(16px, 1rem) !important;
   }
 }
 
@@ -1195,5 +1316,87 @@ body {
 
   .galaxySafeText {
     overflow-wrap: anywhere;
+  }
+}
+
+/* A single quiet surface style keeps content, rather than decoration, prominent. */
+:is(.surfacePanel, .softPanel, .quickTile, .quickTileMono, .mealTileMono, .infoTileMono, .finderSection, .ctaMono, .finderSearch) {
+  background: #fff;
+  border-color: #dfe7e2;
+  box-shadow: none;
+  border-radius: 0.8rem;
+}
+
+.dark :is(.surfacePanel, .softPanel, .quickTile, .quickTileMono, .mealTileMono, .infoTileMono, .finderSection, .ctaMono, .finderSearch) {
+  background: #182820;
+  border-color: #35483d;
+  box-shadow: none;
+}
+
+:is(.quickTile, .quickTileMono, .mealTileMono, .infoTileMono, .finderSearch, .ctaMono)::before,
+:is(.quickTile, .infoTileMono)::after {
+  display: none;
+}
+
+:is(.quickTile, .quickTileMono, .mealTileMono, .ctaMono, .finderSearch):hover,
+.dark :is(.quickTile, .quickTileMono, .mealTileMono, .ctaMono, .finderSearch):hover {
+  box-shadow: none;
+  transform: none;
+  border-color: #7aab93;
+}
+
+:is(.quickTileMono__iconWrap, .mealTileMono__iconWrap, .finderSearch__left, .iconCircleButton) {
+  box-shadow: none;
+}
+
+.quickTileMono {
+  min-height: 80px;
+}
+
+.mealTileMono__body,
+.mealTileMono__time,
+.infoTileMono__item,
+.finderSearch__text {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.ctaMono,
+.popupCloseButton {
+  min-height: 44px;
+}
+
+.primarySaveButton {
+  border-color: #16745b;
+  background: #16745b;
+}
+
+.primarySaveButton:hover {
+  border-color: #125d49;
+  background: #125d49;
+}
+
+:is(.quickTile, .quickTileMono, .ctaMono, .finderSearch, .popupCloseButton):focus-visible {
+  outline: 3px solid #168566;
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+@media (max-width: 359px) {
+  .appHeader .galaxySafeActions { gap: 4px; }
+}
+
+@media (max-width: 479px) {
+  .quickTileMono {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .quickTileMono__iconWrap {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
   }
 }

@@ -21,6 +21,8 @@ type MobileCategoryMenuProps = {
 export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
     const [open, setOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const panelRef = useRef<HTMLElement>(null);
     const pathname = usePathname();
     const previousPathnameRef = useRef(pathname);
     const portalRoot = typeof window === 'undefined' ? null : document.body;
@@ -34,6 +36,7 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
 
     const closeMenu = () => {
         setOpen(false);
+        triggerRef.current?.focus();
     };
 
     useEffect(() => {
@@ -45,15 +48,33 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
             if (event.key === 'Escape') {
                 closeMenu();
             }
+            if (event.key === 'Tab') {
+                const focusable = panelRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])');
+                if (!focusable?.length) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
         };
 
+        panelRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
         window.addEventListener('keydown', handleEscape);
+        const desktop = window.matchMedia('(min-width: 768px)');
+        const closeOnDesktop = () => { if (desktop.matches) closeMenu(); };
+        desktop.addEventListener('change', closeOnDesktop);
 
         return () => {
             document.body.style.overflow = previousOverflow;
             window.removeEventListener('keydown', handleEscape);
+            desktop.removeEventListener('change', closeOnDesktop);
         };
     }, [mounted]);
 
@@ -87,16 +108,19 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
     return (
         <>
             <button
+                ref={triggerRef}
                 type="button"
                 onClick={openMenu}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 md:hidden"
-                aria-label="카테고리 메뉴 열기"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 md:hidden"
+                aria-label="전체 메뉴 열기"
+                aria-expanded={mounted && open}
+                aria-controls={mounted ? 'mobile-category-menu' : undefined}
             >
                 <Menu className="h-4.5 w-4.5" />
             </button>
 
             {mounted && portalRoot && createPortal(
-                <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="카테고리 메뉴">
+                <div id="mobile-category-menu" className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="전체 메뉴">
                     <button
                         type="button"
                         onClick={closeMenu}
@@ -104,9 +128,11 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
                             open ? 'opacity-100' : 'opacity-0'
                         }`}
                         aria-label="카테고리 메뉴 닫기"
+                        tabIndex={-1}
                     />
                     <aside
-                        className={`absolute right-0 top-0 h-full w-72 max-w-[86vw] border-l border-gray-200 bg-white p-4 shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-gray-800 dark:bg-gray-950 ${
+                        ref={panelRef}
+                        className={`absolute right-0 top-0 h-dvh w-72 max-w-[90vw] overflow-y-auto overscroll-contain border-l border-gray-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:border-gray-800 dark:bg-gray-950 ${
                             open ? 'translate-x-0' : 'translate-x-full'
                         }`}
                     >

@@ -83,6 +83,7 @@ export type MealSuggestion = {
     sides: string[];
     cautionFlour: string;
     nutrient: MealNutrient;
+    nutritionUnavailable?: boolean;
     recipeName: string;
     recipeSteps: string[];
 };
@@ -1921,20 +1922,8 @@ export function optimizePlanByUserContext(plan: DayPlan, context: UserDietContex
         addNote('키/몸무게 정보를 반영해 정제 탄수화물 비중을 줄인 곡류·간식으로 조정했어요.');
     }
 
-    if (context.sex === 'female') {
-        optimized.lunch.sides[0] = '브로콜리찜';
-        optimized.dinner.sides[0] = '버섯볶음';
-        addNote('성별 정보를 반영해 채소·단백질 균형 반찬을 우선 배치했어요.');
-    } else if (context.sex === 'male') {
-        optimized.lunch.sides[0] = '브로콜리찜';
-        optimized.dinner.sides[1] = '시금치나물';
-        addNote('성별 정보를 반영해 채소 반찬 다양성을 늘렸어요.');
-    }
-
-    if (context.ethnicity?.trim()) {
-        const ethnicity = context.ethnicity.trim();
-        addNote(`식습관 배경(${ethnicity})을 반영해 익숙한 밥·반찬 중심 구성을 유지했어요.`);
-    }
+    // Demographics alone do not justify specific food substitutions. Explicit
+    // eating symptoms and food preferences are applied after this context pass.
 
     const matchedCancerProfile = applyCancerTypeProfile(optimized, cancerTypeNormalized, syncSummary, addNote);
     if (cancerTypeNormalized && !matchedCancerProfile) {

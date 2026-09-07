@@ -28,6 +28,8 @@ import {
     type UserMedicationSchedule,
     type RecentDietPattern,
 } from '@/lib/dietEngine';
+import { searchFoods, normalizeFoodQuery, type FoodSearchResult } from '@/lib/foodSearch';
+import { applyFoodPersonalization, describeFoodPersonalization, hasRenalDietRestrictions, matchesAvoidedIngredient, parseFoodPersonalization, readFoodPersonalization, type AvoidedIngredient } from '@/lib/personalization';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
@@ -124,14 +126,6 @@ type RecipeModalContent = {
 type TeaRecommendation = {
     name: string;
     reason: string;
-};
-
-type CustomAlertApiItem = {
-    title: string;
-};
-
-type CustomAlertApiResponse = {
-    items?: CustomAlertApiItem[];
 };
 
 type PortionGuideModalContent = {
@@ -1018,12 +1012,18 @@ function mealPortionGuideFromPlan(meal: MealPlanItem, slot: MealSlot) {
         )
     );
 
+    if (meal.nutritionUnavailable) {
+        return {
+            items: uniqueNames.map((name) => ({ name, amount: '개인 섭취량 확인 필요' })),
+            notes: ['맞춤 변경한 메뉴의 영양량과 섭취량은 아직 계산하지 않아요. 의료진과 정한 식사량을 따라 주세요.'],
+        };
+    }
     const items: PortionGuideItem[] = uniqueNames.map((name) => ({
         name,
         amount: baseAmountByFoodName(name, slot),
     }));
 
-    const notes: string[] = [];
+    const notes: string[] = ['일반적인 1인분 참고량이에요. 치료 중 식사량은 의료진의 안내를 먼저 따라 주세요.'];
     const grainIndex = items.findIndex((item) => {
         const normalized = item.name.replace(/\s+/g, '');
         return (
@@ -1048,7 +1048,7 @@ function mealPortionGuideFromPlan(meal: MealPlanItem, slot: MealSlot) {
             notes.push('요거트·두유는 무가당 제품을 우선으로 선택해요.');
         }
     } else {
-        notes.push('한 끼는 배부름 80% 수준에서 멈추고 천천히 드세요.');
+        notes.push('먹기 편한 속도로 천천히 드세요.');
     }
 
     return { items, notes };
@@ -1056,7 +1056,7 @@ function mealPortionGuideFromPlan(meal: MealPlanItem, slot: MealSlot) {
 
 function mealTrackNamesWithPortion(meal: MealPlanItem, slot: MealSlot) {
     const guide = mealPortionGuideFromPlan(meal, slot);
-    return guide.items.map((item) => `${item.name} · ${item.amount}`);
+    return guide.items.map((item) => meal.nutritionUnavailable ? item.name : `${item.name} · ${item.amount}`);
 }
 
 function MealNutrientBalance({ nutrient }: { nutrient: MealNutrient }) {
@@ -1099,7 +1099,7 @@ function MealNutrientBalance({ nutrient }: { nutrient: MealNutrient }) {
                     <span key={segment.key} className={`h-full ${segment.barClass}`} style={{ width: segment.width }} />
                 ))}
             </div>
-            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-700 dark:text-gray-200">
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-700 dark:text-gray-200">
                 {segments.map((segment) => (
                     <span
                         key={`${segment.key}-label`}
@@ -1697,22 +1697,7 @@ function normalizeText(input: string) {
 }
 
 function normalizeManualMealName(input: string) {
-    const compact = input.replace(/\s+/g, ' ').trim();
-    if (!compact) {
-        return '';
-    }
-
-    const firstItem = compact
-        .split(/[,+/|]/)
-        .map((item) => item.trim())
-        .filter(Boolean)[0] ?? compact;
-
-    const withoutPortion = firstItem
-        .replace(/\b\d+(\.\d+)?\s*(인분|개|컵|그릇|조각|잔|스푼|숟갈|g|kg|mg|ml|l)\b/gi, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-
-    return withoutPortion || firstItem;
+    return normalizeFoodQuery(input.replace(/\s+/g, ' '));
 }
 
 function compactFoodText(input: string) {
@@ -1793,31 +1778,7 @@ function foodNameSimilarityScore(query: string, candidate: string) {
 }
 
 function searchManualFoodCandidates(query: string, candidates: string[], maxResults = 20) {
-    const normalizedQuery = normalizeManualMealName(query);
-    if (!normalizedQuery) {
-        return [];
-    }
-    const compactQuery = compactFoodText(normalizedQuery);
-    const minimumScore = compactQuery.length <= 2 ? 0.22 : compactQuery.length <= 3 ? 0.3 : 0.42;
-    const quickMatches = candidates
-        .filter((name) => {
-            const normalizedCandidate = compactFoodText(name);
-            return normalizedCandidate.includes(compactQuery);
-        })
-        .sort((a, b) => a.length - b.length || a.localeCompare(b, 'ko'))
-        .slice(0, maxResults);
-
-    const ranked = candidates
-        .map((name) => ({
-            name,
-            score: foodNameSimilarityScore(normalizedQuery, name),
-        }))
-        .filter((item) => item.score >= minimumScore)
-        .sort((a, b) => b.score - a.score || a.name.length - b.name.length || a.name.localeCompare(b.name, 'ko'))
-        .slice(0, maxResults)
-        .map((item) => item.name);
-
-    return Array.from(new Set([...quickMatches, ...ranked])).slice(0, maxResults);
+    return searchFoods(query, candidates, maxResults).map((result) => result.name);
 }
 
 function findSubstituteGroup(foodName: string, slot: MealSlot) {
@@ -1840,7 +1801,7 @@ function findSubstituteGroup(foodName: string, slot: MealSlot) {
     );
 }
 
-function buildSubstituteCandidates(foodName: string, slot: MealSlot, fallbackCandidates: string[]) {
+function buildSubstituteCandidates(foodName: string, slot: MealSlot, fallbackCandidates: string[], avoidedIngredients: AvoidedIngredient[] = []) {
     const normalizedCurrent = normalizeManualMealName(stripPortionLabel(foodName));
     const matchedGroup = findSubstituteGroup(normalizedCurrent, slot);
     const groupCandidates = (matchedGroup?.options ?? [])
@@ -1852,10 +1813,11 @@ function buildSubstituteCandidates(foodName: string, slot: MealSlot, fallbackCan
         .map((name) => normalizeManualMealName(name))
         .filter((name) => name && name !== normalizedCurrent);
 
-    const merged = Array.from(new Set([...groupCandidates, ...similarCandidates])).slice(0, 8);
+    const merged = Array.from(new Set([...groupCandidates, ...similarCandidates]))
+        .filter((name) => !matchesAvoidedIngredient(name, avoidedIngredients)).slice(0, 8);
 
     return {
-        hint: matchedGroup?.nutritionHint ?? '비슷한 영양군',
+        hint: matchedGroup?.nutritionHint ?? '비슷한 종류 · 영양량은 달라요',
         options: merged,
     };
 }
@@ -2040,59 +2002,6 @@ function buildRecentDietSignalsFromLogs(logs: Record<string, DayLog>, referenceD
         .filter(Boolean);
 
     return Array.from(new Set(preferenceSignals)).slice(0, 8);
-}
-
-function recommendPreferencesByExternalSignals(items: CustomAlertApiItem[]) {
-    if (items.length === 0) {
-        return [] as PreferenceType[];
-    }
-
-    const text = items
-        .map((item) => item.title.trim())
-        .filter(Boolean)
-        .slice(0, 20)
-        .join(' ')
-        .toLowerCase();
-
-    if (!text) {
-        return [] as PreferenceType[];
-    }
-
-    const suggestions: PreferenceType[] = [];
-    const add = (value: PreferenceType) => {
-        if (!suggestions.includes(value)) {
-            suggestions.push(value);
-        }
-    };
-
-    if (countKeywords(text, ['생선', '연어', '오메가', '등푸른']) >= 1) {
-        add('fish');
-    }
-    if (countKeywords(text, ['통곡물', 'wholegrain', 'whole grain', '귀리', '보리']) >= 1) {
-        add('healthy');
-    }
-    if (countKeywords(text, ['채소', '샐러드', '브로콜리', '과일', '식이섬유']) >= 1) {
-        add('vegetable');
-    }
-    if (countKeywords(text, ['단백질', '두부', '닭가슴살', '달걀', '콩']) >= 1) {
-        add('high_protein');
-    }
-    if (countKeywords(text, ['저염', '염분', '나트륨']) >= 1) {
-        add('low_salt');
-    }
-    if (countKeywords(text, ['가공육', 'processed meat', '초가공', 'ultra-processed']) >= 1) {
-        add('healthy');
-        add('low_salt');
-    }
-    if (countKeywords(text, ['수분', 'hydration', '탈수']) >= 1) {
-        add('soupy');
-    }
-    if (countKeywords(text, ['식욕저하', '메스꺼움', '소화', '부드러운', '죽', '수프']) >= 1) {
-        add('digestive');
-        add('soft_food');
-    }
-
-    return suggestions.slice(0, 4);
 }
 
 function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, referenceDateKey: string) {
@@ -2436,7 +2345,7 @@ export default function DietPage() {
     const [draftTodayPreferences, setDraftTodayPreferences] = useState<PreferenceType[]>([]);
     const [proposalRequested, setProposalRequested] = useState(false);
     const [showTodayPreferencePanel, setShowTodayPreferencePanel] = useState(false);
-    const [externalSignalPreferences, setExternalSignalPreferences] = useState<PreferenceType[]>([]);
+    const [foodPersonalization, setFoodPersonalization] = useState(() => parseFoodPersonalization(null));
 
     const [selectedDate, setSelectedDate] = useState(todayKey);
     const [todayPlanOffset, setTodayPlanOffset] = useState(0);
@@ -2450,6 +2359,7 @@ export default function DietPage() {
         itemId: string;
     } | null>(null);
     const [showNutrients, setShowNutrients] = useState(false);
+    const [showSuggestedRecordItems, setShowSuggestedRecordItems] = useState<Partial<Record<MealSlot, boolean>>>({});
     const [newItemBySlot, setNewItemBySlot] = useState<Record<MealSlot, string>>({
         breakfast: '',
         lunch: '',
@@ -2473,6 +2383,40 @@ export default function DietPage() {
     const recordDateButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
     const openRecordView = searchParams.get('view') === 'record';
+    const hasOpenDialog = Boolean(openRecipeSlot || openPortionGuideContent || showDietModeInfoModal || showRecordPlanModal);
+    useEffect(() => {
+        if (!hasOpenDialog) return;
+        const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+        if (!dialog) return;
+        const oldOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), [tabindex="0"]'));
+        (focusable()[0] ?? dialog).focus();
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setOpenRecipeSlot(null);
+                setOpenPortionGuideContent(null);
+                setShowDietModeInfoModal(false);
+                setShowRecordPlanModal(false);
+            }
+            if (event.key !== 'Tab') return;
+            const elements = focusable();
+            const first = elements[0] ?? dialog;
+            const last = elements[elements.length - 1] ?? dialog;
+            if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+                event.preventDefault(); last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault(); first.focus();
+            }
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => {
+            document.body.style.overflow = oldOverflow;
+            document.removeEventListener('keydown', onKeyDown);
+            previousFocus?.focus();
+        };
+    }, [hasOpenDialog]);
 
     const closeSaveSuccessPopup = useCallback(() => {
         if (saveSuccessPopupTimerRef.current !== null) {
@@ -2512,65 +2456,11 @@ export default function DietPage() {
     }, [stages]);
 
     const stageType = activeStage?.stage_type ?? 'other';
-    useEffect(() => {
-        if (!storeReady) {
-            return;
-        }
-
-        const controller = new AbortController();
-        const cancerType = treatmentMeta?.cancerType?.trim() ?? '';
-        const cancerStage = treatmentMeta?.cancerStage?.trim() ?? '';
-
-        const loadExternalSignals = async () => {
-            try {
-                const params = new URLSearchParams();
-                if (cancerType) {
-                    params.set('cancerType', cancerType);
-                }
-                if (cancerStage) {
-                    params.set('cancerStage', cancerStage);
-                }
-                params.set('stageType', stageType);
-
-                const response = await fetch(`/api/custom-alerts?${params.toString()}`, {
-                    cache: 'no-store',
-                    signal: controller.signal,
-                });
-                if (!response.ok) {
-                    setExternalSignalPreferences([]);
-                    return;
-                }
-
-                const json = (await response.json()) as CustomAlertApiResponse;
-                const items = Array.isArray(json.items) ? json.items : [];
-                const recommended = recommendPreferencesByExternalSignals(items);
-                setExternalSignalPreferences(recommended);
-            } catch (loadError) {
-                if (controller.signal.aborted) {
-                    return;
-                }
-                console.error('외부 식단 신호 조회 실패', loadError);
-                setExternalSignalPreferences([]);
-            }
-        };
-
-        void loadExternalSignals();
-
-        return () => controller.abort();
-    }, [storeReady, treatmentMeta?.cancerType, treatmentMeta?.cancerStage, stageType]);
-
     const userDietContext = useMemo<UserDietContext>(() => {
         const nowYear = new Date().getFullYear();
         const age = profile?.birth_year ? Math.max(0, nowYear - profile.birth_year) : undefined;
         const recentDietPattern = buildRecentDietPattern(logs, todayKey);
-        const recentDietSignals = Array.from(
-            new Set([
-                ...buildRecentDietSignalsFromLogs(logs, todayKey),
-                ...externalSignalPreferences.map(
-                    (preference) => PREFERENCE_TO_DIET_SIGNAL[preference] ?? preferenceLabel(preference)
-                ),
-            ])
-        ).slice(0, 12);
+        const recentDietSignals = buildRecentDietSignalsFromLogs(logs, todayKey);
         const contextMedicationSchedules: UserMedicationSchedule[] = medicationSchedules.map((item) => ({
             name: item.name,
             category: item.category,
@@ -2599,11 +2489,22 @@ export default function DietPage() {
             recentDietSignals,
             recentDietPattern,
         };
-    }, [profile, treatmentMeta, activeStage, medicationSchedules, additionalConditions, logs, todayKey, externalSignalPreferences]);
+    }, [profile, treatmentMeta, activeStage, medicationSchedules, additionalConditions, logs, todayKey]);
 
     const applyRecommendationAdjustments = useCallback(
         (basePlan: DayPlan, targetPreferences: PreferenceType[], dateKey: string) => {
             const userContextAdjusted = optimizePlanByUserContext(basePlan, userDietContext);
+            if (hasRenalDietRestrictions(userDietContext)) {
+                const reviewed = applyFoodPersonalization(userContextAdjusted.plan, foodPersonalization, userDietContext);
+                return {
+                    plan: reviewed.plan,
+                    notes: Array.from(new Set([
+                        ...userContextAdjusted.notes,
+                        ...reviewed.notes,
+                        '신장 관련 정보가 있어 선호·복용 약에 따른 자동 메뉴 변경을 보류했어요. 식사와 약 복용 지침은 의료진과 확인해 주세요.',
+                    ])),
+                };
+            }
             const medicationAdjusted = optimizePlanByMedications(userContextAdjusted.plan, medications);
             const validHeight = userDietContext.heightCm && userDietContext.heightCm > 0 ? userDietContext.heightCm : null;
             const validWeight = userDietContext.weightKg && userDietContext.weightKg > 0 ? userDietContext.weightKg : null;
@@ -2614,38 +2515,52 @@ export default function DietPage() {
             const yesterdayLog = logs[offsetDateKey(dateKey, -1)];
             const yesterdayEatenCount = yesterdayLog ? eatenTrackItems(yesterdayLog).length : 0;
             const lowAppetiteRisk =
+                foodPersonalization.symptoms.length > 0 ||
                 targetPreferences.includes('appetite_boost') ||
                 (yesterdayLog ? yesterdayEatenCount <= 2 : false);
-            const weightLossPreference = targetPreferences.includes('weight_loss');
+            const effectivePreferences = lowAppetiteRisk
+                ? targetPreferences.filter((preference) => preference !== 'weight_loss')
+                : targetPreferences;
+            const weightLossPreference = effectivePreferences.includes('weight_loss');
             const preferenceAdjusted =
-                targetPreferences.length === 0
+                effectivePreferences.length === 0
                     ? { plan: medicationAdjusted.plan, notes: [] as string[] }
-                    : optimizePlanByPreference(medicationAdjusted.plan, targetPreferences);
+                    : optimizePlanByPreference(medicationAdjusted.plan, effectivePreferences);
             const dinnerCarbSafetyAdjusted = applyDinnerCarbSafety(preferenceAdjusted.plan, {
                 bmi,
                 lowAppetiteRisk,
                 weightLossPreference,
             });
-            const yesterdayAdjusted = applyYesterdayIntakeCorrection(dateKey, dinnerCarbSafetyAdjusted.plan, logs, {
-                stageType,
-                bmi,
-            });
+            const yesterdayAdjusted = lowAppetiteRisk
+                ? { plan: dinnerCarbSafetyAdjusted.plan, notes: [] as string[] }
+                : applyYesterdayIntakeCorrection(dateKey, dinnerCarbSafetyAdjusted.plan, logs, { stageType, bmi });
+            const personalized = applyFoodPersonalization(yesterdayAdjusted.plan, foodPersonalization, userDietContext);
             return {
-                plan: yesterdayAdjusted.plan,
+                plan: personalized.plan,
                 notes: [
                     ...userContextAdjusted.notes,
                     ...medicationAdjusted.notes,
                     ...preferenceAdjusted.notes,
-                    ...(externalSignalPreferences.length > 0
-                        ? ['외부 최신 식단/영양 소식 키워드를 반영해 메뉴 다양성을 보강했어요.']
-                        : []),
+                    ...personalized.notes,
+                    ...(lowAppetiteRisk && targetPreferences.includes('weight_loss')
+                        ? ['식사가 불편한 동안은 체중감량 선택을 적용하지 않아요.'] : []),
                     ...dinnerCarbSafetyAdjusted.notes,
                     ...yesterdayAdjusted.notes,
                 ],
             };
         },
-        [userDietContext, medications, logs, stageType, externalSignalPreferences]
+        [userDietContext, medications, logs, stageType, foodPersonalization]
     );
+    const finalizeVariedPlan = useCallback((plan: DayPlan) => {
+        const conditionAdjusted = optimizePlanByUserContext(plan, userDietContext);
+        const medicationAdjusted = optimizePlanByMedications(conditionAdjusted.plan, medications);
+        const personalized = applyFoodPersonalization(medicationAdjusted.plan, foodPersonalization, userDietContext);
+        return {
+            plan: personalized.plan,
+            notes: [...conditionAdjusted.notes, ...medicationAdjusted.notes, ...personalized.notes],
+        };
+    }, [userDietContext, medications, foodPersonalization]);
+
     const personalizationSummary = useMemo(() => {
         const ageText = stripLeadingFieldLabel(
             userDietContext.age && userDietContext.age > 0 ? `${userDietContext.age}세` : '미입력',
@@ -2694,8 +2609,9 @@ export default function DietPage() {
             `치료 단계: ${stageLabel}`,
             `복용 약 정보: ${medicationCount}개 / 복용 시기 ${medicationTimingText}`,
             `추가 질병 정보: ${additionalConditionText}`,
+            `식사 맞춤 설정: ${describeFoodPersonalization(foodPersonalization).join(', ') || '아직 선택하지 않았어요'}`,
         ];
-    }, [userDietContext, activeStage, medicationSchedules, additionalConditions]);
+    }, [userDietContext, activeStage, medicationSchedules, additionalConditions, foodPersonalization]);
 
     const previousMonthScore = useMemo(() => {
         const now = new Date();
@@ -2742,8 +2658,8 @@ export default function DietPage() {
         [logs, todayKey]
     );
     const confirmedTodayPreferences = useMemo(
-        () => mergePreferences(adaptiveTodayPreferences, userSelectedTodayPreferences, externalSignalPreferences),
-        [adaptiveTodayPreferences, userSelectedTodayPreferences, externalSignalPreferences]
+        () => mergePreferences(adaptiveTodayPreferences, userSelectedTodayPreferences),
+        [adaptiveTodayPreferences, userSelectedTodayPreferences]
     );
     const todayDietModeChecked = useMemo(
         () => userSelectedTodayPreferences.includes('weight_loss'),
@@ -2770,9 +2686,9 @@ export default function DietPage() {
         (dateKey: string) => {
             const byDate = dailyPreferences[dateKey] ?? [];
             const adaptive = recommendAdaptivePreferencesByRecentLogs(logs, dateKey);
-            return mergePreferences(adaptive, byDate, externalSignalPreferences);
+            return mergePreferences(adaptive, byDate);
         },
-        [dailyPreferences, logs, externalSignalPreferences]
+        [dailyPreferences, logs]
     );
 
     const getAdjustedPlanWithoutNoRepeat = useCallback(
@@ -2800,13 +2716,15 @@ export default function DietPage() {
     );
 
     const optimizedTodayWithNoRepeat = useMemo(() => {
+        if (hasRenalDietRestrictions(userDietContext)) return optimizedToday;
         const recentHistoryPlans = getRecentHistoryPlans(todayKey);
         const noRepeatAdjusted = applySevenDayNoRepeatRule(optimizedToday.plan, recentHistoryPlans, NO_REPEAT_DAYS);
+        const personalized = finalizeVariedPlan(noRepeatAdjusted.plan);
         return {
-            plan: noRepeatAdjusted.plan,
-            notes: [...optimizedToday.notes, ...noRepeatAdjusted.notes],
+            plan: personalized.plan,
+            notes: Array.from(new Set([...optimizedToday.notes, ...noRepeatAdjusted.notes, ...personalized.notes])),
         };
-    }, [todayKey, optimizedToday, getRecentHistoryPlans]);
+    }, [todayKey, optimizedToday, getRecentHistoryPlans, finalizeVariedPlan, userDietContext]);
 
     const todayPlan = optimizedTodayWithNoRepeat.plan;
 
@@ -2817,10 +2735,12 @@ export default function DietPage() {
             }
 
             const adjusted = getAdjustedPlanWithoutNoRepeat(dateKey);
-            const recentHistoryPlans = getRecentHistoryPlans(dateKey, todayPlan);
-            return applySevenDayNoRepeatRule(adjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS).plan;
+            const recentHistoryPlans = hasRenalDietRestrictions(userDietContext) ? [] : getRecentHistoryPlans(dateKey, todayPlan);
+            if (hasRenalDietRestrictions(userDietContext)) return adjusted.plan;
+            const varied = applySevenDayNoRepeatRule(adjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS);
+            return finalizeVariedPlan(varied.plan).plan;
         },
-        [todayKey, todayPlan, getAdjustedPlanWithoutNoRepeat, getRecentHistoryPlans]
+        [todayKey, todayPlan, getAdjustedPlanWithoutNoRepeat, getRecentHistoryPlans, finalizeVariedPlan, userDietContext]
     );
 
     const getPlanNotesForDate = useCallback(
@@ -2830,11 +2750,13 @@ export default function DietPage() {
             }
 
             const adjusted = getAdjustedPlanWithoutNoRepeat(dateKey);
-            const recentHistoryPlans = getRecentHistoryPlans(dateKey, todayPlan);
+            const recentHistoryPlans = hasRenalDietRestrictions(userDietContext) ? [] : getRecentHistoryPlans(dateKey, todayPlan);
+            if (hasRenalDietRestrictions(userDietContext)) return adjusted.notes;
             const noRepeatAdjusted = applySevenDayNoRepeatRule(adjusted.plan, recentHistoryPlans, NO_REPEAT_DAYS);
-            return [...adjusted.notes, ...noRepeatAdjusted.notes];
+            const personalized = finalizeVariedPlan(noRepeatAdjusted.plan);
+            return Array.from(new Set([...adjusted.notes, ...noRepeatAdjusted.notes, ...personalized.notes]));
         },
-        [todayKey, optimizedTodayWithNoRepeat.notes, getAdjustedPlanWithoutNoRepeat, getRecentHistoryPlans, todayPlan]
+        [todayKey, optimizedTodayWithNoRepeat.notes, getAdjustedPlanWithoutNoRepeat, getRecentHistoryPlans, todayPlan, finalizeVariedPlan, userDietContext]
     );
 
     const proposalWarnings = useMemo(() => {
@@ -2974,7 +2896,7 @@ export default function DietPage() {
 
         COMMON_MANUAL_FOOD_CANDIDATES.forEach((name) => addCandidate(name));
 
-        const planDateKeys = Array.from({ length: 21 }, (_, index) => offsetDateKey(todayKey, index - 10));
+        const planDateKeys = Array.from(new Set([todayKey, selectedDate]));
         planDateKeys.forEach((dateKey) => {
             const plan = getPlanForDate(dateKey);
             const meals: Record<MealSlot, MealPlanItem> = {
@@ -2995,12 +2917,14 @@ export default function DietPage() {
         });
 
         return Array.from(names).sort((a, b) => a.localeCompare(b, 'ko'));
-    }, [todayKey, getPlanForDate, logs]);
-    const manualMatchCandidatesBySlot = useMemo<Record<MealSlot, string[]>>(
+    }, [todayKey, selectedDate, getPlanForDate, logs]);
+    const manualMatchCandidatesBySlot = useMemo<Record<MealSlot, FoodSearchResult[]>>(
         () =>
-            SLOT_ORDER.reduce<Record<MealSlot, string[]>>(
+            SLOT_ORDER.reduce<Record<MealSlot, FoodSearchResult[]>>(
                 (acc, slot) => {
-                    acc[slot] = searchManualFoodCandidates(newItemBySlot[slot], manualFoodCandidates);
+                    acc[slot] = searchFoods(newItemBySlot[slot], manualFoodCandidates, 20)
+                        .filter((candidate) => candidate.matchType !== 'related' || !matchesAvoidedIngredient(candidate.name, foodPersonalization.avoidedIngredients))
+                        .slice(0, 12);
                     return acc;
                 },
                 {
@@ -3010,7 +2934,7 @@ export default function DietPage() {
                     snack: [],
                 }
             ),
-        [newItemBySlot, manualFoodCandidates]
+        [newItemBySlot, manualFoodCandidates, foodPersonalization.avoidedIngredients]
     );
     const viewedTodayDateKey = useMemo(
         () => offsetDateKey(todayKey, todayPlanOffset),
@@ -3067,10 +2991,6 @@ export default function DietPage() {
     const selectedAnalysis = useMemo(
         () => analyzeDay(selectedPlan, selectedLog, stageType),
         [selectedPlan, selectedLog, stageType]
-    );
-    const selectedSlotProgress = useMemo(
-        () => computePlanCoverage(selectedPlan, selectedLog).bySlot,
-        [selectedPlan, selectedLog]
     );
     const todayScore = useMemo(() => {
         const todayLog = logs[todayKey] ?? buildDefaultLog(todayKey, todayPlan);
@@ -3312,6 +3232,7 @@ export default function DietPage() {
                 : todayKey;
         setAccountStartDateKey(createdAtDateKey);
         const metadata = readIamfineMetadata(user.user_metadata);
+        setFoodPersonalization(readFoodPersonalization(user.user_metadata));
         const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
         const resolvedTreatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
         setTreatmentMeta(resolvedTreatmentMeta);
@@ -3610,7 +3531,7 @@ export default function DietPage() {
         setOpenSubstituteTarget(null);
     };
 
-    const updateCurrentLog = (updater: (current: DayLog) => DayLog) => {
+    const updateCurrentLog = useCallback((updater: (current: DayLog) => DayLog) => {
         setLogs((prev) => {
             const current = prev[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
             const updated = updater(current);
@@ -3619,7 +3540,7 @@ export default function DietPage() {
                 [selectedDate]: updated,
             };
         });
-    };
+    }, [selectedDate, selectedPlan]);
 
     const toggleDraftTodayPreference = (pref: PreferenceType) => {
         setProposalRequested(false);
@@ -3675,36 +3596,15 @@ export default function DietPage() {
         setError('');
         setMessage('');
 
-        if (!proposalRequested) {
-            const alertMessage = '먼저 수정 제안을 요청해 주세요.';
-            setError(alertMessage);
-            window.alert(alertMessage);
-            return;
-        }
-
-        if (draftTodayPreferences.length === 0) {
-            const alertMessage = '원하는 방향을 하나 이상 선택해 주세요.';
-            setError(alertMessage);
-            window.alert(alertMessage);
-            return;
-        }
-
-        const confirmed = window.confirm(
-            '선택한 방향으로 오늘 식단을 변경할까요?\n확정하면 이후 식단 추천에도 참고돼요.'
-        );
-
-        if (!confirmed) {
-            return;
-        }
-
-        const confirmedPreferences = mergePreferences(userSelectedTodayPreferences, draftTodayPreferences);
+        const confirmedPreferences = draftTodayPreferences;
         setDailyPreferences((prev) => ({
             ...prev,
             [todayKey]: confirmedPreferences,
         }));
         setCarryPreferences([]);
         setProposalRequested(false);
-        setMessage('오늘 식단 변경을 확정했어요. 해당 날짜 식단에 기록할게요.');
+        setShowTodayPreferencePanel(false);
+        setMessage('오늘 식단을 바꿨어요. 내일은 기본 설정으로 돌아가요.');
     };
 
     const toggleMealItem = (slot: MealSlot, itemId: string) => {
@@ -3810,7 +3710,7 @@ export default function DietPage() {
                     item.id === itemId
                         ? {
                               ...item,
-                              name: `${normalizedSubstitute} · ${baseAmountByFoodName(normalizedSubstitute, slot)}`,
+                              name: normalizedSubstitute,
                               eaten: true,
                               notEaten: false,
                               isManual: true,
@@ -3825,15 +3725,12 @@ export default function DietPage() {
         setMessage(`"${stripPortionLabel(originalName)}" 대신 "${normalizedSubstitute}"으로 기록했어요.`);
     };
 
-    const addMealItem = (
+    const addMealItem = useCallback((
         slot: MealSlot,
-        matchedFoodName?: string,
-        source: 'button' | 'keyboard' | 'chip' = 'button'
+        matchedFoodName?: string
     ) => {
-        const suggestedNames = manualMatchCandidatesBySlot[slot];
-        const autoMatchedName =
-            !matchedFoodName && suggestedNames.length > 0 ? suggestedNames[0] : undefined;
-        const input = (matchedFoodName ?? autoMatchedName ?? newItemBySlot[slot]).trim();
+        // Only an explicit suggestion tap may change the food the user typed.
+        const input = (matchedFoodName ?? newItemBySlot[slot]).trim();
         if (!input) {
             return;
         }
@@ -3875,22 +3772,13 @@ export default function DietPage() {
             },
         }));
 
-        const typedRaw = newItemBySlot[slot].trim();
-        if (
-            (matchedFoodName || autoMatchedName) &&
-            typedRaw &&
-            normalizeManualMealName(typedRaw) !== normalizedName
-        ) {
-            if (source === 'keyboard' || source === 'button') {
-                setMessage(`입력한 "${typedRaw}"을 "${normalizedName}"(으)로 매칭해 기록했어요.`);
-            }
-        }
+        setMessage(`"${normalizedName}"을 추가했어요. 아래 저장 버튼을 눌러 주세요.`);
 
         setNewItemBySlot((prev) => ({
             ...prev,
             [slot]: '',
         }));
-    };
+    }, [newItemBySlot, selectedDate, updateCurrentLog]);
 
     const toggleMedicationTaken = (medicationId: string) => {
         updateCurrentLog((current) => {
@@ -4066,6 +3954,10 @@ export default function DietPage() {
 
     return (
         <main className="space-y-4 pb-8">
+            <nav aria-label="식단 메뉴" className="grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
+                <Link href="/diet" aria-current={!openRecordView ? 'page' : undefined} className={`min-h-12 rounded-lg px-3 py-3 text-center text-base font-bold ${!openRecordView ? 'bg-white text-emerald-800 shadow-sm dark:bg-gray-900 dark:text-emerald-200' : 'text-gray-600 dark:text-gray-300'}`}>오늘의 식단</Link>
+                <Link href="/diet?view=record" aria-current={openRecordView ? 'page' : undefined} className={`min-h-12 rounded-lg px-3 py-3 text-center text-base font-bold ${openRecordView ? 'bg-white text-emerald-800 shadow-sm dark:bg-gray-900 dark:text-emerald-200' : 'text-gray-600 dark:text-gray-300'}`}>먹은 음식 기록</Link>
+            </nav>
             {!openRecordView && (
             <section className="surfacePanel overflow-hidden p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -4110,25 +4002,31 @@ export default function DietPage() {
                             href="/diet/report"
                             className="ctaMono ctaMono--emerald"
                         >
-                            적용 근거 리포트
+                            추천 이유
                         </Link>
                         <Link
                             href="/diet/calendar"
                             className="ctaMono ctaMono--sky"
                         >
-                            전체 식단표 보기
+                            월간 식단
                         </Link>
                     </div>
                 </div>
 
-                <div className="softPanel softPanel--sky mt-3 p-3">
-                    <div className="flex items-center justify-between gap-3">
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-emerald-50 p-3 text-sm dark:bg-emerald-950/30">
+                    <p className="min-w-0 text-emerald-900 dark:text-emerald-100">{describeFoodPersonalization(foodPersonalization).join(' · ') || '식사가 불편하면 맞춤 설정을 알려 주세요.'}</p>
+                    <Link href="/profile#food-personalization" className="shrink-0 rounded-lg px-3 py-3 font-semibold text-emerald-800 underline underline-offset-4 dark:text-emerald-200">맞춤 설정</Link>
+                </div>
+                <details className="mt-3 rounded-xl border border-gray-200 px-3 dark:border-gray-700">
+                    <summary className="cursor-pointer py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">체중 관리 설정</summary>
+                    <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">의료진과 체중감량을 정한 경우에만 선택해 주세요. 식사가 불편할 때는 적용하지 않아요.</p>
+                    <div className="flex items-center justify-between gap-3 pb-3">
                         <div className="flex min-w-0 items-center gap-1.5">
                             <p className="truncate text-sm font-semibold text-blue-900 dark:text-blue-100">다이어트 체크</p>
                             <button
                                 type="button"
                                 onClick={() => setShowDietModeInfoModal(true)}
-                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-white/90 text-blue-700 transition hover:bg-white dark:border-blue-700 dark:bg-blue-950/60 dark:text-blue-100"
+                                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-blue-300 bg-white/90 text-blue-700 transition hover:bg-white dark:border-blue-700 dark:bg-blue-950/60 dark:text-blue-100"
                                 aria-label="다이어트 체크 안내 열기"
                             >
                                 <CircleHelp className="h-4 w-4" />
@@ -4140,7 +4038,7 @@ export default function DietPage() {
                             onChange={(event) => setTodayDietMode(event.target.checked)}
                             className="h-5 w-5 accent-blue-600"
                             aria-label="다이어트 체크"
-                            disabled={!isViewingToday}
+                            disabled={!isViewingToday || foodPersonalization.symptoms.length > 0}
                         />
                     </div>
                     {!isViewingToday && (
@@ -4148,7 +4046,7 @@ export default function DietPage() {
                             다이어트 체크 변경은 오늘 식단에서만 가능해요.
                         </p>
                     )}
-                </div>
+                </details>
 
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     {(['breakfast', 'lunch', 'dinner', 'snack'] as MealSlot[]).map((slot) => {
@@ -4214,7 +4112,7 @@ export default function DietPage() {
                                     </div>
                                     {showMedicationArea && mealMedicationList.length > 0 && (
                                         <div className="flex w-full flex-wrap gap-1.5 sm:ml-auto sm:w-auto sm:max-w-[62%] sm:justify-end">
-                                            <span className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                            <span className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                                                 식후 복용 약
                                             </span>
                                             {mealMedicationList.map((medication) => {
@@ -4236,22 +4134,22 @@ export default function DietPage() {
                                     )}
                                 </div>
                                 <div className="mealTileMono__body">
-                                    <p className="text-base font-bold leading-snug">{meal.summary}</p>
-                                    {slot !== 'snack' && <p className="mt-1 text-sm">반찬: {meal.sides.join(', ')}</p>}
+                                    <p className="text-lg font-bold leading-relaxed">{meal.main}</p>
+                                    <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{slot === 'snack' ? [...meal.sides, meal.soup].join(' · ') : [meal.riceType, meal.soup].join(' · ')}</p>
                                     <div className="mt-2 grid grid-cols-2 gap-2">
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 const guide = mealPortionGuideFromPlan(meal, slot);
                                                 setOpenPortionGuideContent({
-                                                    title: `${mealTypeLabel(slot)} 권장 섭취량(1인 기준)`,
+                                                    title: `${mealTypeLabel(slot)} 식사량 참고`,
                                                     slot,
                                                     guide,
                                                     substitutes: guide.items.map((guideItem) => {
                                                         const substitute = buildSubstituteCandidates(
                                                             guideItem.name,
                                                             slot,
-                                                            manualFoodCandidates
+                                                            manualFoodCandidates, foodPersonalization.avoidedIngredients
                                                         );
                                                         return {
                                                             hint: substitute.hint,
@@ -4262,7 +4160,7 @@ export default function DietPage() {
                                             }}
                                             className="ctaMono ctaMono--sky w-full cursor-pointer"
                                         >
-                                            권장 섭취량
+                                            식사량 참고
                                         </button>
                                         <button
                                             type="button"
@@ -4272,15 +4170,28 @@ export default function DietPage() {
                                             조리법
                                         </button>
                                     </div>
-                                    {slot !== 'snack' && <MealNutrientBalance nutrient={meal.nutrient} />}
+                                    {slot !== 'snack' && (
+                                        <details className="mt-3 border-t border-gray-200 dark:border-gray-700">
+                                            <summary className="cursor-pointer py-3 text-sm font-semibold">반찬과 영양 정보</summary>
+                                            <p className="text-sm leading-relaxed">{meal.sides.join(' · ')}</p>
+                                            {meal.nutritionUnavailable ? (
+                                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">변경한 메뉴의 영양 수치는 아직 계산하지 않아요.</p>
+                                            ) : (
+                                                <>
+                                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">기본 식단의 구성 비율이며 실제 영양성분 분석값은 아니에요.</p>
+                                                    <MealNutrientBalance nutrient={meal.nutrient} />
+                                                </>
+                                            )}
+                                        </details>
+                                    )}
                                 </div>
                             </article>
                         );
                     })}
                 </div>
 
-                <div className="softPanel mt-3 p-3">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">오늘 간식 타이밍</p>
+                <details className="mt-3 rounded-xl border border-gray-200 px-3 pb-3 dark:border-gray-700">
+                    <summary className="cursor-pointer py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">간식과 음료 안내</summary>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 간식 권장 시간: {snackCoffeeRecommendedTime.snack}</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.snack}</p>
                     <div className="mt-3 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
@@ -4320,10 +4231,10 @@ export default function DietPage() {
                             커피/차 가이드 보기
                         </button>
                     </div>
-                </div>
+                </details>
 
-                <div className="softPanel softPanel--emerald mt-3 p-3 text-sm text-emerald-900 dark:text-emerald-100">
-                    <p className="font-semibold">{viewedTodayLabel} 식단 점검 로그</p>
+                <details className="mt-3 rounded-xl border border-gray-200 px-3 pb-3 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-200">
+                    <summary className="cursor-pointer py-3 font-semibold">이 식단을 추천한 이유</summary>
                     <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
                         암 종류/치료 단계/복용 정보를 기준으로 실제 반영된 항목이에요.
                     </p>
@@ -4334,7 +4245,7 @@ export default function DietPage() {
                             <p>- 개인 조건이 없거나 매칭되지 않아 기본 안전식 기준으로 추천됐어요.</p>
                         )}
                     </div>
-                </div>
+                </details>
 
             </section>
             )}
@@ -4347,6 +4258,7 @@ export default function DietPage() {
                     <section
                         className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
+                        role="dialog" aria-modal="true" aria-label="식단 상세 안내" tabIndex={-1}
                     >
                         <div className="galaxySafeHeader">
                             <h2 className="galaxySafeHeader__main text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -4381,6 +4293,7 @@ export default function DietPage() {
                     <section
                         className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
+                        role="dialog" aria-modal="true" aria-label="식단 상세 안내" tabIndex={-1}
                     >
                         <div className="galaxySafeHeader">
                             <div className="galaxySafeHeader__main">
@@ -4414,6 +4327,7 @@ export default function DietPage() {
                     <section
                         className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                         onClick={(event) => event.stopPropagation()}
+                        role="dialog" aria-modal="true" aria-label="식단 상세 안내" tabIndex={-1}
                     >
                         <div className="galaxySafeHeader">
                             <h2 className="galaxySafeHeader__main text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -4440,14 +4354,14 @@ export default function DietPage() {
                                         </p>
                                         {substitute && substitute.options.length > 0 && (
                                             <div className="mt-1.5 space-y-1">
-                                                <p className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
                                                     대체 가능한 음식({substitute.hint})
                                                 </p>
                                                 <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                                                     {substitute.options.map((option) => (
                                                         <span
                                                             key={`portion-modal-substitute-${item.name}-${index}-${option}`}
-                                                            className="w-full min-w-0 break-all whitespace-normal rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[11px] font-semibold leading-4 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                                            className="min-h-11 w-full min-w-0 break-words whitespace-normal rounded-lg border border-gray-300 bg-white px-2 py-0.5 text-xs font-semibold leading-4 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                                         >
                                                             {option}
                                                         </span>
@@ -4505,7 +4419,7 @@ export default function DietPage() {
                 <section className="surfacePanel p-5">
                     <div className="galaxySafeHeader">
                         <h2 className="galaxySafeHeader__main galaxySafeText text-lg font-semibold text-gray-900 dark:text-gray-100">
-                            오늘만 이렇게 먹을래요
+                            오늘 먹고 싶은 메뉴
                         </h2>
                         <button
                             type="button"
@@ -4540,6 +4454,7 @@ export default function DietPage() {
                                         <button
                                             key={option.key}
                                             type="button"
+                                            aria-pressed={selected}
                                             onClick={() => toggleDraftTodayPreference(option.key)}
                                             className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                                                 selected
@@ -4577,14 +4492,14 @@ export default function DietPage() {
                                     onClick={requestTodayProposal}
                                     className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
-                                    수정 제안 요청
+                                    변경 내용 보기
                                 </button>
                                 <button
                                     type="button"
                                     onClick={confirmTodayPlanChange}
                                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
                                 >
-                                    오늘 식단 변경 확정
+                                    이대로 식단 바꾸기
                                 </button>
                             </div>
 
@@ -4655,7 +4570,7 @@ export default function DietPage() {
                         </div>
                         <div ref={recordDateScrollerRef} className="mt-3 overflow-x-auto pb-1">
                             <div className="galaxySafeActions inline-flex min-w-full gap-2">
-                                {recordDateKeys.map((key) => {
+                                {recordDateKeys.filter((key) => key >= offsetDateKey(todayKey, -6) || key === selectedDate).map((key) => {
                                     const isSelected = key === selectedDate;
                                     const isToday = key === todayKey;
                                     return (
@@ -4665,6 +4580,7 @@ export default function DietPage() {
                                                     recordDateButtonRefs.current[key] = node;
                                                 }}
                                                 type="button"
+                                                aria-pressed={isSelected}
                                                 onClick={() => {
                                                     selectRecordDate(key);
                                                 }}
@@ -4687,7 +4603,7 @@ export default function DietPage() {
                                                         selectRecordDate(event.target.value);
                                                     }}
                                                     aria-label="기록 날짜 선택"
-                                                    className="h-10 w-[8.4rem] shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                                    className="h-12 w-[9.5rem] shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                                 />
                                             )}
                                         </div>
@@ -4708,6 +4624,7 @@ export default function DietPage() {
                             <section
                                 className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
                                 onClick={(event) => event.stopPropagation()}
+                                role="dialog" aria-modal="true" aria-label="기록일 식단 보기" tabIndex={-1}
                             >
                                 <div className="galaxySafeHeader">
                                     <div className="galaxySafeHeader__main">
@@ -4757,7 +4674,7 @@ export default function DietPage() {
                                                     onClick={() => setOpenRecordPortionSlot((prev) => (prev === slot ? null : slot))}
                                                     className="mt-2 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                                                 >
-                                                    권장 섭취량
+                                                    식사량 참고
                                                 </button>
                                                 {isRecordPortionOpen && (
                                                     <div className="mt-2 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
@@ -4776,7 +4693,7 @@ export default function DietPage() {
                                                     </div>
                                                 )}
                                                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                                                    탄수 {meal.nutrient.carb}% / 단백질 {meal.nutrient.protein}% / 지방 {meal.nutrient.fat}%
+                                                    {meal.nutritionUnavailable ? '맞춤 변경한 메뉴는 영양량 계산 전이에요.' : `기본 구성 참고: 탄수화물 ${meal.nutrient.carb}% · 단백질 ${meal.nutrient.protein}% · 지방 ${meal.nutrient.fat}%`}
                                                 </p>
                                             </article>
                                         );
@@ -4846,16 +4763,18 @@ export default function DietPage() {
                                 className="galaxySafeHeader__action rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 onClick={() => setShowNutrients((prev) => !prev)}
                             >
-                                {showNutrients ? '영양 비율 숨기기' : '영양 비율 보기'}
+                                {showNutrients ? '참고 정보 닫기' : '영양 참고 정보'}
                             </button>
                         </div>
 
                         {showNutrients && (
-                            <div className="mt-3 grid gap-2 text-xs text-gray-600 dark:text-gray-300 sm:grid-cols-2 lg:grid-cols-4">
-                                <p>아침: 탄수 {selectedPlan.breakfast.nutrient.carb}% / 단백질 {selectedPlan.breakfast.nutrient.protein}% / 지방 {selectedPlan.breakfast.nutrient.fat}%</p>
-                                <p>점심: 탄수 {selectedPlan.lunch.nutrient.carb}% / 단백질 {selectedPlan.lunch.nutrient.protein}% / 지방 {selectedPlan.lunch.nutrient.fat}%</p>
-                                <p>저녁: 탄수 {selectedPlan.dinner.nutrient.carb}% / 단백질 {selectedPlan.dinner.nutrient.protein}% / 지방 {selectedPlan.dinner.nutrient.fat}%</p>
-                                <p>간식: 탄수 {selectedPlan.snack.nutrient.carb}% / 단백질 {selectedPlan.snack.nutrient.protein}% / 지방 {selectedPlan.snack.nutrient.fat}%</p>
+                            <div className="mt-3 rounded-xl bg-gray-50 p-3 text-sm text-gray-600 dark:bg-gray-950/40 dark:text-gray-300">
+                                <p>아래 비율은 추천 식단의 기본 구성 비율이에요. 실제 먹은 음식의 영양 분석값은 아니에요.</p>
+                                {SLOT_ORDER.map((slot) => (
+                                    <p key={slot} className="mt-2">{mealTypeLabel(slot)}: {selectedPlan[slot].nutritionUnavailable
+                                        ? '맞춤 변경한 메뉴는 영양량 계산 전이에요.'
+                                        : `탄수화물 ${selectedPlan[slot].nutrient.carb}% · 단백질 ${selectedPlan[slot].nutrient.protein}% · 지방 ${selectedPlan[slot].nutrient.fat}%`}</p>
+                                ))}
                             </div>
                         )}
 
@@ -4863,7 +4782,7 @@ export default function DietPage() {
                             <div className="grid gap-3 lg:grid-cols-2">
                                 {SLOT_ORDER.map((slot) => {
                                     const items = selectedLog.meals[slot];
-                                    const progress = selectedSlotProgress[slot];
+                                    const recordedCount = items.filter((item) => item.eaten).length;
 
                                     return (
                                         <article
@@ -4875,47 +4794,43 @@ export default function DietPage() {
                                                     {mealTypeLabel(slot)}
                                                 </p>
                                                 <span className="rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                                                    {progress}%
+                                                    {recordedCount}개 기록
                                                 </span>
                                             </div>
-                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                            <button type="button" aria-expanded={Boolean(showSuggestedRecordItems[slot])} onClick={() => setShowSuggestedRecordItems((previous) => ({ ...previous, [slot]: !previous[slot] }))} className="mt-2 min-h-11 w-full rounded-lg border border-gray-200 px-3 py-2 text-left text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200">
+                                                {showSuggestedRecordItems[slot] ? '추천 메뉴 접기' : '추천 메뉴에서 고르기'}
+                                            </button>
+                                            {showSuggestedRecordItems[slot] && <div className="mt-2 flex flex-wrap gap-2">
                                                 <button
                                                     type="button"
                                                     onClick={() => setMealSlotStatus(slot, 'eaten')}
-                                                    className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-emerald-700"
+                                                    className="min-h-11 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
                                                 >
-                                                    전체 먹음
+                                                    모두 먹음
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setMealSlotStatus(slot, 'not_eaten')}
-                                                    className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                                                    className="min-h-11 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/40"
                                                 >
-                                                    전체 안먹음
+                                                    모두 안 먹음
                                                 </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => setMealSlotStatus(slot, 'reset')}
-                                                    className="rounded-md border border-gray-300 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                    className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                                 >
                                                     초기화
                                                 </button>
-                                            </div>
-
-                                            <div className="mt-2 h-2 w-full rounded bg-gray-200 dark:bg-gray-800">
-                                                <div
-                                                    className="h-2 rounded bg-blue-600 dark:bg-blue-500"
-                                                    style={{ width: `${progress}%` }}
-                                                />
-                                            </div>
+                                             </div>}
 
                                             <div className="mt-3 space-y-2">
-                                                {items.map((item) => {
+                                                {items.filter((item) => showSuggestedRecordItems[slot] || item.eaten || item.notEaten || item.isManual).map((item) => {
                                                     const isSubstitutePanelOpen =
                                                         openSubstituteTarget?.slot === slot &&
                                                         openSubstituteTarget.itemId === item.id;
                                                     const substituteCandidates = isSubstitutePanelOpen
-                                                        ? buildSubstituteCandidates(item.name, slot, manualFoodCandidates)
+                                                        ? buildSubstituteCandidates(item.name, slot, manualFoodCandidates, foodPersonalization.avoidedIngredients)
                                                         : null;
                                                     const [displayFoodNameRaw, ...displayAmountParts] = item.name.split(' · ');
                                                     const displayFoodName = displayFoodNameRaw.trim();
@@ -4927,7 +4842,8 @@ export default function DietPage() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => toggleMealItem(slot, item.id)}
-                                                                    className={`cursor-pointer min-w-[64px] rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                                                                    aria-pressed={item.eaten}
+                                                                    className={`cursor-pointer min-h-11 min-w-[64px] rounded-lg px-2.5 py-1 text-xs font-semibold ${
                                                                         item.eaten
                                                                             ? 'bg-emerald-600 text-white'
                                                                             : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
@@ -4938,11 +4854,13 @@ export default function DietPage() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => toggleMealSubstitutePanel(slot, item.id)}
+                                                                    aria-expanded={isSubstitutePanelOpen}
+                                                                    aria-label={`${displayFoodName} 대신 먹은 음식 고르기`}
                                                                     className="min-w-0 px-1 text-center leading-snug text-gray-800 underline decoration-dotted underline-offset-4 transition hover:text-gray-900 dark:text-gray-100 dark:hover:text-white"
                                                                 >
                                                                     <span className="block break-words text-base font-bold">{displayFoodName}</span>
                                                                     {displayAmount && (
-                                                                        <span className="block break-words text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                                                                        <span className="block break-words text-xs font-medium text-gray-600 dark:text-gray-300">
                                                                             {displayAmount}
                                                                         </span>
                                                                     )}
@@ -4950,23 +4868,24 @@ export default function DietPage() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => markMealAsNotEaten(slot, item.id)}
-                                                                    className={`cursor-pointer min-w-[64px] rounded-md border px-2 py-1 text-xs font-semibold ${
+                                                                    aria-pressed={Boolean(item.notEaten)}
+                                                                    className={`cursor-pointer min-h-11 min-w-[64px] rounded-md border px-2 py-1 text-xs font-semibold ${
                                                                         item.notEaten
                                                                             ? 'border-amber-400 bg-amber-400 text-amber-950 dark:border-amber-400 dark:bg-amber-400 dark:text-amber-950'
                                                                             : 'border-gray-300 text-gray-700 dark:border-gray-700 dark:text-gray-200'
                                                                     }`}
                                                                 >
-                                                                    안먹었어요
+                                                                    안 먹음
                                                                 </button>
                                                             </div>
 
                                                             {isSubstitutePanelOpen && (
                                                                 <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 dark:border-gray-700 dark:bg-gray-950/40">
                                                                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                                                        <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">
+                                                                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
                                                                             대체 가능한 음식
                                                                         </p>
-                                                                        <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
                                                                             {substituteCandidates?.hint}
                                                                         </span>
                                                                     </div>
@@ -4985,14 +4904,14 @@ export default function DietPage() {
                                                                                             candidate
                                                                                         )
                                                                                     }
-                                                                                    className="w-full min-w-0 break-all whitespace-normal rounded-full border border-gray-300 bg-white px-2.5 py-1 text-left text-[11px] font-semibold leading-4 text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                                                    className="min-h-11 w-full min-w-0 break-words whitespace-normal rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-left text-xs font-semibold leading-4 text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                                                                 >
                                                                                     {candidate}
                                                                                 </button>
                                                                             ))}
                                                                         </div>
                                                                     ) : (
-                                                                        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                                             대체 후보를 찾지 못했어요.
                                                                         </p>
                                                                     )}
@@ -5005,7 +4924,10 @@ export default function DietPage() {
 
                                             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                                                 <input
-                                                    aria-label={`${mealTypeLabel(slot)} 먹은 음식 추가`}
+                                                    type="search"
+                                                    aria-label={`${mealTypeLabel(slot)} 먹은 음식 검색`}
+                                                    aria-describedby={`food-entry-help-${slot}`}
+                                                    aria-controls={newItemBySlot[slot].trim() ? `food-results-${slot}` : undefined}
                                                     autoComplete="off"
                                                     autoCapitalize="none"
                                                     autoCorrect="off"
@@ -5028,46 +4950,54 @@ export default function DietPage() {
                                                         }
                                                         event.preventDefault();
                                                         event.stopPropagation();
-                                                        addMealItem(slot, undefined, 'keyboard');
+                                                        addMealItem(slot);
                                                     }}
-                                                    placeholder="먹은 음식 추가"
-                                                    className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                                    placeholder="음식이나 재료 검색 (예: 버섯죽)"
+                                                    className="min-h-12 min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-emerald-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                                 />
                                                 <button
                                                     type="button"
-                                                    onClick={() => addMealItem(slot, undefined, 'button')}
-                                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
+                                                    onClick={() => addMealItem(slot)}
+                                                    disabled={!newItemBySlot[slot].trim()}
+                                                    className="min-h-12 rounded-lg bg-emerald-700 px-3 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-40 sm:w-auto"
                                                 >
-                                                    추가
+                                                    그대로 추가
                                                 </button>
                                             </div>
                                             {newItemBySlot[slot].trim().length > 0 && (
-                                                <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-950/40">
-                                                    <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">
-                                                        유사 음식 선택
+                                                <div id={`food-results-${slot}`} className="mt-2 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                                                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100" aria-live="polite">
+                                                        {manualMatchCandidatesBySlot[slot].some((candidate) => candidate.matchType === 'exact' || candidate.matchType === 'alias')
+                                                            ? '찾은 음식과 비슷한 메뉴'
+                                                            : '찾는 음식이 없으면 비슷한 메뉴를 골라 보세요'}
                                                     </p>
                                                     {manualMatchCandidatesBySlot[slot].length > 0 ? (
-                                                        <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                                                        <div className="mt-2 grid max-h-72 grid-cols-1 gap-2 overflow-y-auto overscroll-contain sm:grid-cols-2">
                                                             {manualMatchCandidatesBySlot[slot].map((candidate) => (
                                                                 <button
-                                                                    key={`${slot}-${candidate}`}
+                                                                    key={`${slot}-${candidate.name}`}
                                                                     type="button"
-                                                                    onClick={() => addMealItem(slot, candidate, 'chip')}
-                                                                    className="w-full min-w-0 break-all whitespace-normal rounded-full border border-gray-300 bg-white px-2.5 py-1 text-left text-[11px] font-semibold leading-4 text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                                    onClick={() => addMealItem(slot, candidate.name)}
+                                                                    className="min-h-12 w-full rounded-lg border border-gray-200 px-3 py-2 text-left transition hover:bg-emerald-50 dark:border-gray-700 dark:hover:bg-gray-800"
                                                                 >
-                                                                    {candidate}
+                                                                    <span className="block break-words text-sm font-semibold text-gray-900 dark:text-gray-100">{candidate.name}</span>
+                                                                    <span className="block text-xs text-gray-600 dark:text-gray-300">
+                                                                        {candidate.reason}
+                                                                        {matchesAvoidedIngredient(candidate.name, foodPersonalization.avoidedIngredients) ? ' · 피할 재료 확인' : ''}
+                                                                    </span>
                                                                 </button>
                                                             ))}
                                                         </div>
                                                     ) : (
-                                                        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                                                            비슷한 후보가 없어요. 입력 후 추가하면 새 음식으로 기록돼요.
+                                                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                                            음식 이름이나 재료로 다시 찾아 보세요. 입력한 이름 그대로 추가할 수도 있어요.
                                                         </p>
                                                     )}
+                                                    <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">비슷한 메뉴는 영양성분이 같다는 뜻이 아니에요. 실제 먹은 음식을 골라 주세요.</p>
                                                 </div>
                                             )}
-                                            <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                                                직접 입력한 음식은 1인분 기준으로 분석해요.
+                                            <p id={`food-entry-help-${slot}`} className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                                                입력한 이름 그대로 기록해요. 정확한 영양량을 계산한 기록은 아니에요.
                                             </p>
                                         </article>
                                     );
@@ -5083,7 +5013,10 @@ export default function DietPage() {
                             </button>
                         </form>
 
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <details className="mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                            <summary className="cursor-pointer py-2 text-sm font-semibold">기록 분석 보기</summary>
+                            <p className="mt-2 text-xs text-gray-500">메뉴 이름으로 살펴본 참고 정보예요.</p>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
                             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
                                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">오늘 분석</p>
                                 <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">추천 식단 매칭률: {selectedAnalysis.matchScore}%</p>
@@ -5106,14 +5039,15 @@ export default function DietPage() {
                                     <p key={item} className="mt-1 text-sm text-blue-700 dark:text-blue-300">- {item}</p>
                                 ))}
                             </div>
-                        </div>
+                            </div>
+                        </details>
                     </section>
 
                 </>
             )}
 
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <h2 className="sectionTitleMono text-lg">도움되는 음식 / 주의 음식</h2>
+            <details className="rounded-xl border border-gray-200 bg-white px-5 pb-4 dark:border-gray-800 dark:bg-gray-900">
+                <summary className="cursor-pointer py-4 text-base font-semibold text-gray-900 dark:text-gray-100">치료 중 음식 선택 도움말</summary>
                 <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="infoTileMono infoTileMono--good">
                         <p className="infoTileMono__title text-sm">
@@ -5138,11 +5072,12 @@ export default function DietPage() {
                         </ul>
                     </div>
                 </div>
-            </section>
+            </details>
 
             {openRecordView && (
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">점수 보드</h2>
+                <details className="rounded-xl border border-gray-200 bg-white px-5 pb-4 dark:border-gray-800 dark:bg-gray-900">
+                    <summary className="cursor-pointer py-4 text-base font-semibold text-gray-900 dark:text-gray-100">식사 기록 돌아보기</summary>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">추천 메뉴와 기록의 유사도를 참고하는 점수예요. 건강 상태를 판단하는 점수는 아니에요.</p>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
                             <p className="text-xs text-gray-500 dark:text-gray-400">오늘</p>
@@ -5167,17 +5102,17 @@ export default function DietPage() {
                         </div>
                         */}
                     </div>
-                </section>
+                </details>
             )}
 
-            <section className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-100">
-                <p className="font-semibold">개인 입력 반영 기준</p>
+            <details className="rounded-xl border border-gray-200 bg-white px-5 pb-4 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                <summary className="cursor-pointer py-4 text-base font-semibold">내 정보가 어떻게 반영됐나요?</summary>
                 <div className="mt-2 space-y-1">
                     {personalizationSummary.map((item) => (
                         <p key={item}>- {item}</p>
                     ))}
                 </div>
-            </section>
+            </details>
 
             <section className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
                 <p>{DISCLAIMER_TEXT}</p>

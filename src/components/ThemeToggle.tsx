@@ -41,7 +41,11 @@ export default function ThemeToggle() {
         const nextMode: ThemeMode = isDarkNow ? 'light' : 'dark';
 
         setMode(nextMode);
-        localStorage.setItem(THEME_KEY, nextMode);
+        try {
+            localStorage.setItem(THEME_KEY, nextMode);
+        } catch {
+            // The current theme still works when browser storage is unavailable.
+        }
         applyTheme(nextMode);
     };
 

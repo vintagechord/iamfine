@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { CalendarClock, MapPinned, NotebookPen, ShoppingCart, Stethoscope, Utensils } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { formatDateKey, STAGE_TYPE_LABELS, type StageType } from '@/lib/dietEngine';
+import { formatDateKey } from '@/lib/dietEngine';
+import { filterAlertArticles, parseArticleDate, type AlertArticle as CustomAlertArticle } from '@/lib/alertArticles';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 
 type HymnVideo = {
@@ -17,25 +18,10 @@ type TreatmentMeta = {
     updatedAt: string;
 };
 
-type StageStatus = 'planned' | 'active' | 'completed';
-
-type TreatmentStageRow = {
-    stage_type: StageType;
-    status: StageStatus;
-    stage_order: number;
-    created_at: string;
-};
-
-type CustomAlertArticle = {
-    source: string;
-    title: string;
-    url: string;
-    publishedAt: string;
-};
-
 type CustomAlertCache = {
     items: CustomAlertArticle[];
     updatedAt: string;
+    partial?: boolean;
 };
 
 type VisitScheduleItem = {
@@ -61,9 +47,8 @@ const DAILY_HYMN_VIDEOS: HymnVideo[] = [
 
 const SHOW_DAILY_HYMN = false;
 const ALERT_PAGE_SIZE = 5;
-const ALERT_AUTO_SLIDE_MS = 6000;
-const ALERT_CACHE_PREFIX = 'custom-alert-cache-v1';
-const ALERT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const ALERT_CACHE_PREFIX = 'custom-alert-cache-v2';
+const ALERT_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const VISIT_SCHEDULE_PREFIX = 'visit-schedule-v1';
 
 const TREATMENT_META_PREFIX = 'treatment-meta-v1';
@@ -126,34 +111,14 @@ function readIamfineTreatmentMeta(raw: unknown) {
     return parseTreatmentMetaFromUnknown(scoped.treatmentMeta);
 }
 
-function formatAlertDate(raw: string) {
-    const parsedDate = parseAlertDate(raw);
-    if (!parsedDate) {
-        return raw || '날짜 미표기';
-    }
-
-    const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-    const day = String(parsedDate.getDate()).padStart(2, '0');
-    return `${month}/${day}`;
+function parseAlertDate(raw: string) {
+    const timestamp = parseArticleDate(raw);
+    return timestamp === null ? null : new Date(timestamp);
 }
 
-function parseAlertDate(raw: string) {
-    if (!raw) {
-        return null;
-    }
-
-    const directParsed = Date.parse(raw);
-    if (!Number.isNaN(directParsed)) {
-        return new Date(directParsed);
-    }
-
-    const normalized = raw.replace(/\.\s*/g, '-').replace(/\.\s*$/, '');
-    const normalizedParsed = Date.parse(normalized);
-    if (!Number.isNaN(normalizedParsed)) {
-        return new Date(normalizedParsed);
-    }
-
-    return null;
+function formatAlertDate(raw: string) {
+    const date = parseAlertDate(raw);
+    return date ? new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric' }).format(date) : '';
 }
 
 function formatAlertUpdatedAgo(raw: string) {
@@ -188,38 +153,6 @@ function buildCustomAlertCacheKey(params: URLSearchParams) {
     return `${ALERT_CACHE_PREFIX}:${params.toString()}`;
 }
 
-function normalizeCustomAlertTitleKey(title: string) {
-    return title
-        .toLowerCase()
-        .replace(/[\s"'`‘’“”.,;:!?()[\]{}\-_/\\]+/g, '')
-        .trim();
-}
-
-function dedupeCustomAlertArticles(items: CustomAlertArticle[]) {
-    const seenUrls = new Set<string>();
-    const seenTitleKeys = new Set<string>();
-    const deduped: CustomAlertArticle[] = [];
-
-    items.forEach((item) => {
-        const urlKey = item.url.trim();
-        const titleKey = normalizeCustomAlertTitleKey(item.title);
-        if (!urlKey || seenUrls.has(urlKey)) {
-            return;
-        }
-        if (titleKey && seenTitleKeys.has(titleKey)) {
-            return;
-        }
-
-        seenUrls.add(urlKey);
-        if (titleKey) {
-            seenTitleKeys.add(titleKey);
-        }
-        deduped.push(item);
-    });
-
-    return deduped;
-}
-
 function parseCustomAlertCache(raw: string | null): CustomAlertCache | null {
     if (!raw) {
         return null;
@@ -249,29 +182,12 @@ function parseCustomAlertCache(raw: string | null): CustomAlertCache | null {
 
         return {
             updatedAt,
-            items: dedupeCustomAlertArticles(items),
+            items: filterAlertArticles(items),
+            partial: parsed.partial === true,
         };
     } catch {
         return null;
     }
-}
-
-function prioritizeNewCustomAlertItems(nextItems: CustomAlertArticle[], previousItems: CustomAlertArticle[]) {
-    const dedupedNextItems = dedupeCustomAlertArticles(nextItems);
-    const dedupedPreviousItems = dedupeCustomAlertArticles(previousItems);
-
-    if (dedupedNextItems.length === 0 || dedupedPreviousItems.length === 0) {
-        return dedupedNextItems;
-    }
-
-    const previousUrlSet = new Set(dedupedPreviousItems.map((item) => item.url.trim()));
-    const newlyFetched = dedupedNextItems.filter((item) => !previousUrlSet.has(item.url.trim()));
-    if (newlyFetched.length === 0) {
-        return dedupedNextItems;
-    }
-
-    const existing = dedupedNextItems.filter((item) => previousUrlSet.has(item.url.trim()));
-    return dedupeCustomAlertArticles([...newlyFetched, ...existing]);
 }
 
 function getVisitScheduleKey(userId: string | null) {
@@ -509,11 +425,13 @@ export default function Home() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [alertContextReady, setAlertContextReady] = useState(false);
     const [treatmentMeta, setTreatmentMeta] = useState<TreatmentMeta | null>(null);
-    const [stageType, setStageType] = useState<StageType>('medication');
     const [customAlertItems, setCustomAlertItems] = useState<CustomAlertArticle[]>([]);
     const [customAlertUpdatedAt, setCustomAlertUpdatedAt] = useState('');
     const [customAlertLoading, setCustomAlertLoading] = useState(false);
-    const [customAlertPage, setCustomAlertPage] = useState(0);
+    const [visibleAlertCount, setVisibleAlertCount] = useState(ALERT_PAGE_SIZE);
+    const [customAlertError, setCustomAlertError] = useState('');
+    const [customAlertPartial, setCustomAlertPartial] = useState(false);
+    const [alertRetry, setAlertRetry] = useState(0);
     const [authUserId, setAuthUserId] = useState<string | null>(null);
     const [visitSchedules, setVisitSchedules] = useState<VisitScheduleItem[]>([]);
     const [showVisitScheduleModal, setShowVisitScheduleModal] = useState(false);
@@ -564,7 +482,7 @@ export default function Home() {
             }
         };
 
-        void pickEmbeddableHymn();
+        if (SHOW_DAILY_HYMN) void pickEmbeddableHymn();
 
         return () => {
             cancelled = true;
@@ -580,10 +498,9 @@ export default function Home() {
     );
 
     const resolvedCancerType = treatmentMeta?.cancerType?.trim() ?? '';
-    const resolvedCancerStage = treatmentMeta?.cancerStage?.trim() ?? '';
     const customAlertSummary =
         isLoggedIn && resolvedCancerType
-            ? `${resolvedCancerType} / ${STAGE_TYPE_LABELS[stageType]} 기준 소식`
+            ? `${resolvedCancerType} 관련 소식과 공통 건강 정보`
             : '암종 공통 건강 소식';
 
     useEffect(() => {
@@ -594,7 +511,6 @@ export default function Home() {
                 if (!cancelled) {
                     setIsLoggedIn(false);
                     setTreatmentMeta(null);
-                    setStageType('medication');
                     setAuthUserId(null);
                     setAlertContextReady(true);
                 }
@@ -606,7 +522,6 @@ export default function Home() {
                 if (!cancelled) {
                     setIsLoggedIn(false);
                     setTreatmentMeta(null);
-                    setStageType('medication');
                     setAuthUserId(null);
                     setAlertContextReady(true);
                 }
@@ -649,31 +564,39 @@ export default function Home() {
                 }
             }
 
-            const { data: stageData } = await supabase
-                .from('treatment_stages')
-                .select('stage_type, status, stage_order, created_at')
-                .eq('user_id', uid)
-                .order('stage_order', { ascending: true })
-                .order('created_at', { ascending: true });
-
-            if (cancelled) {
-                return;
-            }
-
-            const stages = (stageData as TreatmentStageRow[] | null) ?? [];
-            const activeStage = stages.find((stage) => stage.status === 'active') ?? stages[0];
-            if (activeStage) {
-                setStageType(activeStage.stage_type);
-            }
             if (!cancelled) {
                 setAlertContextReady(true);
             }
         };
 
         void loadAlertContext();
+        const subscription = supabase?.auth.onAuthStateChange((event) => {
+            if (event !== 'SIGNED_OUT') return;
+            // The header signs out in place, so remove the previous patient's data immediately.
+            cancelled = true;
+            setIsLoggedIn(false);
+            setAuthUserId(null);
+            setTreatmentMeta(null);
+            setVisitSchedules([]);
+            setShowVisitScheduleModal(false);
+            setShowVisitScheduleForm(false);
+            setEditingVisitId(null);
+            setVisitDateInput('');
+            setVisitTimeInput('');
+            setVisitHospitalInput('');
+            setVisitTreatmentInput('');
+            setVisitPreparationInput('');
+            setVisitFormMessage('');
+            setCustomAlertItems([]);
+            setCustomAlertUpdatedAt('');
+            setCustomAlertError('');
+            setCustomAlertPartial(false);
+            setAlertContextReady(true);
+        }).data.subscription;
 
         return () => {
             cancelled = true;
+            subscription?.unsubscribe();
         };
     }, []);
 
@@ -699,28 +622,34 @@ export default function Home() {
 
         const loadCustomAlerts = async () => {
             setCustomAlertLoading(true);
+            setCustomAlertError('');
+            setCustomAlertPartial(false);
+            setVisibleAlertCount(ALERT_PAGE_SIZE);
             const params = new URLSearchParams();
             if (isLoggedIn && resolvedCancerType) {
                 params.set('cancerType', resolvedCancerType);
-                params.set('stageType', stageType);
-                if (resolvedCancerStage) {
-                    params.set('cancerStage', resolvedCancerStage);
-                }
             } else {
                 params.set('mode', 'general');
             }
             const cacheKey = buildCustomAlertCacheKey(params);
-            const cached = parseCustomAlertCache(localStorage.getItem(cacheKey));
+            let cached: CustomAlertCache | null = null;
+            try {
+                cached = parseCustomAlertCache(sessionStorage.getItem(cacheKey));
+            } catch {
+                // News remains usable when browser storage is unavailable.
+            }
             const cachedUpdatedMs = cached ? Date.parse(cached.updatedAt) : Number.NaN;
             const isCacheFresh =
                 cached !== null &&
                 Number.isFinite(cachedUpdatedMs) &&
+                cachedUpdatedMs <= Date.now() &&
                 Date.now() - cachedUpdatedMs < ALERT_CACHE_TTL_MS;
 
-            if (isCacheFresh) {
+            if (isCacheFresh && cached && alertRetry === 0) {
                 if (!cancelled) {
                     setCustomAlertItems(cached.items);
                     setCustomAlertUpdatedAt(cached.updatedAt);
+                    setCustomAlertPartial(cached.partial === true);
                     setCustomAlertLoading(false);
                 }
                 return;
@@ -728,12 +657,14 @@ export default function Home() {
 
             try {
                 const response = await fetch(`/api/custom-alerts?${params.toString()}`);
+                if (!response.ok) throw new Error('Alert sources unavailable');
                 const payload = (await response.json()) as {
                     items?: CustomAlertArticle[];
                     updatedAt?: string;
+                    partial?: boolean;
                 };
                 const nextItems = Array.isArray(payload.items) ? payload.items : [];
-                const orderedNextItems = prioritizeNewCustomAlertItems(nextItems, cached?.items ?? []);
+                const orderedNextItems = filterAlertArticles(nextItems);
                 const nextUpdatedAt =
                     typeof payload.updatedAt === 'string' && payload.updatedAt
                         ? payload.updatedAt
@@ -742,19 +673,25 @@ export default function Home() {
                 if (!cancelled) {
                     setCustomAlertItems(orderedNextItems);
                     setCustomAlertUpdatedAt(nextUpdatedAt);
+                    setCustomAlertPartial(payload.partial === true);
                 }
 
-                localStorage.setItem(
-                    cacheKey,
-                    JSON.stringify({
+                try {
+                    sessionStorage.setItem(cacheKey, JSON.stringify({
                         items: orderedNextItems,
                         updatedAt: nextUpdatedAt,
-                    } satisfies CustomAlertCache)
-                );
+                        partial: payload.partial === true,
+                    } satisfies CustomAlertCache));
+                } catch {
+                    // A storage failure does not turn a successful news fetch into an error.
+                }
             } catch {
                 if (!cancelled) {
+                    setCustomAlertError(cached?.items.length
+                        ? '최신 소식을 불러오지 못해 저장된 소식을 보여드려요.'
+                        : '소식을 불러오지 못했어요. 다시 시도해 주세요.');
                     if (cached) {
-                        setCustomAlertItems(cached.items);
+                        setCustomAlertItems(filterAlertArticles(cached.items));
                         setCustomAlertUpdatedAt(cached.updatedAt);
                     } else {
                         setCustomAlertItems([]);
@@ -773,32 +710,9 @@ export default function Home() {
         return () => {
             cancelled = true;
         };
-    }, [alertContextReady, isLoggedIn, resolvedCancerType, resolvedCancerStage, stageType]);
+    }, [alertContextReady, isLoggedIn, resolvedCancerType, alertRetry]);
 
-    useEffect(() => {
-        setCustomAlertPage(0);
-    }, [customAlertItems]);
-
-    const customAlertPageCount = Math.max(1, Math.ceil(customAlertItems.length / ALERT_PAGE_SIZE));
-
-    useEffect(() => {
-        if (customAlertPageCount <= 1) {
-            return;
-        }
-
-        const intervalId = window.setInterval(() => {
-            setCustomAlertPage((prev) => (prev + 1) % customAlertPageCount);
-        }, ALERT_AUTO_SLIDE_MS);
-
-        return () => {
-            window.clearInterval(intervalId);
-        };
-    }, [customAlertPageCount]);
-
-    const visibleCustomAlerts = useMemo(() => {
-        const start = customAlertPage * ALERT_PAGE_SIZE;
-        return customAlertItems.slice(start, start + ALERT_PAGE_SIZE);
-    }, [customAlertItems, customAlertPage]);
+    const visibleCustomAlerts = customAlertItems.slice(0, visibleAlertCount);
 
     const upcomingVisit = useMemo(() => {
         if (visitSchedules.length === 0) {
@@ -810,7 +724,7 @@ export default function Home() {
             const parsed = Date.parse(`${item.visitDate}T${item.visitTime || '00:00'}:00`);
             return Number.isFinite(parsed) && parsed >= now;
         });
-        return upcoming ?? visitSchedules[visitSchedules.length - 1];
+        return upcoming ?? null;
     }, [visitSchedules]);
 
     const syncVisitSchedulesToMetadata = async (nextItems: VisitScheduleItem[]) => {
@@ -839,18 +753,16 @@ export default function Home() {
     const persistVisitSchedules = async (
         nextItemsOrUpdater: VisitScheduleItem[] | ((current: VisitScheduleItem[]) => VisitScheduleItem[])
     ) => {
-        let normalized = [] as VisitScheduleItem[];
-        setVisitSchedules((current) => {
-            const nextItems =
-                typeof nextItemsOrUpdater === 'function' ? nextItemsOrUpdater(current) : nextItemsOrUpdater;
-            normalized = normalizeVisitScheduleList(nextItems);
-            try {
-                localStorage.setItem(getVisitScheduleKey(authUserId), JSON.stringify(normalized));
-            } catch (storageError) {
-                console.error('진료 일정 로컬 저장 실패', storageError);
-            }
-            return normalized;
-        });
+        const nextItems = typeof nextItemsOrUpdater === 'function'
+            ? nextItemsOrUpdater(visitSchedules)
+            : nextItemsOrUpdater;
+        const normalized = normalizeVisitScheduleList(nextItems);
+        setVisitSchedules(normalized);
+        try {
+            localStorage.setItem(getVisitScheduleKey(authUserId), JSON.stringify(normalized));
+        } catch (storageError) {
+            console.error('진료 일정 로컬 저장 실패', storageError);
+        }
 
         return await syncVisitSchedulesToMetadata(normalized);
     };
@@ -959,8 +871,12 @@ export default function Home() {
     };
 
     return (
-        <main className="mx-auto max-w-4xl space-y-5 py-6">
-            <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto max-w-4xl space-y-5 py-4 sm:py-6">
+            <header>
+                <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">오늘도, 나를 위한 한 끼</h1>
+                <p className="mt-1 text-base text-gray-600 dark:text-gray-300">식단을 확인하고 먹은 음식을 기록해 보세요.</p>
+            </header>
+            <section aria-label="자주 쓰는 메뉴" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Link
                     href="/diet"
                     className="quickTileMono quickTileMono--emerald w-full"
@@ -970,7 +886,7 @@ export default function Home() {
                     </span>
                     <span className="quickTileMono__content">
                         <span className="quickTileMono__label text-lg">오늘 식단</span>
-                        <span className="quickTileMono__hint">추천 메뉴와 섭취량</span>
+                        <span className="quickTileMono__hint">나에게 맞는 메뉴</span>
                     </span>
                 </Link>
                 <Link
@@ -981,8 +897,8 @@ export default function Home() {
                         <NotebookPen className="quickTileMono__icon" />
                     </span>
                     <span className="quickTileMono__content">
-                        <span className="quickTileMono__label text-lg">오늘 기록</span>
-                        <span className="quickTileMono__hint">먹은 음식 체크</span>
+                        <span className="quickTileMono__label text-lg">식사 기록</span>
+                        <span className="quickTileMono__hint">먹은 음식 남기기</span>
                     </span>
                 </Link>
                 <Link
@@ -1021,13 +937,13 @@ export default function Home() {
                             >
                                 <CalendarClock className="h-4 w-4" />
                             </span>
-                            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">병원 방문/진료 일정</h2>
+                            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">진료 일정</h2>
                             <span className="rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                                 총 {visitSchedules.length}건
                             </span>
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 pl-10">
-                            <p className="truncate text-sm text-gray-600 dark:text-gray-300">
+                            <p className="break-words text-sm text-gray-600 dark:text-gray-300">
                                 {upcomingVisit
                                     ? `${formatVisitScheduleDate(upcomingVisit.visitDate)} ${formatVisitScheduleTime(upcomingVisit.visitTime)} · ${
                                           upcomingVisit.hospitalName || '병원 미입력'
@@ -1056,7 +972,7 @@ export default function Home() {
                                 : 'ctaMono ctaMono--sky'
                         }
                     >
-                        일정 보기
+                        {visitSchedules.length ? '일정 보기' : '일정 추가'}
                     </button>
                 </div>
             </section>
@@ -1091,82 +1007,53 @@ export default function Home() {
                 </section>
             )}
 
-            <section className="surfacePanel p-5">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">맞춤 알림</h2>
-                <div className="mt-1 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="min-w-0 text-sm text-gray-600 dark:text-gray-300">{customAlertSummary}</p>
-                    <span className="shrink-0 whitespace-nowrap rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                        {customAlertUpdatedAt ? formatAlertUpdatedAgo(customAlertUpdatedAt) : '업데이트 시간 미확인'}
-                    </span>
+            <section className="surfacePanel p-4 sm:p-5" aria-labelledby="custom-alert-heading">
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <h2 id="custom-alert-heading" className="text-lg font-bold text-gray-900 dark:text-gray-100">맞춤 알림</h2>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{customAlertSummary}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">최근 2개월</span>
                 </div>
-
                 {isLoggedIn && !treatmentMeta && (
-                    <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
-                        <Link href="/profile" className="font-semibold underline">
-                            내 정보
-                        </Link>
-                        에서 암 종류를 먼저 입력해 주세요.
-                    </p>
+                    <Link href="/profile" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-emerald-700 underline dark:text-emerald-300">내 정보로 소식 맞추기</Link>
                 )}
-
-                {customAlertLoading && (
-                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">관련 공지를 확인하는 중이에요…</p>
-                )}
-
-                {!customAlertLoading && customAlertItems.length === 0 && (
-                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-                        현재 키워드에 맞는 주요 공지가 아직 없어요.
-                    </p>
-                )}
-
-                {!customAlertLoading && customAlertItems.length > 0 && (
-                    <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-800">
-                        <div className="divide-y divide-gray-200 dark:divide-gray-800">
-                            {visibleCustomAlerts.map((alertItem, index) => (
-                                <a
-                                    key={`${alertItem.url}-${index}`}
-                                    href={alertItem.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    title={alertItem.title}
-                                    className="block px-3 py-2 transition hover:bg-gray-100 dark:hover:bg-gray-800"
-                                >
-                                    <p className="truncate text-sm font-semibold text-gray-700 dark:text-gray-200">
-                                        {customAlertPage * ALERT_PAGE_SIZE + index + 1}. {alertItem.title}
-                                    </p>
-                                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                        {alertItem.source} · {formatAlertDate(alertItem.publishedAt)} · {formatAlertUpdatedAgo(alertItem.publishedAt)}
-                                    </p>
-                                </a>
-                            ))}
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-3 py-1 dark:border-gray-800">
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setCustomAlertPage((prev) => (prev - 1 + customAlertPageCount) % customAlertPageCount)
-                                }
-                                className="rounded px-2 py-0.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-default disabled:opacity-100 disabled:text-gray-400 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-100 dark:disabled:text-gray-500 dark:disabled:hover:bg-transparent dark:disabled:hover:text-gray-500"
-                                disabled={customAlertPageCount <= 1}
-                                aria-label="이전 알림 5개 보기"
-                            >
-                                ◀ 이전
-                            </button>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {customAlertPage + 1}/{customAlertPageCount} 페이지 · 총 {customAlertItems.length}건
-                            </p>
-                            <button
-                                type="button"
-                                onClick={() => setCustomAlertPage((prev) => (prev + 1) % customAlertPageCount)}
-                                className="rounded px-2 py-0.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 hover:text-gray-900 disabled:cursor-default disabled:opacity-100 disabled:text-gray-400 disabled:hover:bg-transparent disabled:hover:text-gray-400 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-gray-100 dark:disabled:text-gray-500 dark:disabled:hover:bg-transparent dark:disabled:hover:text-gray-500"
-                                disabled={customAlertPageCount <= 1}
-                                aria-label="다음 알림 5개 보기"
-                            >
-                                다음 ▶
-                            </button>
-                        </div>
+                {customAlertLoading && <p role="status" className="mt-4 text-base text-gray-600 dark:text-gray-300">새 소식을 불러오고 있어요…</p>}
+                {!customAlertLoading && customAlertError && (
+                    <div className="mt-4 rounded-lg bg-gray-50 p-3 dark:bg-gray-800" role="status">
+                        <p className="text-sm text-gray-700 dark:text-gray-200">{customAlertError}</p>
+                        <button type="button" onClick={() => setAlertRetry((value) => value + 1)} className="mt-1 min-h-11 font-semibold text-emerald-700 underline dark:text-emerald-300">다시 불러오기</button>
                     </div>
                 )}
+                {!customAlertLoading && !customAlertError && customAlertItems.length === 0 && (
+                    <p className="mt-4 text-base text-gray-600 dark:text-gray-300">최근 2개월 안에 등록된 관련 소식이 아직 없어요.</p>
+                )}
+                {!customAlertLoading && customAlertItems.length > 0 && (
+                    <>
+                        <ul className="mt-3 divide-y divide-gray-200 dark:divide-gray-800">
+                            {visibleCustomAlerts.map((alertItem) => (
+                                <li key={alertItem.url}>
+                                    <a href={alertItem.url} target="_blank" rel="noopener noreferrer" className="block rounded-lg py-4 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600 dark:hover:bg-gray-800">
+                                        <p className="break-words text-base font-semibold leading-relaxed text-gray-900 dark:text-gray-100">{alertItem.title}<span className="sr-only"> (새 창)</span></p>
+                                        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                                            {alertItem.kind === 'official' && <span className="font-medium text-emerald-700 dark:text-emerald-300">기관 소식</span>}
+                                            <span>{alertItem.source}</span>
+                                            <span aria-hidden="true">·</span>
+                                            <time>{formatAlertDate(alertItem.publishedAt)}</time>
+                                        </p>
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                        {visibleAlertCount < customAlertItems.length && (
+                            <button type="button" onClick={() => setVisibleAlertCount((value) => value + ALERT_PAGE_SIZE)} className="mt-2 min-h-12 w-full rounded-xl border border-gray-300 text-base font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">소식 더 보기</button>
+                        )}
+                    </>
+                )}
+                {!customAlertLoading && customAlertPartial && !customAlertError && (
+                    <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">일부 출처에 연결되지 않아 확인된 소식만 보여드려요.</p>
+                )}
+                {!customAlertLoading && customAlertUpdatedAt && <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{formatAlertUpdatedAgo(customAlertUpdatedAt)} · 같은 소식은 한 번만</p>}
             </section>
 
             {showVisitScheduleModal && (
@@ -1185,7 +1072,7 @@ export default function Home() {
                     >
                         <div className="galaxySafeHeader">
                             <div className="galaxySafeHeader__main">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">병원 방문/진료 일정</h3>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">진료 일정</h3>
                             </div>
                             <button
                                 type="button"
@@ -1390,6 +1277,6 @@ export default function Home() {
                     </section>
                 </div>
             )}
-        </main>
+        </div>
     );
 }

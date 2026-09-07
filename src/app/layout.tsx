@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { MapPinned, NotebookPen, ShoppingCart, Utensils } from 'lucide-react';
+import { Leaf, MapPinned, NotebookPen, ShoppingCart, Utensils } from 'lucide-react';
+import BottomNavigation from '@/components/BottomNavigation';
 import AuthActionButton from '@/components/AuthActionButton';
 import MobileCategoryMenu from '@/components/MobileCategoryMenu';
 import TextSizeToggle from '@/components/TextSizeToggle';
@@ -19,13 +21,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-    title: '암 치료 식단 기록',
-    description: '치료 단계와 식단을 기록하는 도구',
+    title: 'IamFine · 나를 위한 식사',
+    description: '내 치료 상태에 맞는 식단, 간편한 식사 기록과 새로운 건강 정보',
 };
 
 export const viewport: Viewport = {
     width: 'device-width',
     initialScale: 1,
+    viewportFit: 'cover',
+    themeColor: '#f6f8f7',
 };
 
 const CATEGORY_LINKS = [
@@ -35,7 +39,11 @@ const CATEGORY_LINKS = [
     { href: '/restaurants', label: '건강식당', icon: MapPinned },
 ];
 const MOBILE_CATEGORY_LINKS = [
+    { href: '/', label: '홈' },
     ...CATEGORY_LINKS.map(({ href, label }) => ({ href, label })),
+    { href: '/diet/calendar', label: '식사 달력' },
+    { href: '/diet/report', label: '식사 리포트' },
+    { href: '/treatment', label: '치료 일정' },
     { href: '/profile', label: '내 정보' },
 ];
 
@@ -76,21 +84,20 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-gray-50 text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100`}
             >
                 <div className="appShell min-h-screen">
+                    <a href="#main-content" className="skipLink">본문으로 이동</a>
                     <header className="appHeader sticky top-0 z-30 border-b border-gray-200 bg-white/95 backdrop-blur-sm dark:border-gray-800 dark:bg-gray-950/96">
                         <div className="mx-auto flex min-h-14 w-full max-w-4xl items-center justify-between px-4 py-2">
                             <Link
                                 href="/"
+                                aria-label="IamFine 홈"
                                 className="inline-flex shrink-0 items-center gap-2 no-underline"
                             >
                                 <span className="brandMark inline-flex h-8 w-8 items-center justify-center rounded-lg text-sm font-black text-white shadow-sm">
-                                    I
+                                    <Leaf size={20} aria-hidden="true" />
                                 </span>
                                 <span className="hidden min-[360px]:inline">
                                     <span className="block text-base font-black leading-none text-gray-900 dark:text-gray-100">
                                         Iam<span className="text-emerald-600 dark:text-emerald-300">Fine</span>
-                                    </span>
-                                    <span className="hidden text-[10px] font-semibold uppercase text-gray-500 dark:text-gray-400 sm:block">
-                                        Care meal
                                     </span>
                                 </span>
                             </Link>
@@ -128,7 +135,8 @@ export default function RootLayout({
                         </nav>
                     </header>
 
-                    <main className="mx-auto w-full max-w-4xl px-4 py-5">{children}</main>
+                    <main id="main-content" tabIndex={-1} className="appMain mx-auto w-full max-w-4xl px-4 py-5">{children}</main>
+                    <Suspense fallback={null}><BottomNavigation /></Suspense>
                 </div>
             </body>
         </html>

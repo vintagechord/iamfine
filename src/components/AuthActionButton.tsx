@@ -15,6 +15,7 @@ export default function AuthActionButton({
 }: AuthActionButtonProps) {
     const [loggedIn, setLoggedIn] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [signOutError, setSignOutError] = useState(false);
 
     useEffect(() => {
         let mounted = true;
@@ -65,9 +66,20 @@ export default function AuthActionButton({
         }
 
         setLoading(true);
-        await supabase.auth.signOut();
-        setLoading(false);
-        setLoggedIn(false);
+        setSignOutError(false);
+        try {
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+                setSignOutError(true);
+                return;
+            }
+            // A fresh page clears patient data held by any mounted client page.
+            window.location.assign('/auth?mode=login');
+        } catch {
+            setSignOutError(true);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const baseClassName =
@@ -89,8 +101,9 @@ export default function AuthActionButton({
                     className={baseClassName}
                     aria-label="로그아웃"
                 >
-                    {loading ? '처리 중...' : '로그아웃'}
+                    {loading ? '처리 중...' : signOutError ? '로그아웃 재시도' : '로그아웃'}
                 </button>
+                {signOutError && <span role="status" className="sr-only">로그아웃하지 못했어요. 연결을 확인하고 다시 시도해 주세요.</span>}
             </div>
         );
     }

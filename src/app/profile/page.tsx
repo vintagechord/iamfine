@@ -10,6 +10,15 @@ import {
     type ConditionCatalogItem,
 } from '@/lib/additionalConditions';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import {
+    AVOIDED_INGREDIENT_OPTIONS,
+    EATING_SYMPTOM_OPTIONS,
+    PERSONALIZATION_GUIDANCE_URL,
+    describeFoodPersonalization,
+    parseFoodPersonalization,
+    readFoodPersonalization,
+    type FoodPersonalization,
+} from '@/lib/personalization';
 
 type ProfileRow = {
     user_id: string;
@@ -69,7 +78,7 @@ type TreatmentStageRow = {
     updated_at: string;
 };
 
-type ProfileTab = 'health' | 'medication' | 'treatment' | 'additional_disease';
+type ProfileTab = 'food' | 'health' | 'medication' | 'treatment' | 'additional_disease';
 
 type Feedback = {
     type: 'success' | 'error';
@@ -91,10 +100,11 @@ const MEDICATION_TIMING_OPTIONS: Array<{ value: MedicationTiming; label: string 
 ];
 const MEDICATION_CATEGORY_OPTIONS = ['미분류', '항암/표적', '호르몬', '부작용 완화', '영양/기타'] as const;
 const PROFILE_TABS: Array<{ key: ProfileTab; label: string }> = [
+    { key: 'food', label: '식사 맞춤' },
     { key: 'health', label: '기본 정보' },
-    { key: 'medication', label: '약 복용 정보' },
+    { key: 'medication', label: '복용 약' },
     { key: 'treatment', label: '치료 정보' },
-    { key: 'additional_disease', label: '추가 질병' },
+    { key: 'additional_disease', label: '함께 관리할 질환' },
 ];
 const STAGE_TYPE_OPTIONS: StageType[] = [
     'diagnosis',
@@ -380,6 +390,7 @@ function buildUpdatedUserMetadata(
         medications: string[];
         medicationSchedules: MedicationSchedule[];
         additionalConditions: AdditionalCondition[];
+        foodPersonalization: FoodPersonalization;
     }>
 ) {
     const { root } = readIamfineMetadata(raw);
@@ -449,16 +460,14 @@ function toFriendlyError(code?: string, message?: string) {
     return '요청 처리 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.';
 }
 
-function showSaveCompletePopup() {
-    if (typeof window !== 'undefined') {
-        window.alert('저장이 완료되었습니다.');
-    }
-}
-
 export default function ProfilePage() {
     const [loading, setLoading] = useState(true);
     const [userId, setUserId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<ProfileTab>('health');
+    const [activeTab, setActiveTab] = useState<ProfileTab>('food');
+
+    const [foodPersonalization, setFoodPersonalization] = useState<FoodPersonalization>(() => parseFoodPersonalization(null));
+    const [savedFoodPersonalization, setSavedFoodPersonalization] = useState<FoodPersonalization>(() => parseFoodPersonalization(null));
+    const [savingFoodPersonalization, setSavingFoodPersonalization] = useState(false);
 
     const [profile, setProfile] = useState<ProfileRow | null>(null);
     const [nickname, setNickname] = useState('');
@@ -651,6 +660,9 @@ export default function ProfilePage() {
             setUserId(uid);
 
             const metadata = readIamfineMetadata(authUser.user_metadata);
+            const foodSettings = readFoodPersonalization(authUser.user_metadata);
+            setFoodPersonalization(foodSettings);
+            setSavedFoodPersonalization(foodSettings);
             const localTreatmentMeta = parseTreatmentMeta(localStorage.getItem(getTreatmentMetaKey(uid)));
             const treatmentMeta = metadata.treatmentMeta ?? localTreatmentMeta;
             setCancerType(treatmentMeta?.cancerType ?? '');
@@ -797,7 +809,7 @@ export default function ProfilePage() {
         setIsAvailable(null);
 
         if (!hasSupabaseEnv || !supabase) {
-            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            setFeedback({ type: 'error', text: '서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.' });
             return;
         }
 
@@ -852,7 +864,7 @@ export default function ProfilePage() {
         setFeedback(null);
 
         if (!hasSupabaseEnv || !supabase) {
-            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            setFeedback({ type: 'error', text: '서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.' });
             return;
         }
 
@@ -914,14 +926,13 @@ export default function ProfilePage() {
         setProfile((prev) => (prev ? { ...prev, nickname: normalized } : prev));
         setIsAvailable(true);
         setFeedback({ type: 'success', text: '저장했어요.' });
-        showSaveCompletePopup();
     };
 
     const saveHealthInfo = async () => {
         setFeedback(null);
 
         if (!hasSupabaseEnv || !supabase) {
-            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            setFeedback({ type: 'error', text: '서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.' });
             return;
         }
 
@@ -934,7 +945,7 @@ export default function ProfilePage() {
         const parsedHeightCm = heightCm.trim() ? Number(heightCm) : null;
         const parsedWeightKg = weightKg.trim() ? Number(weightKg) : null;
 
-        if (parsedBirthYear !== null && (!Number.isInteger(parsedBirthYear) || parsedBirthYear < 1900)) {
+        if (parsedBirthYear !== null && (!Number.isInteger(parsedBirthYear) || parsedBirthYear < 1900 || parsedBirthYear > new Date().getFullYear())) {
             setFeedback({ type: 'error', text: '출생연도는 올바른 숫자로 입력해 주세요.' });
             return;
         }
@@ -978,14 +989,13 @@ export default function ProfilePage() {
         );
 
         setFeedback({ type: 'success', text: '기본 정보를 저장했어요.' });
-        showSaveCompletePopup();
     };
 
     const saveMedicationInfo = async () => {
         setFeedback(null);
 
         if (!hasSupabaseEnv || !supabase) {
-            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            setFeedback({ type: 'error', text: '서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.' });
             return;
         }
 
@@ -1050,7 +1060,6 @@ export default function ProfilePage() {
             setMedicationCategoryDraft('미분류');
             setMedicationTimingDraft('breakfast');
             setFeedback({ type: 'success', text: '복용 약 정보를 저장했어요.' });
-            showSaveCompletePopup();
         } finally {
             setSavingMedicationInfo(false);
         }
@@ -1060,7 +1069,7 @@ export default function ProfilePage() {
         setFeedback(null);
 
         if (!hasSupabaseEnv || !supabase) {
-            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            setFeedback({ type: 'error', text: '서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.' });
             return;
         }
 
@@ -1106,7 +1115,6 @@ export default function ProfilePage() {
             setCancerType(nextCancerType);
             setCancerStage(cancerStage.trim());
             setFeedback({ type: 'success', text: '치료 정보를 저장했어요.' });
-            showSaveCompletePopup();
         } finally {
             setSavingTreatmentInfo(false);
         }
@@ -1117,7 +1125,7 @@ export default function ProfilePage() {
         setFeedback(null);
 
         if (!hasSupabaseEnv || !supabase) {
-            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            setFeedback({ type: 'error', text: '서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.' });
             return;
         }
 
@@ -1188,7 +1196,7 @@ export default function ProfilePage() {
         setFeedback(null);
 
         if (!hasSupabaseEnv || !supabase) {
-            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            setFeedback({ type: 'error', text: '서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.' });
             return;
         }
 
@@ -1302,7 +1310,7 @@ export default function ProfilePage() {
         setFeedback(null);
 
         if (!hasSupabaseEnv || !supabase) {
-            setFeedback({ type: 'error', text: '설정이 필요해요. .env.local 파일을 확인해 주세요.' });
+            setFeedback({ type: 'error', text: '서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.' });
             return;
         }
 
@@ -1331,13 +1339,43 @@ export default function ProfilePage() {
             }
 
             setFeedback({ type: 'success', text: '추가 질병 정보를 저장했어요.' });
-            showSaveCompletePopup();
         } finally {
             setSavingAdditionalConditions(false);
         }
     };
 
+    const saveFoodPersonalization = async () => {
+        if (!supabase || !userId || savingFoodPersonalization) return;
+        setSavingFoodPersonalization(true);
+        setFeedback(null);
+        try {
+            const { user: authUser, error: authError } = await getAuthSessionUser();
+            if (authError || !authUser || authUser.id !== userId) {
+                setFeedback({ type: 'error', text: '다시 로그인한 뒤 저장해 주세요.' });
+                return;
+            }
+            const next = { ...parseFoodPersonalization(foodPersonalization), updatedAt: new Date().toISOString() };
+            const { error } = await supabase.auth.updateUser({
+                data: buildUpdatedUserMetadata(authUser.user_metadata, { foodPersonalization: next }),
+            });
+            if (error) {
+                setFeedback({ type: 'error', text: '식사 맞춤을 저장하지 못했어요. 다시 시도해 주세요.' });
+                return;
+            }
+            setFoodPersonalization(next);
+            setSavedFoodPersonalization(next);
+            setFeedback({ type: 'success', text: '저장했어요. 식단에서 맞춤 추천을 확인해 보세요.' });
+        } catch {
+            setFeedback({ type: 'error', text: '연결을 확인한 뒤 다시 저장해 주세요.' });
+        } finally {
+            setSavingFoodPersonalization(false);
+        }
+    };
+    const foodPersonalizationChanged = JSON.stringify(foodPersonalization) !== JSON.stringify(savedFoodPersonalization);
+    const foodPersonalizationSummary = describeFoodPersonalization(foodPersonalization);
+
     const isAnyProfileActionBusy =
+        savingFoodPersonalization ||
         checking ||
         saving ||
         savingMedicationInfo ||
@@ -1363,7 +1401,7 @@ export default function ProfilePage() {
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">내 정보</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                        설정이 필요해요. .env.local 파일을 확인해 주세요.
+                        서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.
                     </p>
                 </section>
             </main>
@@ -1392,7 +1430,7 @@ export default function ProfilePage() {
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">내 정보</h1>
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                    기본 정보, 약 복용 정보, 치료 정보를 탭으로 나눠 관리할 수 있어요.
+                    내 몸 상태와 식습관에 맞춰 추천을 준비해요.
                 </p>
             </section>
 
@@ -1410,15 +1448,16 @@ export default function ProfilePage() {
             )}
 
             <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-wrap gap-2">
+                <nav aria-label="내 정보 항목" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {PROFILE_TABS.map((tab) => {
                         const selected = activeTab === tab.key;
                         return (
                             <button
                                 key={tab.key}
                                 type="button"
-                                onClick={() => setActiveTab(tab.key)}
-                                className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                                onClick={() => { setActiveTab(tab.key); setFeedback(null); }}
+                                aria-pressed={selected}
+                                className={`min-h-12 rounded-lg border px-3 py-2 text-sm font-semibold transition ${tab.key === 'food' ? 'col-span-2 sm:col-span-1' : ''} ${
                                     selected
                                         ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
                                         : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
@@ -1428,14 +1467,82 @@ export default function ProfilePage() {
                             </button>
                         );
                     })}
-                </div>
+                </nav>
             </section>
+
+            {activeTab === 'food' && (
+                <section className="space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">나에게 편한 식사</h2>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">해당하는 것만 선택해 주세요. 몸 상태가 바뀌면 다시 바꿀 수 있어요.</p>
+                    </div>
+                    <fieldset disabled={savingFoodPersonalization}>
+                        <legend className="font-semibold text-gray-900 dark:text-gray-100">지금 식사할 때 불편한 점이 있나요?</legend>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                            {EATING_SYMPTOM_OPTIONS.map((option) => (
+                                <label key={option.value} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${foodPersonalization.symptoms.includes(option.value) ? 'border-emerald-600 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100' : 'border-gray-200 dark:border-gray-700'}`}>
+                                    <input type="checkbox" className="h-5 w-5 shrink-0 accent-emerald-700" checked={foodPersonalization.symptoms.includes(option.value)} onChange={(event) => {
+                                        const checked = event.target.checked;
+                                        setFoodPersonalization((previous) => ({ ...previous, symptoms: checked ? [...previous.symptoms, option.value] : previous.symptoms.filter((value) => value !== option.value) }));
+                                    }} />
+                                    {option.label}
+                                </label>
+                            ))}
+                        </div>
+                        {foodPersonalization.symptoms.length > 0 && (
+                            <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">먹거나 마시기 어렵거나 체중이 줄면 담당 의료진에게 알려 주세요.</p>
+                        )}
+                    </fieldset>
+                    <fieldset disabled={savingFoodPersonalization}>
+                        <legend className="font-semibold text-gray-900 dark:text-gray-100">어떤 식감이 편한가요?</legend>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                            {([{ value: 'regular', label: '보통 식사' }, { value: 'soft', label: '부드러운 식사' }] as const).map((option) => (
+                                <label key={option.value} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${foodPersonalization.texture === option.value ? 'border-emerald-600 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100' : 'border-gray-200 dark:border-gray-700'}`}>
+                                    <input type="radio" name="food-texture" value={option.value} className="h-5 w-5 shrink-0 accent-emerald-700" checked={foodPersonalization.texture === option.value} onChange={() => setFoodPersonalization((previous) => ({ ...previous, texture: option.value }))} />
+                                    {option.label}
+                                </label>
+                            ))}
+                        </div>
+                    </fieldset>
+                    <fieldset disabled={savingFoodPersonalization}>
+                        <legend className="font-semibold text-gray-900 dark:text-gray-100">피하고 싶은 재료가 있나요?</legend>
+                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {AVOIDED_INGREDIENT_OPTIONS.map((option) => (
+                                <label key={option.value} className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm ${foodPersonalization.avoidedIngredients.includes(option.value) ? 'border-emerald-600 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100' : 'border-gray-200 dark:border-gray-700'}`}>
+                                    <input type="checkbox" className="h-5 w-5 shrink-0 accent-emerald-700" checked={foodPersonalization.avoidedIngredients.includes(option.value)} onChange={(event) => {
+                                        const checked = event.target.checked;
+                                        setFoodPersonalization((previous) => ({ ...previous, avoidedIngredients: checked ? [...previous.avoidedIngredients, option.value] : previous.avoidedIngredients.filter((value) => value !== option.value) }));
+                                    }} />
+                                    {option.label}
+                                </label>
+                            ))}
+                        </div>
+                        <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">메뉴 이름을 기준으로 반영해요. 알레르기가 있다면 양념·육수와 제품의 원재료도 꼭 확인해 주세요.</p>
+                    </fieldset>
+                    <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{foodPersonalizationChanged ? '저장하면 반영돼요' : '현재 식사 맞춤'}</p>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{foodPersonalizationSummary.length > 0 ? foodPersonalizationSummary.join(' · ') : '선택한 항목이 없어요. 기본 식단을 추천해요.'}</p>
+                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                            <button type="button" onClick={saveFoodPersonalization} disabled={isAnyProfileActionBusy || (!foodPersonalizationChanged && !!savedFoodPersonalization.updatedAt)} className="primarySaveButton min-h-12 flex-1 rounded-xl px-4 py-3 text-base font-semibold disabled:opacity-60">
+                                {savingFoodPersonalization ? '저장 중…' : '식사 맞춤 저장'}
+                            </button>
+                            <Link href="/diet" className="flex min-h-12 flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-3 text-base font-semibold dark:border-gray-700 dark:bg-gray-900">내 식단 보기</Link>
+                        </div>
+                        <button type="button" disabled={isAnyProfileActionBusy} onClick={() => setFoodPersonalization(parseFoodPersonalization(null))} className="mt-2 min-h-11 text-sm text-gray-600 underline underline-offset-4 dark:text-gray-300">선택 모두 지우기</button>
+                    </div>
+                    <details className="text-sm text-gray-600 dark:text-gray-300">
+                        <summary className="min-h-11 cursor-pointer font-medium">정보 사용과 추천 기준</summary>
+                        <p className="mt-2">선택한 정보는 계정에 저장되어 식사 추천에 사용돼요. 선택을 지운 뒤 저장하면 추천에서도 해제돼요.</p>
+                        <p className="mt-2">치료별 제한식은 담당 의료진의 안내를 우선해 주세요. 증상별 식사 안내는 <a href={PERSONALIZATION_GUIDANCE_URL} target="_blank" rel="noopener noreferrer" className="underline">미국 국립암연구소(NCI)</a>의 환자 자료를 참고했어요.</p>
+                    </details>
+                </section>
+            )}
 
             {activeTab === 'health' && (
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">기본 정보</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        닉네임과 기본 정보를 관리할 수 있어요.
+                        출생연도, 키와 몸무게는 선택 사항이에요.
                     </p>
 
                     <div className="mt-4">
@@ -1459,7 +1566,7 @@ export default function ProfilePage() {
                             className="mt-2 w-full max-w-md rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
                         />
                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            한글, 영문, 숫자, 밑줄(_)을 포함해 2자 이상 20자 이하로 입력해 주세요.
+                            한글·영문·숫자·밑줄, 2~20자
                         </p>
                         <div className="mt-4 flex flex-wrap gap-2">
                             <button
@@ -1543,7 +1650,7 @@ export default function ProfilePage() {
                             </label>
                         </div>
                         <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-200">
-                            인종/배경(선택)
+                            국가·문화 배경(선택)
                             <select
                                 value={ethnicity}
                                 onChange={(event) => setEthnicity(event.target.value)}
@@ -1682,7 +1789,7 @@ export default function ProfilePage() {
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">추가 질병</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        암환자 식단 기준을 우선으로 유지하면서, 추가 질병도 일부 반영해 식단을 더 보수적으로 조정해요.
+                        함께 관리 중인 질환이 있다면 알려 주세요. 담당 의료진의 식사 지침을 먼저 따라 주세요.
                     </p>
 
                     <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-200">
