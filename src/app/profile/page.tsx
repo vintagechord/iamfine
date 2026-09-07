@@ -104,7 +104,7 @@ const PROFILE_TABS: Array<{ key: ProfileTab; label: string }> = [
     { key: 'health', label: '기본 정보' },
     { key: 'medication', label: '복용 약' },
     { key: 'treatment', label: '치료 정보' },
-    { key: 'additional_disease', label: '함께 관리할 질환' },
+    { key: 'additional_disease', label: '다른 질환' },
 ];
 const STAGE_TYPE_OPTIONS: StageType[] = [
     'diagnosis',
@@ -1386,8 +1386,8 @@ export default function ProfilePage() {
 
     if (loading) {
         return (
-            <main className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <main className="mx-auto w-full max-w-3xl space-y-6">
+                <section className="uiCard">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">내 정보</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">불러오는 중이에요…</p>
                 </section>
@@ -1397,8 +1397,8 @@ export default function ProfilePage() {
 
     if (!hasSupabaseEnv || !supabase) {
         return (
-            <main className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <main className="mx-auto w-full max-w-3xl space-y-6">
+                <section className="uiCard">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">내 정보</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                         서비스 연결을 확인하고 있어요. 잠시 후 다시 이용해 주세요.
@@ -1410,15 +1410,14 @@ export default function ProfilePage() {
 
     if (!userId) {
         return (
-            <main className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <main className="mx-auto w-full max-w-3xl space-y-6">
+                <section className="uiCard">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">내 정보</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">로그인이 필요해요.</p>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                        <Link href="/auth" className="font-semibold underline">
-                            로그인 페이지
+                        <Link href="/auth" className="uiButton uiButton--primary mt-3">
+                            로그인하기
                         </Link>
-                        에서 로그인해 주세요.
                     </p>
                 </section>
             </main>
@@ -1426,52 +1425,44 @@ export default function ProfilePage() {
     }
 
     return (
-        <main className="space-y-4">
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">내 정보</h1>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                    내 몸 상태와 식습관에 맞춰 추천을 준비해요.
-                </p>
-            </section>
+        <main className="mx-auto w-full max-w-3xl space-y-6">
+            <header className="uiPageHeader">
+                <h1>내 정보</h1>
+                <p>나의 몸 상태와 식습관에 맞춰 식단을 준비해요.</p>
+            </header>
 
             {feedback && (
                 <section
                     role={feedback.type === 'error' ? 'alert' : 'status'}
                     className={
                         feedback.type === 'error'
-                            ? 'rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-200'
-                            : 'rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                            ? 'rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200'
+                            : 'rounded-xl border border-[#dce5df] bg-[#f0f4f1] p-4 text-[#355642] dark:border-[#395243] dark:bg-[#24382e] dark:text-[#d6e6dc]'
                     }
                 >
                     <p className="text-sm font-medium">{feedback.text}</p>
                 </section>
             )}
 
-            <section className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <nav aria-label="내 정보 항목" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                    {PROFILE_TABS.map((tab) => {
-                        const selected = activeTab === tab.key;
-                        return (
-                            <button
-                                key={tab.key}
-                                type="button"
-                                onClick={() => { setActiveTab(tab.key); setFeedback(null); }}
-                                aria-pressed={selected}
-                                className={`min-h-12 rounded-lg border px-3 py-2 text-sm font-semibold transition ${tab.key === 'food' ? 'col-span-2 sm:col-span-1' : ''} ${
-                                    selected
-                                        ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
-                                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
-                                }`}
-                            >
-                                {tab.label}
-                            </button>
-                        );
-                    })}
-                </nav>
-            </section>
+            <nav aria-label="내 정보 항목" className="uiSegmented flex gap-1 overflow-x-auto">
+                {PROFILE_TABS.map((tab) => {
+                    const selected = activeTab === tab.key;
+                    return (
+                        <button
+                            key={tab.key}
+                            type="button"
+                            onClick={() => { setActiveTab(tab.key); setFeedback(null); }}
+                            aria-pressed={selected}
+                            className="uiButton uiButton--ghost shrink-0 whitespace-nowrap"
+                        >
+                            {tab.label}
+                        </button>
+                    );
+                })}
+            </nav>
 
             {activeTab === 'food' && (
-                <section className="space-y-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <section className="uiCard space-y-7">
                     <div>
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">나에게 편한 식사</h2>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">해당하는 것만 선택해 주세요. 몸 상태가 바뀌면 다시 바꿀 수 있어요.</p>
@@ -1480,8 +1471,8 @@ export default function ProfilePage() {
                         <legend className="font-semibold text-gray-900 dark:text-gray-100">지금 식사할 때 불편한 점이 있나요?</legend>
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
                             {EATING_SYMPTOM_OPTIONS.map((option) => (
-                                <label key={option.value} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${foodPersonalization.symptoms.includes(option.value) ? 'border-emerald-600 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100' : 'border-gray-200 dark:border-gray-700'}`}>
-                                    <input type="checkbox" className="h-5 w-5 shrink-0 accent-emerald-700" checked={foodPersonalization.symptoms.includes(option.value)} onChange={(event) => {
+                                <label key={option.value} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${foodPersonalization.symptoms.includes(option.value) ? 'border-[#497561] bg-[#eef3ef] text-[#293f34] dark:border-[#709982] dark:bg-[#24382e] dark:text-[#d6e6dc]' : 'border-gray-200 dark:border-gray-700'}`}>
+                                    <input type="checkbox" className="h-5 w-5 shrink-0 accent-[#497561]" checked={foodPersonalization.symptoms.includes(option.value)} onChange={(event) => {
                                         const checked = event.target.checked;
                                         setFoodPersonalization((previous) => ({ ...previous, symptoms: checked ? [...previous.symptoms, option.value] : previous.symptoms.filter((value) => value !== option.value) }));
                                     }} />
@@ -1497,8 +1488,8 @@ export default function ProfilePage() {
                         <legend className="font-semibold text-gray-900 dark:text-gray-100">어떤 식감이 편한가요?</legend>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             {([{ value: 'regular', label: '보통 식사' }, { value: 'soft', label: '부드러운 식사' }] as const).map((option) => (
-                                <label key={option.value} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${foodPersonalization.texture === option.value ? 'border-emerald-600 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100' : 'border-gray-200 dark:border-gray-700'}`}>
-                                    <input type="radio" name="food-texture" value={option.value} className="h-5 w-5 shrink-0 accent-emerald-700" checked={foodPersonalization.texture === option.value} onChange={() => setFoodPersonalization((previous) => ({ ...previous, texture: option.value }))} />
+                                <label key={option.value} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${foodPersonalization.texture === option.value ? 'border-[#497561] bg-[#eef3ef] text-[#293f34] dark:border-[#709982] dark:bg-[#24382e] dark:text-[#d6e6dc]' : 'border-gray-200 dark:border-gray-700'}`}>
+                                    <input type="radio" name="food-texture" value={option.value} className="h-5 w-5 shrink-0 accent-[#497561]" checked={foodPersonalization.texture === option.value} onChange={() => setFoodPersonalization((previous) => ({ ...previous, texture: option.value }))} />
                                     {option.label}
                                 </label>
                             ))}
@@ -1508,8 +1499,8 @@ export default function ProfilePage() {
                         <legend className="font-semibold text-gray-900 dark:text-gray-100">피하고 싶은 재료가 있나요?</legend>
                         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                             {AVOIDED_INGREDIENT_OPTIONS.map((option) => (
-                                <label key={option.value} className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm ${foodPersonalization.avoidedIngredients.includes(option.value) ? 'border-emerald-600 bg-emerald-50 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-100' : 'border-gray-200 dark:border-gray-700'}`}>
-                                    <input type="checkbox" className="h-5 w-5 shrink-0 accent-emerald-700" checked={foodPersonalization.avoidedIngredients.includes(option.value)} onChange={(event) => {
+                                <label key={option.value} className={`flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm ${foodPersonalization.avoidedIngredients.includes(option.value) ? 'border-[#497561] bg-[#eef3ef] text-[#293f34] dark:border-[#709982] dark:bg-[#24382e] dark:text-[#d6e6dc]' : 'border-gray-200 dark:border-gray-700'}`}>
+                                    <input type="checkbox" className="h-5 w-5 shrink-0 accent-[#497561]" checked={foodPersonalization.avoidedIngredients.includes(option.value)} onChange={(event) => {
                                         const checked = event.target.checked;
                                         setFoodPersonalization((previous) => ({ ...previous, avoidedIngredients: checked ? [...previous.avoidedIngredients, option.value] : previous.avoidedIngredients.filter((value) => value !== option.value) }));
                                     }} />
@@ -1523,12 +1514,12 @@ export default function ProfilePage() {
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{foodPersonalizationChanged ? '저장하면 반영돼요' : '현재 식사 맞춤'}</p>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{foodPersonalizationSummary.length > 0 ? foodPersonalizationSummary.join(' · ') : '선택한 항목이 없어요. 기본 식단을 추천해요.'}</p>
                         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                            <button type="button" onClick={saveFoodPersonalization} disabled={isAnyProfileActionBusy || (!foodPersonalizationChanged && !!savedFoodPersonalization.updatedAt)} className="primarySaveButton min-h-12 flex-1 rounded-xl px-4 py-3 text-base font-semibold disabled:opacity-60">
+                            <button type="button" onClick={saveFoodPersonalization} disabled={isAnyProfileActionBusy || (!foodPersonalizationChanged && !!savedFoodPersonalization.updatedAt)} className="uiButton uiButton--primary flex-1">
                                 {savingFoodPersonalization ? '저장 중…' : '식사 맞춤 저장'}
                             </button>
-                            <Link href="/diet" className="flex min-h-12 flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-3 text-base font-semibold dark:border-gray-700 dark:bg-gray-900">내 식단 보기</Link>
+                            <Link href="/diet" className="uiButton uiButton--secondary flex-1">식단 제안 보기</Link>
                         </div>
-                        <button type="button" disabled={isAnyProfileActionBusy} onClick={() => setFoodPersonalization(parseFoodPersonalization(null))} className="mt-2 min-h-11 text-sm text-gray-600 underline underline-offset-4 dark:text-gray-300">선택 모두 지우기</button>
+                        <button type="button" disabled={isAnyProfileActionBusy} onClick={() => setFoodPersonalization(parseFoodPersonalization(null))} className="uiButton uiButton--ghost uiButton--small mt-2">선택 모두 지우기</button>
                     </div>
                     <details className="text-sm text-gray-600 dark:text-gray-300">
                         <summary className="min-h-11 cursor-pointer font-medium">정보 사용과 추천 기준</summary>
@@ -1539,8 +1530,8 @@ export default function ProfilePage() {
             )}
 
             {activeTab === 'health' && (
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">기본 정보</h2>
+                <section className="uiCard">
+                    <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">기본 정보</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         출생연도, 키와 몸무게는 선택 사항이에요.
                     </p>
@@ -1563,7 +1554,7 @@ export default function ProfilePage() {
                                 setFeedback(null);
                             }}
                             placeholder="닉네임을 입력해 주세요"
-                            className="mt-2 w-full max-w-md rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
+                            className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2 max-w-md"
                         />
                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                             한글·영문·숫자·밑줄, 2~20자
@@ -1573,7 +1564,7 @@ export default function ProfilePage() {
                                 type="button"
                                 onClick={checkAvailability}
                                 disabled={checking || saving}
-                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="uiButton uiButton--secondary"
                             >
                                 {checking ? '확인 중…' : '중복 확인'}
                             </button>
@@ -1581,9 +1572,9 @@ export default function ProfilePage() {
                                 type="button"
                                 onClick={saveNickname}
                                 disabled={checking || saving}
-                                className="rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
+                                className="uiButton uiButton--primary"
                             >
-                                {saving ? '저장 중…' : '저장'}
+                                {saving ? '저장 중…' : '닉네임 저장'}
                             </button>
                         </div>
                         {isAvailable !== null && (
@@ -1607,7 +1598,7 @@ export default function ProfilePage() {
                                     value={birthYear}
                                     onChange={(event) => setBirthYear(event.target.value)}
                                     placeholder="예: 1988"
-                                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                                 />
                             </label>
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -1616,7 +1607,7 @@ export default function ProfilePage() {
                                     aria-label="성별"
                                     value={sex}
                                     onChange={(event) => setSex(event.target.value as ProfileRow['sex'])}
-                                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                                 >
                                     <option value="unknown">미입력</option>
                                     <option value="female">여성</option>
@@ -1633,7 +1624,7 @@ export default function ProfilePage() {
                                     value={heightCm}
                                     onChange={(event) => setHeightCm(event.target.value)}
                                     placeholder="예: 165"
-                                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                                 />
                             </label>
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -1645,7 +1636,7 @@ export default function ProfilePage() {
                                     value={weightKg}
                                     onChange={(event) => setWeightKg(event.target.value)}
                                     placeholder="예: 58"
-                                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                                 />
                             </label>
                         </div>
@@ -1654,7 +1645,7 @@ export default function ProfilePage() {
                             <select
                                 value={ethnicity}
                                 onChange={(event) => setEthnicity(event.target.value)}
-                                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                             >
                                 <option value="">선택 안함</option>
                                 {BACKGROUND_COUNTRY_OPTIONS.map((country) => (
@@ -1673,7 +1664,7 @@ export default function ProfilePage() {
                             type="button"
                             onClick={saveHealthInfo}
                             disabled={isAnyProfileActionBusy}
-                            className="mt-3 rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
+                            className="uiButton uiButton--primary mt-5 w-full sm:w-auto"
                         >
                             {saving ? '저장 중…' : '기본 정보 저장'}
                         </button>
@@ -1685,10 +1676,10 @@ export default function ProfilePage() {
             )}
 
             {activeTab === 'medication' && (
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">약 복용 정보</h2>
+                <section className="uiCard">
+                    <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">약 복용 정보</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        복용 약을 이름/분류/복용 시기로 관리할 수 있어요.
+                        약 이름과 복용 시간을 기록해 주세요.
                     </p>
 
                     <label className="mt-3 block text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -1711,14 +1702,14 @@ export default function ProfilePage() {
                                     }
                                 }}
                                 placeholder="약 이름"
-                                className="sm:col-span-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 sm:col-span-2"
                             />
                             <select
                                 value={medicationCategoryDraft}
                                 onChange={(event) =>
                                     setMedicationCategoryDraft(event.target.value as (typeof MEDICATION_CATEGORY_OPTIONS)[number])
                                 }
-                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                             >
                                 {MEDICATION_CATEGORY_OPTIONS.map((option) => (
                                     <option key={option} value={option}>
@@ -1729,7 +1720,7 @@ export default function ProfilePage() {
                             <select
                                 value={medicationTimingDraft}
                                 onChange={(event) => setMedicationTimingDraft(event.target.value as MedicationTiming)}
-                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                             >
                                 {MEDICATION_TIMING_OPTIONS.map((option) => (
                                     <option key={option.value} value={option.value}>
@@ -1742,7 +1733,7 @@ export default function ProfilePage() {
                             <button
                                 type="button"
                                 onClick={addMedicationScheduleDraft}
-                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="uiButton uiButton--secondary"
                             >
                                 약 추가
                             </button>
@@ -1757,14 +1748,14 @@ export default function ProfilePage() {
                                 medicationSchedules.map((medication) => (
                                     <span
                                         key={medication.id}
-                                        className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                                        className="uiBadge inline-flex items-center gap-2"
                                     >
                                         [{MEDICATION_TIMING_OPTIONS.find((option) => option.value === medication.timing)?.label}] {medication.category} ·{' '}
                                         {medication.name}
                                         <button
                                             type="button"
                                             onClick={() => removeMedicationScheduleDraft(medication.id)}
-                                            className="text-red-600 hover:text-red-700 dark:text-red-300 dark:hover:text-red-200"
+                                            className="uiButton uiButton--ghost uiButton--small"
                                         >
                                             삭제
                                         </button>
@@ -1778,7 +1769,7 @@ export default function ProfilePage() {
                         type="button"
                         onClick={saveMedicationInfo}
                         disabled={isAnyProfileActionBusy}
-                        className="mt-3 rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
+                        className="uiButton uiButton--primary mt-5 w-full sm:w-auto"
                     >
                         {savingMedicationInfo ? '저장 중…' : '약 복용 정보 저장'}
                     </button>
@@ -1786,8 +1777,8 @@ export default function ProfilePage() {
             )}
 
             {activeTab === 'additional_disease' && (
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">추가 질병</h2>
+                <section className="uiCard">
+                    <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">함께 관리할 질환</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         함께 관리 중인 질환이 있다면 알려 주세요. 담당 의료진의 식사 지침을 먼저 따라 주세요.
                     </p>
@@ -1813,12 +1804,12 @@ export default function ProfilePage() {
                                     addAdditionalConditionFromDraft();
                                 }}
                                 placeholder="예: 감기, 고혈압, 고지혈증"
-                                className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 flex-1"
                             />
                             <button
                                 type="button"
                                 onClick={addAdditionalConditionFromDraft}
-                                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="uiButton uiButton--secondary"
                             >
                                 질병 추가
                             </button>
@@ -1838,7 +1829,7 @@ export default function ProfilePage() {
                                     key={`${item.code}-${item.name}`}
                                     type="button"
                                     onClick={() => addAdditionalConditionByCatalog(item)}
-                                    className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="uiButton uiButton--primary uiButton--small"
                                 >
                                     {item.name} ({item.code})
                                 </button>
@@ -1870,9 +1861,9 @@ export default function ProfilePage() {
                                         <button
                                             type="button"
                                             onClick={() => removeAdditionalConditionDraft(condition.id)}
-                                            className="self-start rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-900/50 sm:self-auto"
+                                            className="uiButton uiButton--ghost uiButton--small self-start"
                                         >
-                                            회복/삭제
+                                            목록에서 삭제
                                         </button>
                                     </div>
                                 </article>
@@ -1884,18 +1875,18 @@ export default function ProfilePage() {
                         type="button"
                         onClick={saveAdditionalConditionInfo}
                         disabled={isAnyProfileActionBusy}
-                        className="mt-3 rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
+                        className="uiButton uiButton--primary mt-5 w-full sm:w-auto"
                     >
-                        {savingAdditionalConditions ? '저장 중…' : '추가 질병 저장'}
+                        {savingAdditionalConditions ? '저장 중…' : '질환 정보 저장'}
                     </button>
                 </section>
             )}
 
             {activeTab === 'treatment' && (
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">치료 정보</h2>
+                <section className="uiCard">
+                    <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">치료 정보</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        암 종류/기수와 치료 단계를 함께 관리할 수 있어요.
+                        진단받은 암과 현재 치료 단계를 알려 주세요.
                     </p>
 
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -1907,7 +1898,7 @@ export default function ProfilePage() {
                                 value={cancerType}
                                 onChange={(event) => setCancerType(event.target.value)}
                                 placeholder="예: 유방암"
-                                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                             />
                         </label>
                         <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -1918,7 +1909,7 @@ export default function ProfilePage() {
                                 value={cancerStage}
                                 onChange={(event) => setCancerStage(event.target.value)}
                                 placeholder="예: 2기"
-                                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                             />
                         </label>
                     </div>
@@ -1926,7 +1917,7 @@ export default function ProfilePage() {
                         type="button"
                         onClick={saveTreatmentInfo}
                         disabled={isAnyProfileActionBusy}
-                        className="mt-3 rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
+                        className="uiButton uiButton--primary mt-5 w-full sm:w-auto"
                     >
                         {savingTreatmentInfo ? '저장 중…' : '치료 정보 저장'}
                     </button>
@@ -1950,13 +1941,7 @@ export default function ProfilePage() {
                                             </p>
                                             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                                                 <span
-                                                    className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                                                        stage.status === 'active'
-                                                            ? 'border-blue-600 bg-blue-600 text-white'
-                                                            : stage.status === 'completed'
-                                                              ? 'border-emerald-300 bg-emerald-100 text-emerald-700'
-                                                              : 'border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200'
-                                                    }`}
+                                                    className="uiBadge whitespace-nowrap"
                                                 >
                                                     {STAGE_STATUS_LABELS[stage.status]}
                                                 </span>
@@ -1965,7 +1950,7 @@ export default function ProfilePage() {
                                                     type="button"
                                                     onClick={() => void deleteTreatmentStage(stage.id)}
                                                     disabled={addingTreatmentStage || deletingTreatmentStageId === stage.id}
-                                                    className="rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-900/50"
+                                                    className="uiButton uiButton--ghost uiButton--small"
                                                 >
                                                     {deletingTreatmentStageId === stage.id ? '삭제 중…' : '삭제'}
                                                 </button>
@@ -1986,7 +1971,7 @@ export default function ProfilePage() {
                                     value={addStageType}
                                     onChange={(event) => setAddStageType(event.target.value as StageType)}
                                     disabled={addingTreatmentStage}
-                                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                                 >
                                     {STAGE_TYPE_OPTIONS.map((option) => (
                                         <option key={option} value={option}>
@@ -2004,7 +1989,7 @@ export default function ProfilePage() {
                                     onChange={(event) => setAddStageLabel(event.target.value)}
                                     placeholder="예: 항암 1차"
                                     disabled={addingTreatmentStage}
-                                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                                 />
                             </label>
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -2019,7 +2004,7 @@ export default function ProfilePage() {
                                     value={addStageOrder}
                                     onChange={(event) => setAddStageOrder(event.target.value)}
                                     disabled={addingTreatmentStage}
-                                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                                 />
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">추천 순서: {nextTreatmentStageOrder}</p>
                             </label>
@@ -2029,7 +2014,7 @@ export default function ProfilePage() {
                                     value={addStageStatus}
                                     onChange={(event) => setAddStageStatus(event.target.value as StageStatus)}
                                     disabled={addingTreatmentStage}
-                                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="min-h-12 min-w-0 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 mt-2"
                                 >
                                     {STAGE_STATUS_OPTIONS.map((option) => (
                                         <option key={option} value={option}>
@@ -2042,7 +2027,7 @@ export default function ProfilePage() {
                                 <button
                                     type="submit"
                                     disabled={addingTreatmentStage || deletingTreatmentStageId !== null}
-                                    className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                                    className="uiButton uiButton--primary"
                                 >
                                     {addingTreatmentStage ? '추가 중…' : '단계 추가'}
                                 </button>

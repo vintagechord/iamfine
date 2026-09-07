@@ -736,7 +736,7 @@ export default function TreatmentPage() {
     if (loading) {
         return (
             <main className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <section className="uiCard p-5">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">치료 단계 관리</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">불러오는 중이에요…</p>
                 </section>
@@ -747,7 +747,7 @@ export default function TreatmentPage() {
     if (!hasSupabaseEnv || !supabase) {
         return (
             <main className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <section className="uiCard p-5">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">치료 단계 관리</h1>
                     <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                 </section>
@@ -766,7 +766,7 @@ export default function TreatmentPage() {
     if (!user) {
         return (
             <main className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <section className="uiCard p-5">
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">치료 단계 관리</h1>
                     <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                 </section>
@@ -789,7 +789,7 @@ export default function TreatmentPage() {
 
     return (
         <main className="space-y-4">
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="uiCard p-5">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">치료 단계 관리</h1>
                 <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
             </section>
@@ -814,7 +814,7 @@ export default function TreatmentPage() {
                 </section>
             )}
 
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="uiCard p-5">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">암 정보 입력</h2>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                     맞춤 식단 알림 정확도를 높이기 위해 암 종류를 입력해 주세요. 기수 입력/수정은 내 정보에서만 할 수 있어요.
@@ -839,7 +839,7 @@ export default function TreatmentPage() {
                     <button
                         type="button"
                         aria-label="암 정보 저장"
-                        className="rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
+                        className="uiButton uiButton--primary"
                         onClick={saveTreatmentMeta}
                     >
                         저장
@@ -852,7 +852,7 @@ export default function TreatmentPage() {
                 </div>
             </section>
 
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="uiCard p-5">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">등록된 단계</h2>
 
                 {stages.length === 0 ? (
@@ -877,7 +877,7 @@ export default function TreatmentPage() {
                             <button
                                 type="button"
                                 aria-label="지난 또는 예정 단계 보기 전환"
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="uiButton uiButton--secondary"
                                 onClick={() => setShowPastStages((prev) => !prev)}
                             >
                                 {showPastStages
@@ -912,7 +912,7 @@ export default function TreatmentPage() {
                             return (
                                 <article
                                     key={stage.id}
-                                    className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+                                    className="uiCard p-4"
                                 >
                                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                         <div>
@@ -949,7 +949,7 @@ export default function TreatmentPage() {
                                         <button
                                             type="button"
                                             aria-label={`${stageName} 위로 이동`}
-                                            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                            className="uiButton uiButton--secondary uiButton--small"
                                             onClick={() => void handleMoveStage(stage.id, 'up')}
                                             disabled={!canMoveUp || disableMove}
                                         >
@@ -958,7 +958,7 @@ export default function TreatmentPage() {
                                         <button
                                             type="button"
                                             aria-label={`${stageName} 아래로 이동`}
-                                            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                            className="uiButton uiButton--secondary uiButton--small"
                                             onClick={() => void handleMoveStage(stage.id, 'down')}
                                             disabled={!canMoveDown || disableMove}
                                         >
@@ -967,7 +967,7 @@ export default function TreatmentPage() {
                                         <button
                                             type="button"
                                             aria-label={`${stageName} 상세 보기 전환`}
-                                            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                            className="uiButton uiButton--secondary uiButton--small"
                                             onClick={() => toggleDetails(stage.id)}
                                             disabled={disableAction}
                                         >
@@ -976,7 +976,7 @@ export default function TreatmentPage() {
                                         <button
                                             type="button"
                                             aria-label={`${stageName} 삭제`}
-                                            className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-900/50"
+                                            className="uiButton uiButton--danger uiButton--small"
                                             onClick={() => void handleDeleteStage(stage.id)}
                                             disabled={disableAction}
                                         >
@@ -1099,7 +1099,7 @@ export default function TreatmentPage() {
                                             <button
                                                 type="button"
                                                 aria-label={`${stageName} 저장`}
-                                                className="rounded-lg primarySaveButton px-4 py-2 text-sm font-semibold"
+                                                className="uiButton uiButton--primary"
                                                 onClick={() => void handleSaveStage(stage.id)}
                                                 disabled={disableAction}
                                             >
@@ -1114,7 +1114,7 @@ export default function TreatmentPage() {
                 )}
             </section>
 
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="uiCard p-5">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">단계 추가</h2>
 
                 <form onSubmit={handleAddStage} className="mt-4 space-y-4">
@@ -1189,7 +1189,7 @@ export default function TreatmentPage() {
                     <button
                         type="submit"
                         aria-label="단계 추가"
-                        className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                        className="uiButton uiButton--primary"
                         disabled={adding}
                     >
                         {adding ? '추가 중...' : '단계 추가'}

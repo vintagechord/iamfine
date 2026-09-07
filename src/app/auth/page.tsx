@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
@@ -96,7 +97,7 @@ export default function AuthPage() {
 
     const signUp = async () => {
         if (!supabase) {
-            setMessage('설정이 필요해요. `.env.local` 파일을 확인해 주세요.');
+            setMessage('서비스에 연결하지 못했어요. 잠시 후 다시 이용해 주세요.');
             return;
         }
 
@@ -128,7 +129,7 @@ export default function AuthPage() {
 
     const signIn = async () => {
         if (!supabase) {
-            setMessage('설정이 필요해요. `.env.local` 파일을 확인해 주세요.');
+            setMessage('서비스에 연결하지 못했어요. 잠시 후 다시 이용해 주세요.');
             return;
         }
 
@@ -155,7 +156,7 @@ export default function AuthPage() {
 
     const signOut = async () => {
         if (!supabase) {
-            setMessage('설정이 필요해요. `.env.local` 파일을 확인해 주세요.');
+            setMessage('서비스에 연결하지 못했어요. 잠시 후 다시 이용해 주세요.');
             return;
         }
 
@@ -184,142 +185,99 @@ export default function AuthPage() {
     };
 
     return (
-        <main className="space-y-4">
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">로그인 / 회원가입</h1>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                    계정이 없으면 회원가입, 계정이 있으면 로그인하세요.
-                </p>
+        <main className="mx-auto w-full max-w-md py-6 sm:py-12">
+            <section className="uiCard p-6 sm:p-8">
+                <header className="uiPageHeader mb-7 text-center">
+                    <span className="uiBadge mb-4">IamFine</span>
+                    <h1>{loggedInUserId ? '반가워요' : authMode === 'signup' ? '함께 시작해요' : '나의 식사를 이어가세요'}</h1>
+                    <p>{loggedInUserId ? `${nickname || '회원'}님, 오늘의 식사를 준비해 볼까요?` : '나에게 맞는 식단과 기록을 한곳에서 관리해요.'}</p>
+                </header>
+
+                {!hasSupabaseEnv && (
+                    <div role="alert" className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                        서비스에 연결하지 못했어요. 잠시 후 다시 이용해 주세요.
+                    </div>
+                )}
+
+                {checkingAuth && hasSupabaseEnv && (
+                    <p role="status" className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">로그인 상태를 확인하고 있어요…</p>
+                )}
+
+                {!checkingAuth && loggedInUserId && (
+                    <div className="space-y-3">
+                        <Link href="/diet" className="uiButton uiButton--primary w-full">식단 제안 보기</Link>
+                        <Link href="/diet?view=record" className="uiButton uiButton--secondary w-full">식단 관리하기</Link>
+                        <button type="button" onClick={signOut} disabled={loading || !hasSupabaseEnv} className="uiButton uiButton--ghost w-full">
+                            {loading ? '처리 중…' : '로그아웃'}
+                        </button>
+                    </div>
+                )}
+
+                {!checkingAuth && !loggedInUserId && (
+                    <>
+                        <nav className="uiSegmented mb-6 grid grid-cols-2" aria-label="로그인 또는 회원가입">
+                            <button type="button" onClick={() => changeAuthMode('login')} disabled={loading} aria-pressed={authMode === 'login'} className="uiButton uiButton--ghost">로그인</button>
+                            <button type="button" onClick={() => changeAuthMode('signup')} disabled={loading} aria-pressed={authMode === 'signup'} className="uiButton uiButton--ghost">회원가입</button>
+                        </nav>
+                        <form noValidate onSubmit={(event) => { event.preventDefault(); if (!loading) void (authMode === 'signup' ? signUp() : signIn()); }} aria-busy={loading}>
+                            <fieldset disabled={loading || !hasSupabaseEnv} className="space-y-5">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                                    이메일
+                                    <input
+                                        type="email"
+                                        aria-label="이메일"
+                                        autoComplete="email"
+                                        inputMode="email"
+                                        autoCapitalize="none"
+                                        autoCorrect="off"
+                                        spellCheck={false}
+                                        enterKeyHint="next"
+                                        placeholder="example@email.com"
+                                        value={email}
+                                        onChange={(event) => setEmail(event.target.value)}
+                                        className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    />
+                                </label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                                    비밀번호
+                                    <input
+                                        type="password"
+                                        aria-label="비밀번호"
+                                        autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+                                        enterKeyHint={authMode === 'signup' ? 'next' : 'go'}
+                                        placeholder="비밀번호를 입력해 주세요"
+                                        value={password}
+                                        onChange={(event) => setPassword(event.target.value)}
+                                        className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    />
+                                </label>
+                                {authMode === 'signup' && (
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                                        비밀번호 확인
+                                        <input
+                                            type="password"
+                                            aria-label="비밀번호 확인"
+                                            autoComplete="new-password"
+                                            enterKeyHint="go"
+                                            placeholder="비밀번호를 한 번 더 입력해 주세요"
+                                            value={confirmPassword}
+                                            onChange={(event) => setConfirmPassword(event.target.value)}
+                                            className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                        />
+                                    </label>
+                                )}
+                                <button type="submit" className="uiButton uiButton--primary w-full">
+                                    {loading ? '처리 중…' : authMode === 'signup' ? '회원가입' : '로그인'}
+                                </button>
+                            </fieldset>
+                        </form>
+                    </>
+                )}
+
+                {message && (
+                    <p role="status" aria-live="polite" className="mt-5 rounded-xl bg-gray-50 px-4 py-3 text-sm leading-relaxed text-gray-700 dark:bg-gray-950 dark:text-gray-200">{message}</p>
+                )}
             </section>
-
-            {!hasSupabaseEnv && (
-                <section
-                    role="alert"
-                    className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-                >
-                    <p className="text-sm font-semibold">설정이 필요해요</p>
-                    <p className="mt-1 text-sm">`.env.local` 파일에서 연결 설정을 확인해 주세요.</p>
-                </section>
-            )}
-
-            {checkingAuth && hasSupabaseEnv && (
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <p className="text-sm text-gray-700 dark:text-gray-200">로그인 상태를 확인하는 중이에요…</p>
-                </section>
-            )}
-
-            {!checkingAuth && loggedInUserId && (
-                <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-800 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
-                    <h2 className="text-lg font-semibold">로그인된 상태예요</h2>
-                    <p className="mt-2 text-sm">
-                        닉네임: <span className="font-semibold">{nickname || '닉네임이 아직 없어요.'}</span>
-                    </p>
-                    <button
-                        type="button"
-                        onClick={signOut}
-                        disabled={loading || !hasSupabaseEnv}
-                        className="mt-4 rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
-                    >
-                        {loading ? '처리 중...' : '로그아웃'}
-                    </button>
-                </section>
-            )}
-
-            {!checkingAuth && !loggedInUserId && (
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div className="mb-4 flex flex-wrap gap-2">
-                        <button
-                            type="button"
-                            onClick={() => changeAuthMode('login')}
-                            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                                authMode === 'login'
-                                    ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                                    : 'border border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
-                            }`}
-                        >
-                            로그인
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => changeAuthMode('signup')}
-                            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                                authMode === 'signup'
-                                    ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                                    : 'border border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
-                            }`}
-                        >
-                            회원가입
-                        </button>
-                    </div>
-
-                    <div className="grid gap-3">
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                            이메일
-                            <input
-                                type="email"
-                                aria-label="이메일"
-                                autoComplete="email"
-                                inputMode="email"
-                                autoCapitalize="none"
-                                autoCorrect="off"
-                                spellCheck={false}
-                                enterKeyHint="next"
-                                placeholder="이메일 주소를 입력해 주세요"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
-                            />
-                        </label>
-
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                            비밀번호
-                            <input
-                                type="password"
-                                aria-label="비밀번호"
-                                autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
-                                enterKeyHint={authMode === 'signup' ? 'next' : 'done'}
-                                placeholder="비밀번호"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
-                            />
-                        </label>
-
-                        {authMode === 'signup' && (
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                비밀번호 확인
-                                <input
-                                    type="password"
-                                    aria-label="비밀번호 확인"
-                                    autoComplete="new-password"
-                                    enterKeyHint="done"
-                                    placeholder="비밀번호를 다시 입력해 주세요"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
-                                />
-                            </label>
-                        )}
-                    </div>
-
-                    <div className="mt-4">
-                        <button
-                            type="button"
-                            onClick={authMode === 'signup' ? signUp : signIn}
-                            disabled={loading || !hasSupabaseEnv}
-                            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
-                        >
-                            {loading ? '처리 중...' : authMode === 'signup' ? '회원가입' : '로그인'}
-                        </button>
-                    </div>
-                </section>
-            )}
-
-            {message && (
-                <section className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                    {message}
-                </section>
-            )}
         </main>
     );
 }

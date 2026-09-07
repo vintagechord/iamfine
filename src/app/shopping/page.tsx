@@ -1635,17 +1635,10 @@ export default function ShoppingPage() {
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
                     </div>
                 </section>
-                <section
-                    role="alert"
-                    className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
-                >
+                <section className="uiCard p-5">
                     <p className="text-sm font-semibold">로그인이 필요해요</p>
-                    <p className="mt-1 text-sm">
-                        <Link href="/auth?mode=login" className="font-semibold underline">
-                            로그인 페이지
-                        </Link>
-                        에서 로그인해 주세요.
-                    </p>
+                    <p className="mt-2 text-sm text-[var(--ui-muted)]">내 식단에 필요한 장보기 목록을 확인해요.</p>
+                    <Link href="/auth?mode=login" className="uiButton uiButton--primary mt-4">로그인</Link>
                 </section>
             </main>
         );
@@ -1662,7 +1655,7 @@ export default function ShoppingPage() {
                     <button
                         type="button"
                         onClick={() => setOpenInfoModal('shopping')}
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="uiIconButton shrink-0"
                         aria-label="장보기 안내 열기"
                     >
                         <CircleHelp className="h-4 w-4" />
@@ -1739,7 +1732,7 @@ export default function ShoppingPage() {
                     <button
                         type="button"
                         onClick={() => setOpenInfoModal('category')}
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="uiIconButton shrink-0"
                         aria-label="분야별 장볼 목록 안내 열기"
                     >
                         <CircleHelp className="h-4 w-4" />
@@ -1777,7 +1770,7 @@ export default function ShoppingPage() {
                             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                                 {openInfoModal === 'shopping' ? '장보기 안내' : '분야별 장볼 목록 안내'}
                             </h3>
-                            <button type="button" onClick={() => setOpenInfoModal(null)} className="popupCloseButton">
+                            <button type="button" onClick={() => setOpenInfoModal(null)} className="uiButton uiButton--secondary uiButton--small">
                                 닫기
                             </button>
                         </div>
@@ -1829,7 +1822,7 @@ export default function ShoppingPage() {
                         type="button"
                         onClick={saveMemo}
                         disabled={memoSaving}
-                        className="self-start rounded-lg primarySaveButton px-3 py-1.5 text-sm font-semibold sm:self-auto"
+                        className="uiButton uiButton--primary self-start sm:self-auto"
                     >
                         {memoSaving ? '저장 중...' : '메모 저장'}
                     </button>
@@ -1842,7 +1835,7 @@ export default function ShoppingPage() {
                     <button
                         type="button"
                         onClick={() => setShowPlanSummary((prev) => !prev)}
-                        className="shrink-0 self-start whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:self-auto"
+                        className="uiButton uiButton--secondary uiButton--small self-start sm:self-auto shrink-0"
                     >
                         {showPlanSummary ? '닫기' : '펼치기'}
                     </button>
@@ -1885,7 +1878,7 @@ export default function ShoppingPage() {
                 <div className="flex justify-center">
                     <Link
                         href="/"
-                        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="uiButton uiButton--secondary uiButton--small"
                     >
                         홈으로
                     </Link>

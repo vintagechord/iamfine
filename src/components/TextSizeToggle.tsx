@@ -171,13 +171,14 @@ export default function TextSizeToggle() {
     return (
         <button
             type="button"
-            className="whitespace-nowrap rounded-full border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 sm:px-3 sm:text-sm"
+            className="uiButton uiButton--ghost uiButton--small whitespace-nowrap"
             onClick={toggleTextScale}
             aria-label={mode === 'large' ? '글자 크기를 기본으로 변경' : '글자 크기를 크게 변경'}
             aria-pressed={mode === 'large'}
             disabled={saving}
         >
-            <span suppressHydrationWarning>{mode === 'large' ? '글자-' : '글자+'}</span>
+            <span className="text-base font-semibold" aria-hidden="true">가</span>
+            <span suppressHydrationWarning>{mode === 'large' ? '기본 글자' : '큰 글자'}</span>
         </button>
     );
 }

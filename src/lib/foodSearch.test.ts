@@ -37,6 +37,28 @@ test('unlisted dishes get explicitly related results without false exact matches
     assert.equal(branded[0]?.matchType, 'related');
 });
 
+test('mushroom porridge suggests porridges instead of unrelated vegetable sides', () => {
+    const results = searchFoods('버섯죽');
+    assert.equal(results[0]?.name, '소고기버섯죽');
+    assert.equal(results[1]?.name, '버섯들깨죽');
+    assert.ok(results.length > 5);
+    assert.ok(results.every((item) => /죽$|미음$/.test(item.name) || item.name === '오트밀'));
+    assert.ok(results.some((item) => item.matchType === 'related' && item.reason === '죽 종류'));
+});
+
+test('specific dish endings outrank ingredients and generic rice families', () => {
+    for (const [query, expectedFamily] of [
+        ['소고기덮밥', '볶음밥·덮밥'],
+        ['버섯찌개', '찌개·전골'],
+        ['브로콜리수프', '수프'],
+        ['소고기국밥', '국·탕'],
+    ]) {
+        const related = searchFoods(query).filter((item) => item.matchType === 'related');
+        assert.ok(related.length > 0, query);
+        assert.ok(related.every((item) => item.reason === `${expectedFamily} 종류`), query);
+    }
+});
+
 test('unknown and empty queries do not recommend arbitrary character matches', () => {
     assert.deepEqual(searchFoods(''), []);
     assert.deepEqual(searchFoods('   '), []);

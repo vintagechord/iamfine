@@ -17,7 +17,7 @@ export default function GlobalError({ reset }: GlobalErrorProps) {
                 <button
                     type="button"
                     onClick={reset}
-                    className="mt-4 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-700 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-900/40"
+                    className="uiButton uiButton--secondary mt-4"
                 >
                     다시 시도
                 </button>

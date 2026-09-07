@@ -72,11 +72,21 @@ function distance(a: string, b: string) {
     return row[b.length];
 }
 
+const DISH_TYPE_FAMILIES = new Set([
+    '밥', '볶음밥·덮밥', '죽', '김밥·주먹밥', '비빔밥', '국·탕', '찌개·전골',
+    '국수·면', '파스타·리조또', '샐러드', '수프', '분식·전', '빵·샌드위치', '피자·멕시코 요리',
+]);
+
 function familyStrength(query: string, family: FoodFamily) {
     return Math.max(0, ...family.keywords.map((keyword) => {
         const key = comparable(keyword);
         // A single syllable only identifies a dish when it is its suffix, not e.g. 전 in 전복.
-        return (key.length === 1 ? query.endsWith(key) : query.includes(key)) ? key.length : 0;
+        const matches = key.length === 1 ? query.endsWith(key) : query.includes(key);
+        if (!matches) return 0;
+        // In 버섯죽, the dish (죽) matters more than the longer ingredient (버섯).
+        // Longer dish endings still win: 덮밥 / 국밥 / 비빔밥 before the generic 밥.
+        const dishPriority = DISH_TYPE_FAMILIES.has(family.label) && query.endsWith(key) ? 100 : 0;
+        return dishPriority + key.length;
     }));
 }
 
@@ -94,6 +104,10 @@ export function searchFoods(query: string, additionalNames: readonly string[] = 
     const families = FOOD_FAMILIES.map((family) => ({ family, strength: familyStrength(normalizedQuery, family) }));
     const strongestFamily = Math.max(0, ...families.map(({ strength }) => strength));
     const relatedFamilies = families.filter(({ strength }) => strength > 0 && strength >= strongestFamily);
+    const ingredientKeywords = Array.from(new Set(FOOD_FAMILIES
+        .filter((family) => !DISH_TYPE_FAMILIES.has(family.label))
+        .flatMap((family) => family.keywords.map(comparable))
+        .filter((keyword) => normalizedQuery.includes(keyword))));
     const candidates = new Map<string, string>();
     for (const rawName of [...FOOD_SEARCH_CATALOG, ...additionalNames]) {
         const name = normalizeFoodQuery(rawName);
@@ -124,7 +138,9 @@ export function searchFoods(query: string, additionalNames: readonly string[] = 
             if (related) {
                 matchType = 'related';
                 familyLabel = related.family.label;
-                score = 300 + related.strength;
+                // Within the chosen dish family, keep the user's ingredient first.
+                const sharedIngredient = Math.max(0, ...ingredientKeywords.filter((keyword) => key.includes(keyword)).map((keyword) => keyword.length));
+                score = 300 + related.strength + sharedIngredient * 10;
             }
         }
         if (!matchType) return null;

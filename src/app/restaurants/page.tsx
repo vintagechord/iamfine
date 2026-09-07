@@ -513,14 +513,14 @@ export default function RestaurantsPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 text-white shadow-sm dark:bg-emerald-600">
+                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf1e9] text-[#497561] dark:bg-[#24382e] dark:text-[#d6e6dc]">
                                 <MapPinned className="h-5 w-5" />
                             </span>
                             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">건강식당 찾기</h1>
                             <button
                                 type="button"
                                 onClick={() => setShowFinderInfoModal(true)}
-                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="uiIconButton shrink-0"
                                 aria-label="건강식당 찾기 안내 열기"
                             >
                                 <CircleHelp className="h-4 w-4" />
@@ -528,10 +528,10 @@ export default function RestaurantsPage() {
                         </div>
                     </div>
                     <Link
-                        href="/"
-                        className="shrink-0 self-start whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        href="/diet"
+                        className="uiButton uiButton--secondary uiButton--small self-start shrink-0"
                     >
-                        홈으로
+                        식단 제안으로
                     </Link>
                 </div>
             </section>
@@ -547,7 +547,7 @@ export default function RestaurantsPage() {
                     >
                         <div className="flex items-start justify-between gap-3">
                             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">건강식당 찾기 안내</h2>
-                            <button type="button" onClick={() => setShowFinderInfoModal(false)} className="popupCloseButton">
+                            <button type="button" onClick={() => setShowFinderInfoModal(false)} className="uiButton uiButton--secondary uiButton--small">
                                 닫기
                             </button>
                         </div>
@@ -558,10 +558,10 @@ export default function RestaurantsPage() {
                 </div>
             )}
 
-            <section className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-100 via-lime-50 to-teal-100 p-4 shadow-sm dark:border-emerald-800 dark:bg-gradient-to-br dark:from-emerald-950 dark:via-teal-950 dark:to-slate-950">
+            <section className="uiCard p-4">
                 <div className="flex items-center gap-2">
-                    <MapPinned className="h-4 w-4 text-emerald-800 dark:text-emerald-200" />
-                    <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">추천 검색 카테고리</p>
+                    <MapPinned className="h-4 w-4 text-[#497561] dark:text-[#a5c3b1]" />
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">추천 검색 카테고리</p>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {(Object.entries(FINDER_OPTIONS) as Array<[FinderCategory, FinderOption]>).map(([key, option]) => {
@@ -571,29 +571,21 @@ export default function RestaurantsPage() {
                                 key={key}
                                 type="button"
                                 onClick={() => setSelectedCategory(key)}
-                                className={`rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${
-                                    selectedState
-                                        ? 'border-emerald-700 bg-emerald-700 text-white shadow-sm dark:border-emerald-300 dark:bg-emerald-300 dark:text-emerald-950'
-                                        : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900'
-                                }`}
+                                aria-pressed={selectedState} className={`uiButton ${selectedState ? 'uiButton--primary' : 'uiButton--secondary'}`}
                             >
                                 {option.label}
                             </button>
                         );
                     })}
                 </div>
-                <p className="mt-3 text-xs text-emerald-900 dark:text-emerald-100">{selected.hint}</p>
+                <p className="mt-3 text-xs text-gray-700 dark:text-gray-200">{selected.hint}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                     {quickKeywords.map((keyword) => (
                         <button
                             key={`${selectedCategory}-${keyword}`}
                             type="button"
                             onClick={() => setSelectedKeyword((prev) => (prev === keyword ? '' : keyword))}
-                            className={`inline-flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                                selectedKeyword === keyword
-                                    ? 'border-teal-700 bg-teal-700 text-white shadow-sm dark:border-teal-300 dark:bg-teal-300 dark:text-teal-950'
-                                    : 'border-emerald-400 bg-white text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100 dark:hover:bg-emerald-900'
-                            }`}
+                            className={`uiButton uiButton--small ${selectedKeyword === keyword ? 'uiButton--primary' : 'uiButton--secondary'}`}
                             aria-pressed={selectedKeyword === keyword}
                         >
                             <Search className="h-3.5 w-3.5" />
@@ -602,11 +594,11 @@ export default function RestaurantsPage() {
                     ))}
                 </div>
                 {selectedKeyword && (
-                    <p className="mt-2 text-xs font-semibold text-emerald-900 dark:text-emerald-100">
+                    <p className="mt-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
                         적용 중 키워드: {selectedKeyword}
                     </p>
                 )}
-                <p className="mt-2 text-xs text-emerald-900 dark:text-emerald-100">
+                <p className="mt-2 text-xs text-gray-700 dark:text-gray-200">
                     선택한 카테고리 키워드 + 위치(또는 지역명)로 웹 문서를 수집하고, 언급 식당을 점수화해 추천해요.
                 </p>
             </section>
@@ -637,12 +629,12 @@ export default function RestaurantsPage() {
                             updateContextByRegion();
                         }}
                         placeholder="예: 서울역, 강남역, 종로구"
-                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-emerald-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                        className="min-h-12 min-w-0 rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                     />
                     <button
                         type="button"
                         onClick={updateContextByRegion}
-                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        className="uiButton uiButton--secondary"
                     >
                         지역으로 검색
                     </button>
@@ -650,7 +642,7 @@ export default function RestaurantsPage() {
                         type="button"
                         onClick={updateContextByLocation}
                         disabled={locationLoading}
-                        className="rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
+                        className="uiButton uiButton--primary"
                     >
                         {locationLoading ? '위치 확인 중…' : '내 위치 사용'}
                     </button>
@@ -699,7 +691,7 @@ export default function RestaurantsPage() {
                                         href={item.mapUrl}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                        className="uiButton uiButton--secondary uiButton--small"
                                     >
                                         카카오맵 보기
                                     </a>
@@ -708,7 +700,7 @@ export default function RestaurantsPage() {
                                             href={item.naverMapUrl}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                            className="uiButton uiButton--secondary uiButton--small"
                                         >
                                             네이버지도 근거
                                         </a>
@@ -722,7 +714,7 @@ export default function RestaurantsPage() {
                                                 href={source.url}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="block rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                className="uiButton uiButton--secondary uiButton--small w-full whitespace-normal"
                                             >
                                                 [{source.source}] {source.title}
                                             </a>
@@ -756,7 +748,7 @@ export default function RestaurantsPage() {
                                         href={provider.homepage}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="shrink-0 whitespace-nowrap rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                        className="uiButton uiButton--secondary uiButton--small shrink-0"
                                     >
                                         플랫폼 열기
                                     </a>
@@ -770,7 +762,7 @@ export default function RestaurantsPage() {
                                                 href={`${provider.searchUrlTemplate}${encodeURIComponent(keyword)}`}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800 transition hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-900/30 dark:text-sky-100 dark:hover:bg-sky-900/50"
+                                                className="uiButton uiButton--secondary uiButton--small"
                                             >
                                                 {keyword}
                                             </a>

@@ -52,11 +52,12 @@ export default function ThemeToggle() {
     return (
         <button
             type="button"
-            className="whitespace-nowrap rounded-full border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-800 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 sm:px-3 sm:text-sm"
+            className="uiButton uiButton--secondary uiButton--small"
             onClick={toggleTheme}
             aria-label={mode === 'dark' ? '라이트 모드로 변경' : '다크 모드로 변경'}
+            aria-pressed={mode === 'dark'}
         >
-            <span suppressHydrationWarning>{mode === 'light' ? '다크모드' : '라이트모드'}</span>
+            <span suppressHydrationWarning>{mode === 'light' ? '어둡게 보기' : '밝게 보기'}</span>
         </button>
     );
 }

@@ -1167,9 +1167,9 @@ export default function DietReportPage() {
 
     if (loading) {
         return (
-            <main className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">적용 근거 리포트</h1>
+            <main className="mx-auto max-w-4xl space-y-6">
+                <section className="uiCard uiPageHeader p-5 sm:p-6">
+                    <h1>적용 근거 리포트</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">불러오는 중이에요…</p>
                 </section>
             </main>
@@ -1178,12 +1178,12 @@ export default function DietReportPage() {
 
     if (!hasSupabaseEnv || !supabase) {
         return (
-            <main className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">적용 근거 리포트</h1>
+            <main className="mx-auto max-w-4xl space-y-6">
+                <section className="uiCard uiPageHeader p-5 sm:p-6">
+                    <h1>적용 근거 리포트</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                 </section>
-                <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                <section className="uiCard p-5 text-[var(--ui-muted)] sm:p-6">
                     <p className="text-sm font-semibold">설정이 필요해요</p>
                     <p className="mt-1 text-sm">`.env.local` 파일의 Supabase 연결 설정을 확인해 주세요.</p>
                 </section>
@@ -1193,43 +1193,39 @@ export default function DietReportPage() {
 
     if (!userId) {
         return (
-            <main className="space-y-4">
-                <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">적용 근거 리포트</h1>
+            <main className="mx-auto max-w-4xl space-y-6">
+                <section className="uiCard uiPageHeader p-5 sm:p-6">
+                    <h1>적용 근거 리포트</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                 </section>
-                <section className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <section className="uiCard p-5 text-[var(--ui-muted)] sm:p-6">
                     <p className="text-sm font-semibold">로그인이 필요해요</p>
-                    <p className="mt-1 text-sm">
-                        <Link href="/auth" className="font-semibold underline">
-                            로그인 페이지
-                        </Link>
-                        에서 로그인해 주세요.
-                    </p>
+                    <p className="mt-2 text-sm leading-relaxed">로그인하면 내 식단의 적용 근거를 확인할 수 있어요.</p>
+                    <Link href="/auth" className="uiButton uiButton--primary mt-4">로그인</Link>
                 </section>
             </main>
         );
     }
 
     return (
-        <main className="space-y-4">
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <main className="mx-auto max-w-4xl space-y-6">
+            <section className="uiCard uiPageHeader p-5 sm:p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">적용 근거 리포트</h1>
+                        <h1>적용 근거 리포트</h1>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">생성 시각: {nowIso}</p>
                     </div>
                     <Link
                         href="/diet"
-                        className="shrink-0 whitespace-nowrap rounded-lg border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-700 dark:border-sky-500 dark:bg-sky-500 dark:text-gray-900 dark:hover:bg-sky-400"
+                        className="uiButton uiButton--primary w-full shrink-0 sm:w-auto"
                     >
-                        오늘 식단으로 돌아가기
+                        식단 제안으로
                     </Link>
                 </div>
             </section>
 
-            <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-100">
+            <section className="uiCard p-5 text-sm leading-relaxed sm:p-6">
                 <p className="font-semibold">입력 데이터 스냅샷</p>
                 <div className="mt-2 space-y-1">
                     <p>- 사용자: {profile?.nickname || '미입력'} / {sexLabel(profile?.sex ?? 'unknown')}</p>
@@ -1271,13 +1267,13 @@ export default function DietReportPage() {
                 </div>
             </section>
 
-            <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-100">
+            <section className="uiCard p-5 text-sm leading-relaxed sm:p-6">
                 <p className="font-semibold">식단 생성 데이터 출처</p>
                 <div className="mt-2 space-y-1">
                     <p>- 생성 방식: 외부 식단 API를 조회하지 않고 내부 규칙 엔진으로 계산합니다.</p>
                     <p>- 반영 데이터: 사용자 프로필, 암 정보, 치료 단계, 복용 약/복용 시기, 최근 식단 기록.</p>
                     <p>- 영양비율: 암환자 일반 영양 원칙(단백질 유지, 정제 탄수화물 과다 억제)을 기준으로 보수적으로 배분합니다.</p>
-                    <p className="mt-1 text-xs text-indigo-800 dark:text-indigo-200">
+                    <p className="mt-3 text-sm leading-relaxed text-[var(--ui-muted)]">
                         참고 근거:
                         {' '}
                         <a
@@ -1310,13 +1306,13 @@ export default function DietReportPage() {
                 </div>
             </section>
 
-            <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100">
+            <section className="uiCard p-5 text-sm leading-relaxed sm:p-6">
                 <p className="font-semibold">암종 프로필 매칭 근거</p>
                 <div className="mt-2">
                     {profileMatch ? (
-                        <div className="rounded-lg border border-emerald-200 bg-white/70 p-3 dark:border-emerald-800 dark:bg-emerald-950/20">
-                            <p className="text-xs text-emerald-700 dark:text-emerald-300">매칭 프로필</p>
-                            <p className="mt-1 text-base font-bold text-emerald-900 dark:text-emerald-100">{profileMatch.profileLabel}</p>
+                        <div className="rounded-xl bg-[var(--ui-accent-soft)] p-4">
+                            <p className="text-sm text-[var(--ui-accent)]">매칭 프로필</p>
+                            <p className="mt-1 text-base font-semibold text-[var(--ui-ink)]">{profileMatch.profileLabel}</p>
                         </div>
                     ) : (
                         <p>- 전용 암종 프로필 미매칭: 일반 안전식 + 치료 단계 규칙으로 계산</p>
@@ -1324,12 +1320,12 @@ export default function DietReportPage() {
                 </div>
             </section>
 
-            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="uiCard p-5 sm:p-6">
                 <p className="text-base font-semibold text-gray-900 dark:text-gray-100">규칙 적용 로그</p>
-                <div className="mt-3 grid gap-3 lg:grid-cols-4">
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4">
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">1) 개인 정보/암 정보 반영</p>
-                        <div className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-200">
+                        <div className="mt-2 space-y-2 text-sm leading-relaxed text-[var(--ui-muted)]">
                             {contextAdjusted.notes.length > 0 ? (
                                 contextAdjusted.notes.map((note) => <p key={note}>- {note}</p>)
                             ) : (
@@ -1337,9 +1333,9 @@ export default function DietReportPage() {
                             )}
                         </div>
                     </div>
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
+                    <div className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4">
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">2) 약물 정보 반영</p>
-                        <div className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-200">
+                        <div className="mt-2 space-y-2 text-sm leading-relaxed text-[var(--ui-muted)]">
                             {medicationAdjusted.notes.length > 0 ? (
                                 medicationAdjusted.notes.map((note) => <p key={note}>- {note}</p>)
                             ) : (
@@ -1347,9 +1343,9 @@ export default function DietReportPage() {
                             )}
                         </div>
                     </div>
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
+                    <div className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4">
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">3) 당일/자동 선호 반영</p>
-                        <div className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-200">
+                        <div className="mt-2 space-y-2 text-sm leading-relaxed text-[var(--ui-muted)]">
                             {preferenceAdjusted.notes.length > 0 ? (
                                 preferenceAdjusted.notes.map((note) => <p key={note}>- {note}</p>)
                             ) : (
@@ -1357,9 +1353,9 @@ export default function DietReportPage() {
                             )}
                         </div>
                     </div>
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
+                    <div className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4">
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">4) 전날 기록 보정 반영</p>
-                        <div className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-200">
+                        <div className="mt-2 space-y-2 text-sm leading-relaxed text-[var(--ui-muted)]">
                             {yesterdayAdjusted.notes.length > 0 ? (
                                 yesterdayAdjusted.notes.map((note) => <p key={note}>- {note}</p>)
                             ) : (
@@ -1368,13 +1364,13 @@ export default function DietReportPage() {
                         </div>
                     </div>
                 </div>
-                <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
+                <div className="mt-4 space-y-1 rounded-xl bg-[var(--ui-surface-muted)] p-4 text-sm leading-relaxed text-[var(--ui-muted)]">
                     <p className="font-semibold text-gray-900 dark:text-gray-100">최종 적용 노트(통합)</p>
                     {mergedNotes.length > 0 ? mergedNotes.map((note) => <p key={note}>- {note}</p>) : <p className="mt-1">- 적용 없음</p>}
                 </div>
             </section>
 
-            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="uiCard p-5 sm:p-6">
                 <p className="text-base font-semibold text-gray-900 dark:text-gray-100">식단 변경 비교(기본안 vs 최종안)</p>
                 <div className="mt-3 grid gap-3 lg:grid-cols-3">
                     {(
@@ -1386,13 +1382,13 @@ export default function DietReportPage() {
                     ).map((item) => {
                         const changes = changedFields(item.base, item.final);
                         return (
-                            <article key={item.key} className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
+                            <article key={item.key} className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4">
                                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</p>
                                 <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">최종: {item.final.summary}</p>
-                                <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                                <p className="mt-2 text-sm leading-relaxed text-[var(--ui-muted)]">
                                     영양비율: 탄수 {item.final.nutrient.carb}% / 단백질 {item.final.nutrient.protein}% / 지방 {item.final.nutrient.fat}%
                                 </p>
-                                <div className="mt-2 space-y-1 text-xs text-gray-700 dark:text-gray-200">
+                                <div className="mt-3 space-y-2 text-sm leading-relaxed text-[var(--ui-muted)]">
                                     {changes.length > 0 ? changes.map((change) => <p key={change}>- {change}</p>) : <p>- 변경 없음</p>}
                                 </div>
                             </article>
@@ -1401,7 +1397,7 @@ export default function DietReportPage() {
                 </div>
             </section>
 
-            <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+            <section className="uiCard p-5 text-sm leading-relaxed sm:p-6">
                 <p className="font-semibold">검토 필요 항목</p>
                 <div className="mt-2 space-y-1">
                     {reviewWarnings.length > 0 ? (

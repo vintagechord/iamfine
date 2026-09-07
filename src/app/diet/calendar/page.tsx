@@ -1090,48 +1090,48 @@ export default function DietCalendarPage() {
     }, [year, month, stageType, userDietContext, medications, dailyPreferences, logs, bmi]);
 
     return (
-        <main className="space-y-4">
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <main className="mx-auto max-w-4xl space-y-6">
+            <section className="uiCard p-5 sm:p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">월간 식단표</h1>
+                    <div className="uiPageHeader min-w-0">
+                        <div className="flex items-center gap-3">
+                            <h1>월간 식단표</h1>
                             <button
                                 type="button"
                                 onClick={() => setShowCalendarInfoModal(true)}
-                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                className="uiIconButton"
                                 aria-label="월간 식단표 안내 열기"
                             >
-                                <CircleHelp className="h-4 w-4" />
+                                <CircleHelp className="h-5 w-5" aria-hidden="true" />
                             </button>
                         </div>
                         <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             현재 치료 단계: {STAGE_TYPE_LABELS[stageType]}
                         </p>
                     </div>
-                    <div className="galaxySafeActions w-full sm:w-auto">
+                    <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
                         <Link
                             href="/diet?view=record#today-record-section"
-                            className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            className="uiButton uiButton--primary"
                         >
                             오늘 기록하기
                         </Link>
                         <Link
                             href="/"
-                            className="shrink-0 whitespace-nowrap rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            className="uiButton uiButton--secondary"
                         >
-                            홈으로
+                            식단 제안
                         </Link>
                     </div>
                 </div>
 
                 {!userId && (
-                    <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                    <p className="mt-4 rounded-xl bg-[var(--ui-surface-muted)] px-4 py-3 text-sm leading-relaxed text-[var(--ui-muted)]">
                         로그인하면 치료 단계와 연동된 맞춤 식단표를 볼 수 있어요.
                     </p>
                 )}
 
-                <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+                <div className="mt-4 space-y-1 rounded-xl bg-[var(--ui-accent-soft)] p-4 text-sm leading-relaxed text-[var(--ui-accent)]">
                     <p>- 먹고 싶은 방향 선택은 당일에서만 확정할 수 있어요.</p>
                     <p>- 기록한 식사 패턴은 다음/다다음 날짜 식단에도 자동 반영돼요.</p>
                 </div>
@@ -1143,12 +1143,12 @@ export default function DietCalendarPage() {
                     onClick={() => setShowCalendarInfoModal(false)}
                 >
                     <section
-                        className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
+                        className="uiCard max-h-[70dvh] w-full max-w-md overflow-y-auto overscroll-contain p-5 sm:p-6"
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center justify-between gap-3">
                             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">월간 식단표 안내</h2>
-                            <button type="button" onClick={() => setShowCalendarInfoModal(false)} className="popupCloseButton">
+                            <button type="button" onClick={() => setShowCalendarInfoModal(false)} className="uiButton uiButton--ghost uiButton--small">
                                 닫기
                             </button>
                         </div>
@@ -1160,7 +1160,7 @@ export default function DietCalendarPage() {
                 </div>
             )}
 
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <section className="uiCard p-5 sm:p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div className="min-w-0">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">전체 식단표</h2>
@@ -1168,7 +1168,7 @@ export default function DietCalendarPage() {
                             월 단위로 아침/점심/저녁/간식을 한 번에 확인할 수 있어요.
                         </p>
                     </div>
-                    <label className="w-full text-sm font-medium text-gray-700 dark:text-gray-200 sm:w-auto">
+                    <label className="w-full min-w-0 text-sm font-medium text-[var(--ui-muted)] sm:w-auto">
                         월 선택
                         <input
                             type="month"
@@ -1176,7 +1176,7 @@ export default function DietCalendarPage() {
                             enterKeyHint="done"
                             value={monthValue}
                             onChange={(event) => setMonthValue(event.target.value)}
-                            className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 sm:w-auto"
+                            className="mt-2 block min-h-12 w-full min-w-0 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 py-2 text-base text-[var(--ui-ink)] sm:w-auto"
                         />
                     </label>
                 </div>
@@ -1188,16 +1188,16 @@ export default function DietCalendarPage() {
                         {monthPlans.map(({ plan, appliedPreferences, source }) => (
                             <article
                                 key={plan.date}
-                                className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/40"
+                                className="rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4 sm:p-5"
                             >
                                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{formatDateLabel(plan.date)}</p>
                                 {appliedPreferences.length > 0 && (
-                                    <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                                    <p className="mt-2 text-sm leading-relaxed text-[var(--ui-accent)]">
                                         {source ? `${source} 반영` : '방향 반영'}: {' '}
                                         {appliedPreferences.map((key) => PREFERENCE_LABELS[key]).join(', ')}
                                     </p>
                                 )}
-                                <div className="mt-2 grid gap-2 text-sm text-gray-700 dark:text-gray-200 md:grid-cols-2 xl:grid-cols-4">
+                                <div className="mt-3 grid gap-3 text-sm leading-relaxed text-[var(--ui-muted)] md:grid-cols-2">
                                     <p>
                                         <span className="font-semibold">아침</span>: {plan.breakfast.summary}
                                     </p>
@@ -1217,7 +1217,7 @@ export default function DietCalendarPage() {
                 )}
             </section>
 
-            <section className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+            <section className="px-1 text-sm leading-relaxed text-[var(--ui-muted)]">
                 <p>{DISCLAIMER_TEXT}</p>
             </section>
         </main>
