@@ -26,7 +26,7 @@ export const viewport: Viewport = {
     width: 'device-width',
     initialScale: 1,
     viewportFit: 'cover',
-    themeColor: '#f7f8f5',
+    themeColor: '#f5f3ed',
 };
 
 const TEXT_SCALE_KEY = 'iamfine:text-scale:v1';

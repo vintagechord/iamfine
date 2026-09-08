@@ -32,6 +32,7 @@ import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClie
 import { applyMealRecordGuidance, buildDietRecordContext } from '@/lib/dietRecordContext';
 import HealthNewsFeed from '@/components/HealthNewsFeed';
 import NextVisitSummary from '@/components/NextVisitSummary';
+import DailyVerse from '@/components/DailyVerse';
 
 type StageStatus = 'planned' | 'active' | 'completed';
 
@@ -3521,7 +3522,7 @@ export default function DietPage() {
             <div className={openRecordView ? undefined : 'mealMainHeader'}>
                 <header className="uiPageHeader min-w-0">
                     <p>{profile?.nickname ? `${profile.nickname} 님의 하루 한 끼` : '나를 돌보는 한 끼'}</p>
-                    <h1>{openRecordView ? '오늘의 식사를 기록해요.' : '오늘도 편안한 식사.'}</h1>
+                    {openRecordView ? <h1>오늘의 식사를 기록해요.</h1> : <DailyVerse />}
                     {openRecordView && <p>먹은 음식을 한 끼씩 남겨 보세요.</p>}
                 </header>
                 {!openRecordView && <NextVisitSummary />}

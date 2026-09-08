@@ -194,50 +194,55 @@ export default function HealthNewsFeed() {
     const updatedAgo = currentFeed?.updatedAt ? formatUpdatedAgo(currentFeed.updatedAt) : '';
 
     return (
-        <section className="uiCard p-5 sm:p-6" aria-labelledby={headingId}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 id={headingId} className="flex items-center gap-2 text-lg font-semibold text-[var(--ui-ink)]">
-                    <Newspaper className="h-5 w-5 shrink-0 text-[var(--ui-accent)]" aria-hidden="true" />
-                    건강 소식
-                </h2>
-                <span className="uiBadge">최근 2개월</span>
-            </div>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--ui-muted)]">
+        <section className="healthNews" aria-labelledby={headingId}>
+            <header className="healthNewsHeader">
+                <div>
+                    <p className="healthNewsEyebrow">
+                        <Newspaper className="healthNewsIcon" aria-hidden="true" />
+                        읽는 건강 정보
+                    </p>
+                    <h2 id={headingId} className="healthNewsTitle">건강 소식</h2>
+                </div>
+                <span className="healthNewsPeriod">최근 2개월</span>
+            </header>
+            <p className="healthNewsIntro">
                 {context?.cancerType ? `${context.cancerType} 관련 기사와 암센터·병원 소식` : '암센터·병원 소식과 건강 기사'}
             </p>
-            {loading && <p role="status" className="uiEmptyState">새 소식을 불러오고 있어요…</p>}
+            {loading && <p role="status" className="healthNewsState">새 소식을 불러오고 있어요…</p>}
             {!loading && currentFeed?.error && (
-                <div className="mt-4 rounded-xl bg-[var(--ui-surface-muted)] p-4" role="status">
-                    <p className="text-sm leading-relaxed text-[var(--ui-muted)]">{currentFeed.error}</p>
+                <div className="healthNewsState" role="status">
+                    <p>{currentFeed.error}</p>
                     <button type="button" onClick={() => setRetry((value) => value + 1)} className="uiButton uiButton--secondary uiButton--small mt-3">다시 불러오기</button>
                 </div>
             )}
-            {!loading && !currentFeed?.error && items.length === 0 && <p className="uiEmptyState">최근 2개월 안에 등록된 관련 소식이 아직 없어요.</p>}
+            {!loading && !currentFeed?.error && items.length === 0 && <p className="healthNewsState">최근 2개월 안에 등록된 관련 소식이 아직 없어요.</p>}
             {!loading && items.length > 0 && (
                 <>
-                    <ul className="mt-4 space-y-3">
+                    <ul className="healthNewsList">
                         {items.slice(0, visibleCount).map((item) => (
                             <li key={item.url}>
-                                <a href={item.url} target="_blank" rel="noopener noreferrer" className="block rounded-xl border border-[var(--ui-border)] p-4 transition hover:bg-[var(--ui-surface-muted)]">
-                                    <div className="flex items-start gap-3">
-                                        <h3 className="min-w-0 flex-1 break-words text-base font-semibold leading-relaxed text-[var(--ui-ink)]">{item.title}<span className="sr-only"> (새 창)</span></h3>
-                                        <ArrowUpRight className="mt-1 h-4 w-4 shrink-0 text-[var(--ui-muted)]" aria-hidden="true" />
-                                    </div>
-                                    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--ui-muted)]">
-                                        {item.kind === 'official' && <span className="font-medium text-[var(--ui-accent)]">기관 소식</span>}
-                                        <span>{item.source}</span>
-                                        <span aria-hidden="true">·</span>
-                                        <time dateTime={item.publishedAt}>{formatDate(item.publishedAt)}</time>
-                                    </p>
-                                </a>
+                                <article>
+                                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="healthNewsArticle">
+                                        <div className="healthNewsArticleBody">
+                                            <p className="healthNewsMeta">
+                                                <span className="healthNewsKind">{item.kind === 'official' ? '기관 소식' : '건강 기사'}</span>
+                                                <span>{item.source}</span>
+                                                <span aria-hidden="true">·</span>
+                                                <time dateTime={item.publishedAt}>{formatDate(item.publishedAt)}</time>
+                                            </p>
+                                            <h3 className="healthNewsArticleTitle">{item.title}<span className="sr-only"> (새 창)</span></h3>
+                                        </div>
+                                        <ArrowUpRight className="healthNewsArticleArrow" aria-hidden="true" />
+                                    </a>
+                                </article>
                             </li>
                         ))}
                     </ul>
-                    {visibleCount < items.length && <button type="button" onClick={() => setVisibleCount((value) => value + PAGE_SIZE)} className="uiButton uiButton--secondary mt-4 w-full">소식 더 보기</button>}
+                    {visibleCount < items.length && <button type="button" onClick={() => setVisibleCount((value) => value + PAGE_SIZE)} className="uiButton uiButton--secondary healthNewsMore">소식 더 보기</button>}
                 </>
             )}
-            {!loading && currentFeed?.partial && !currentFeed.error && <p className="mt-3 text-sm leading-relaxed text-[var(--ui-muted)]">일부 출처에 연결되지 않아 확인된 소식만 보여드려요.</p>}
-            {!loading && updatedAgo && <p className="mt-3 text-xs leading-relaxed text-[var(--ui-muted)]">{updatedAgo} · 같은 소식은 한 번만</p>}
+            {!loading && currentFeed?.partial && !currentFeed.error && <p className="healthNewsFooter">일부 출처에 연결되지 않아 확인된 소식만 보여드려요.</p>}
+            {!loading && updatedAgo && <p className="healthNewsFooter">{updatedAgo} · 같은 소식은 한 번만</p>}
         </section>
     );
 }
