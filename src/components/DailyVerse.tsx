@@ -55,12 +55,12 @@ export default function DailyVerse() {
                         href={verse.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label={`${verse.reference} 본문 확인 (영문, 새 창)`}
+                        aria-label={`${verse.reference} 개역한글 본문 확인 (새 창)`}
                     >
                         {verse.reference}
                     </a>
                 )}
-                <span className="dailyVerseNote">쉬운 말로 풀어 쓴 말씀</span>
+                <span className="dailyVerseNote">성경전서 개역한글판 © 대한성서공회 1961</span>
             </p>
         </div>
     );
