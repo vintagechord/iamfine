@@ -3,6 +3,7 @@
 import { Moon, Sun, Sunrise, X } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { mealTypeLabel, type DayPlan, type MealSlot } from '@/lib/dietEngine';
+import MealNutrition from '@/components/MealNutrition';
 
 type RecommendedMealsProps = {
     plan: DayPlan;
@@ -177,23 +178,7 @@ export default function RecommendedMeals({ plan, dateLabel, medicationsBySlot, r
                         </details>
                         <details className="mealDialogDetail">
                             <summary>영양 구성</summary>
-                            {meal.nutritionUnavailable ? <p>상세 영양량은 아직 계산하지 않아요.</p> : (
-                                <>
-                                    <p className="text-sm text-[var(--ui-muted)]">기본 구성 비율이며 실제 영양 분석값은 아니에요.</p>
-                                    <dl className="mt-3 space-y-2 text-sm">
-                                        {[
-                                            { label: '탄수화물', value: meal.nutrient.carb },
-                                            { label: '단백질', value: meal.nutrient.protein },
-                                            { label: '지방', value: meal.nutrient.fat },
-                                        ].map(({ label, value }) => (
-                                            <div key={label} className="flex items-center justify-between gap-4">
-                                                <dt>{label}</dt>
-                                                <dd className="font-semibold">{Math.max(0, Math.min(100, value))}%</dd>
-                                            </div>
-                                        ))}
-                                    </dl>
-                                </>
-                            )}
+                            <MealNutrition meal={meal} />
                         </details>
                     </div>
                 </div>

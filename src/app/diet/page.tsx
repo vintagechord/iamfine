@@ -32,6 +32,7 @@ import { applyMealRecordGuidance, buildDietRecordContext } from '@/lib/dietRecor
 import HealthNewsFeed from '@/components/HealthNewsFeed';
 import NextVisitSummary from '@/components/NextVisitSummary';
 import DailyVerse from '@/components/DailyVerse';
+import MealNutrition from '@/components/MealNutrition';
 import RecommendedMeals from '@/components/RecommendedMeals';
 
 type StageStatus = 'planned' | 'active' | 'completed';
@@ -785,7 +786,7 @@ function mealPortionGuideFromPlan(meal: MealPlanItem, slot: MealSlot) {
     if (meal.nutritionUnavailable) {
         return {
             items: uniqueNames.map((name) => ({ name, amount: '개인 섭취량 확인 필요' })),
-            notes: ['상세 영양량과 섭취량은 아직 계산하지 않아요. 의료진과 정한 식사량을 따라 주세요.'],
+            notes: ['개인 섭취량은 의료진과 정한 기준을 따라 주세요. 영양 구성에서는 계산에 사용한 예시 분량을 확인할 수 있어요.'],
         };
     }
     const items: PortionGuideItem[] = uniqueNames.map((name) => ({
@@ -3929,9 +3930,10 @@ export default function DietPage() {
                                                         )}
                                                     </div>
                                                 )}
-                                                <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
-                                                    {meal.nutritionUnavailable ? '상세 영양량은 계산 전이에요.' : `기본 구성 참고: 탄수화물 ${meal.nutrient.carb}% · 단백질 ${meal.nutrient.protein}% · 지방 ${meal.nutrient.fat}%`}
-                                                </p>
+                                                <details className="mt-2">
+                                                    <summary className="cursor-pointer py-3 text-sm font-semibold">추천 식단 영양 구성</summary>
+                                                    <MealNutrition meal={meal} />
+                                                </details>
                                             </article>
                                         );
                                     })}
@@ -4183,11 +4185,12 @@ export default function DietPage() {
                             <button type="button" aria-expanded={showNutrients} onClick={() => setShowNutrients((prev) => !prev)} className="uiButton uiButton--ghost uiButton--small">{showNutrients ? '영양 참고 닫기' : '영양 참고 정보'}</button>
                         {showNutrients && (
                             <div className="mt-3 rounded-xl bg-gray-50 p-3 text-sm text-gray-600 dark:bg-gray-950/40 dark:text-gray-300">
-                                <p>아래 비율은 추천 식단의 기본 구성 비율이에요. 실제 먹은 음식의 영양 분석값은 아니에요.</p>
+                                <p>추천 식단의 예시 분량 기준이에요. 실제 식사 기록의 영양 분석은 아니에요.</p>
                                 {SLOT_ORDER.map((slot) => (
-                                    <p key={slot} className="mt-2">{mealTypeLabel(slot)}: {selectedPlan[slot].nutritionUnavailable
-                                        ? '상세 영양량은 계산 전이에요.'
-                                        : `탄수화물 ${selectedPlan[slot].nutrient.carb}% · 단백질 ${selectedPlan[slot].nutrient.protein}% · 지방 ${selectedPlan[slot].nutrient.fat}%`}</p>
+                                    <details key={slot} className="mt-2">
+                                        <summary className="cursor-pointer py-3 font-semibold">{mealTypeLabel(slot)} 추천 영양 구성</summary>
+                                        <MealNutrition meal={selectedPlan[slot]} />
+                                    </details>
                                 ))}
                             </div>
                         )}

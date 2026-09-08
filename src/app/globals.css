@@ -446,3 +446,52 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Estimated meal nutrition keeps its calculation basis beside the visual. */
+.mealNutrition {
+  --nutrition-carb: #2465b5;
+  --nutrition-protein: #178a87;
+  --nutrition-fat: #b98320;
+  padding: 1.15rem; border: 1px solid var(--ui-border); border-radius: 16px;
+  background: var(--ui-surface); color: var(--ui-ink);
+}
+.dark .mealNutrition { --nutrition-carb: #8db8f4; --nutrition-protein: #79c9bb; --nutrition-fat: #e0ba6d; }
+.mealNutritionTop { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem 1rem; }
+.mealNutritionEyebrow { color: var(--ui-muted); font-size: 0.8125rem; line-height: 1.6; }
+.mealNutritionEnergy { margin-top: 0.2rem; font-size: clamp(1.7rem, 5vw, 2.1rem); font-weight: 700; line-height: 1.35; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.mealNutritionEnergy > span { font-size: 0.875rem; font-weight: 500; letter-spacing: 0; color: var(--ui-muted); }
+.mealNutritionEstimate { flex-shrink: 0; padding: 0.25rem 0.6rem; border-radius: 6px; background: var(--ui-accent-soft); color: var(--ui-accent); font-size: 0.75rem; font-weight: 600; line-height: 1.5; }
+.mealNutritionCoverage { margin-top: 0.6rem; font-size: 0.8125rem; font-weight: 600; color: var(--ui-accent); }
+.mealNutritionNote { margin-top: 0.65rem; color: var(--ui-muted); font-size: 0.8125rem; line-height: 1.7; }
+.mealNutritionChartLabel { margin: 1.25rem 0 0.6rem; font-size: 0.8125rem; font-weight: 600; }
+.mealNutritionBar { display: flex; gap: 2px; height: 18px; overflow: hidden; border-radius: 6px; background: var(--ui-surface-muted); }
+.mealNutritionBar > span { display: block; min-width: 0; height: 100%; }
+.mealNutrition [data-nutrient="carb"] { background: var(--nutrition-carb); }
+.mealNutrition [data-nutrient="protein"] { background: var(--nutrition-protein); }
+.mealNutrition [data-nutrient="fat"] { background: var(--nutrition-fat); }
+.mealNutritionValues { margin-top: 0.7rem; }
+.mealNutritionValues > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.5rem 0.8rem; padding: 0.7rem 0; border-bottom: 1px solid var(--ui-border); font-size: 0.875rem; }
+.mealNutritionValues > div:last-child { border-bottom: 0; }
+.mealNutritionValues dt { display: flex; align-items: center; gap: 0.5rem; }
+.mealNutritionSwatch { display: inline-block; width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; }
+.mealNutritionValues dd { display: grid; grid-template-columns: auto minmax(74px, auto); align-items: baseline; gap: 0.75rem; margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.mealNutritionValues strong { font-weight: 650; white-space: nowrap; }
+.mealNutritionValues dd > span { color: var(--ui-muted); font-size: 0.75rem; white-space: nowrap; }
+.mealNutritionSources { margin-top: 0.8rem; border-top: 1px solid var(--ui-border); }
+.mealNutritionSources > summary { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-height: 48px; padding-top: 0.6rem; list-style: none; font-size: 0.8125rem; font-weight: 600; }
+.mealNutritionSources > summary::-webkit-details-marker { display: none; }
+.mealNutritionSources > summary::after { content: ""; width: 6px; height: 6px; flex-shrink: 0; margin-right: 0.25rem; border-right: 1.5px solid var(--ui-muted); border-bottom: 1.5px solid var(--ui-muted); transform: rotate(45deg); }
+.mealNutritionSources[open] > summary::after { transform: rotate(225deg); }
+.mealNutritionSources ul { margin-top: 0.4rem; padding: 0; list-style: none; }
+.mealNutritionSources li { margin: 0; padding: 0.8rem 0; border-bottom: 1px solid var(--ui-border); }
+.mealNutritionSources li:last-child { border-bottom: 0; }
+.mealNutritionSourceHeading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 0.2rem 0.75rem; font-size: 0.8125rem; font-weight: 600; }
+.mealNutritionSourceHeading > span:last-child { color: var(--ui-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mealNutritionSources li > p { margin-top: 0.3rem; font-size: 0.75rem; line-height: 1.7; color: var(--ui-muted); }
+.mealNutritionSources a { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 44px; font-size: 0.75rem; font-weight: 600; color: var(--ui-accent); text-decoration: underline; text-underline-offset: 0.2em; }
+.mealNutritionMissing { margin-top: 0.5rem; font-size: 0.8125rem; line-height: 1.7; color: var(--ui-muted); }
+.mealNutrition--empty .mealNutritionEnergy { color: var(--ui-muted); }
+@media (max-width: 430px) {
+  .mealNutrition { padding: 1rem; }
+  .mealNutritionValues dd { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; }
+}

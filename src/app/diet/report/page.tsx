@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import MealNutrition from '@/components/MealNutrition';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     applyDinnerCarbSafety,
@@ -1136,9 +1137,10 @@ export default function DietReportPage() {
                             <article key={item.key} className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4">
                                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</p>
                                 <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">최종: {item.final.summary || '식사 구성 확인 필요'}</p>
-                                <p className="mt-2 text-sm leading-relaxed text-[var(--ui-muted)]">
-                                    {item.final.nutritionUnavailable ? '상세 영양량은 계산 전이에요. 의료진과 정한 식사량을 따라 주세요.' : `기본 구성 참고: 탄수 ${item.final.nutrient.carb}% / 단백질 ${item.final.nutrient.protein}% / 지방 ${item.final.nutrient.fat}%`}
-                                </p>
+                                <details className="mt-2">
+                                    <summary className="cursor-pointer py-3 text-sm font-semibold">영양 구성</summary>
+                                    <MealNutrition meal={item.final} />
+                                </details>
                                 <div className="mt-3 space-y-2 text-sm leading-relaxed text-[var(--ui-muted)]">
                                     {changes.length > 0 ? changes.map((change) => <p key={change}>- {change}</p>) : <p>- 변경 없음</p>}
                                 </div>
