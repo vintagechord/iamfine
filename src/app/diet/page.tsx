@@ -3487,7 +3487,6 @@ export default function DietPage() {
                         <button type="button" onClick={() => setTodayPlanOffset((prev) => Math.min(1, prev + 1))} disabled={todayPlanOffset >= 1} className="uiIconButton" aria-label="다음 날짜 식단 보기"><ChevronRight size={19} /></button>
                     </div>
                 </div>
-                <p className="recommendationPlanHint">끼니를 선택하면 식단이 열려요.</p>
                 <RecommendedMeals
                     plan={viewedTodayPlan}
                     dateLabel={viewedTodayDateLabel}
