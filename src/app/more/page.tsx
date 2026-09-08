@@ -5,7 +5,6 @@ import { CalendarClock, ChevronDown, ChevronRight, MapPinned, Plus, ShoppingCart
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AuthActionButton from '@/components/AuthActionButton';
 import ThemeToggle from '@/components/ThemeToggle';
-import HealthNewsFeed from '@/components/HealthNewsFeed';
 import { getAuthSessionUser, hasSupabaseEnv, supabase, updateUserMetadataForSession } from '@/lib/supabaseClient';
 import {
     areVisitScheduleListsSame,
@@ -436,7 +435,7 @@ export default function MorePage() {
         <div className="mx-auto max-w-2xl space-y-6 py-3 sm:py-6">
             <header className="uiPageHeader">
                 <h1>더보기</h1>
-                <p>내 정보와 필요한 도구를 모았어요.</p>
+                <p>필요한 기능을 한곳에서.</p>
             </header>
 
             <nav aria-label="추가 기능" className="uiCard overflow-hidden">
@@ -579,8 +578,6 @@ export default function MorePage() {
                         )}
                     </div>
                 </details>
-
-                <HealthNewsFeed />
             </div>
 
             <section aria-labelledby="more-settings-heading" className="space-y-3">

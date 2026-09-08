@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Leaf, Minus, Moon, Plus, Search, Sun, Sunrise, Utensils } from 'lucide-react';
+import { ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Leaf, Minus, Plus, Search } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     formatDateKey,
@@ -18,7 +18,6 @@ import {
     optimizePlanByPreference,
     PREFERENCE_OPTIONS,
     type DayPlan,
-    type MealNutrient,
     type MealSlot,
     type PreferenceType,
     type StageType,
@@ -33,6 +32,7 @@ import { applyMealRecordGuidance, buildDietRecordContext } from '@/lib/dietRecor
 import HealthNewsFeed from '@/components/HealthNewsFeed';
 import NextVisitSummary from '@/components/NextVisitSummary';
 import DailyVerse from '@/components/DailyVerse';
+import RecommendedMeals from '@/components/RecommendedMeals';
 
 type StageStatus = 'planned' | 'active' | 'completed';
 
@@ -127,16 +127,6 @@ type RecipeModalContent = {
 type TeaRecommendation = {
     name: string;
     reason: string;
-};
-
-type PortionGuideModalContent = {
-    title: string;
-    slot: MealSlot;
-    guide: ReturnType<typeof mealPortionGuideFromPlan>;
-    substitutes: Array<{
-        hint: string;
-        options: string[];
-    }>;
 };
 
 type SubstituteGroup = {
@@ -837,61 +827,6 @@ function mealPortionGuideFromPlan(meal: MealPlanItem, slot: MealSlot) {
 function mealTrackNamesWithPortion(meal: MealPlanItem, slot: MealSlot) {
     const guide = mealPortionGuideFromPlan(meal, slot);
     return guide.items.map((item) => meal.nutritionUnavailable ? item.name : `${item.name} · ${item.amount}`);
-}
-
-function MealNutrientBalance({ nutrient }: { nutrient: MealNutrient }) {
-    const carb = clamp(nutrient.carb, 0, 100);
-    const protein = clamp(nutrient.protein, 0, 100);
-    const fat = clamp(nutrient.fat, 0, 100);
-    const total = Math.max(1, carb + protein + fat);
-    const segments = [
-        {
-            key: 'carb',
-            label: '탄수',
-            value: carb,
-            width: `${(carb / total) * 100}%`,
-            barClass: 'bg-amber-400',
-            dotClass: 'bg-amber-400',
-        },
-        {
-            key: 'protein',
-            label: '단백질',
-            value: protein,
-            width: `${(protein / total) * 100}%`,
-            barClass: 'bg-emerald-500',
-            dotClass: 'bg-emerald-500',
-        },
-        {
-            key: 'fat',
-            label: '지방',
-            value: fat,
-            width: `${(fat / total) * 100}%`,
-            barClass: 'bg-sky-500',
-            dotClass: 'bg-sky-500',
-        },
-    ] as const;
-
-    return (
-        <div className="mt-3 rounded-lg border border-gray-200 bg-white/70 p-2 dark:border-gray-700 dark:bg-gray-900/60">
-            <p className="text-xs font-semibold text-gray-800 dark:text-gray-100">영양 밸런스</p>
-            <div className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
-                {segments.map((segment) => (
-                    <span key={segment.key} className={`h-full ${segment.barClass}`} style={{ width: segment.width }} />
-                ))}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-700 dark:text-gray-200">
-                {segments.map((segment) => (
-                    <span
-                        key={`${segment.key}-label`}
-                        className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-0.5 dark:border-gray-700 dark:bg-gray-900"
-                    >
-                        <span className={`h-2 w-2 rounded-full ${segment.dotClass}`} />
-                        {segment.label} {segment.value}%
-                    </span>
-                ))}
-            </div>
-        </div>
-    );
 }
 
 function getStoreKey(userId: string) {
@@ -2021,7 +1956,6 @@ export default function DietPage() {
     const activeRecordSlot: MealSlot = requestedRecordSlot && SLOT_ORDER.includes(requestedRecordSlot) ? requestedRecordSlot : 'breakfast';
     const [todayPlanOffset, setTodayPlanOffset] = useState(0);
     const [openRecipeSlot, setOpenRecipeSlot] = useState<RecipeTarget | null>(null);
-    const [openPortionGuideContent, setOpenPortionGuideContent] = useState<PortionGuideModalContent | null>(null);
     const [showDietModeInfoModal, setShowDietModeInfoModal] = useState(false);
     const [showRecordPlanModal, setShowRecordPlanModal] = useState(false);
     const [openRecordPortionSlot, setOpenRecordPortionSlot] = useState<MealSlot | null>(null);
@@ -2051,7 +1985,7 @@ export default function DietPage() {
     } | null>(null);
 
     const openRecordView = searchParams.get('view') === 'record';
-    const hasOpenDialog = Boolean(openRecipeSlot || openPortionGuideContent || showDietModeInfoModal || showRecordPlanModal);
+    const hasOpenDialog = Boolean(openRecipeSlot || showDietModeInfoModal || showRecordPlanModal);
     useEffect(() => {
         if (!hasOpenDialog) return;
         const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -2059,12 +1993,11 @@ export default function DietPage() {
         if (!dialog) return;
         const oldOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
-        const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), [tabindex="0"]'));
+        const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), summary, [tabindex="0"]')).filter((element) => element.getClientRects().length > 0);
         (focusable()[0] ?? dialog).focus();
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 setOpenRecipeSlot(null);
-                setOpenPortionGuideContent(null);
                 setShowDietModeInfoModal(false);
                 setShowRecordPlanModal(false);
             }
@@ -2588,11 +2521,6 @@ export default function DietPage() {
         () => new Set(selectedLog.medicationTakenIds ?? []),
         [selectedLog.medicationTakenIds]
     );
-    const viewedTodayMedicationTakenSet = useMemo(
-        () => new Set((logs[viewedTodayDateKey]?.medicationTakenIds ?? []) as string[]),
-        [logs, viewedTodayDateKey]
-    );
-
     const selectedAnalysis = useMemo(
         () => analyzeDay(selectedPlan, selectedLog, stageType),
         [selectedPlan, selectedLog, stageType]
@@ -3453,6 +3381,32 @@ export default function DietPage() {
         await saveCurrentRecord();
     };
 
+    const renderRecommendedPortions = (slot: MealSlot) => {
+        const guide = mealPortionGuideFromPlan(viewedTodayPlan[slot], slot);
+        return (
+            <div className="recommendedPortions">
+                <dl>
+                    {guide.items.map((item) => (
+                        <div key={item.name}><dt>{item.name}</dt><dd>{item.amount}</dd></div>
+                    ))}
+                </dl>
+                {guide.notes.map((note) => <p key={note}>{note}</p>)}
+                <details className="mealDialogDetail">
+                    <summary>대체할 수 있는 음식</summary>
+                    {guide.items.map((item) => {
+                        const substitute = buildSubstituteCandidates(item.name, slot, manualFoodCandidates, foodPersonalization.avoidedIngredients);
+                        return substitute.options.length > 0 ? (
+                            <div key={item.name} className="mt-3">
+                                <p className="font-medium">{item.name}</p>
+                                <p className="text-sm text-[var(--ui-muted)]">{substitute.options.slice(0, 5).join(' · ')}</p>
+                            </div>
+                        ) : null;
+                    })}
+                </details>
+            </div>
+        );
+    };
+
     if (loading) {
         return (
             <main className="dietWorkspace space-y-6" aria-busy="true">
@@ -3483,7 +3437,7 @@ export default function DietPage() {
     if (!userId) {
         return (
             <main className="dietWorkspace space-y-6 pb-6">
-                <section className="overflow-hidden rounded-[28px] bg-[var(--ui-accent-soft)] px-6 py-9 sm:px-10 sm:py-12">
+                <section className="welcomePanel">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--ui-surface)] text-[var(--ui-accent)]" aria-hidden="true">
                             {openRecordView ? <ClipboardList size={25} /> : <Leaf size={25} />}
@@ -3495,95 +3449,64 @@ export default function DietPage() {
                         {openRecordView ? <>오늘 먹은 음식을<br />편하게 기록해요.</> : <>오늘은 무엇을<br />먹으면 좋을까요?</>}
                     </h1>
                     <p className="mt-4 max-w-md text-base leading-relaxed text-[var(--ui-muted)]">
-                        {openRecordView ? '한 끼씩 기록하고, 나의 식사 흐름을 살펴보세요.' : '내 몸 상태에 맞는 식단을 살펴보고, 먹은 음식을 차근차근 기록해요.'}
+                        {openRecordView ? '한 끼씩 기록하고, 나의 식사 흐름을 살펴보세요.' : '내 몸에 맞는 한 끼를 간편하게 확인하세요.'}
                     </p>
                     <Link href="/auth" className="uiButton uiButton--primary mt-7 w-full sm:w-auto">
                         로그인하고 시작하기 <ArrowRight size={18} aria-hidden="true" />
                     </Link>
                 </section>
-                {!openRecordView && <HealthNewsFeed />}
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <section className="uiCard flex items-start gap-4 p-5">
-                        <span className="mt-1 text-[var(--ui-accent)]" aria-hidden="true"><Utensils size={22} /></span>
-                        <div><h2 className="font-semibold">내게 맞는 식단 제안</h2><p className="mt-1 text-sm leading-relaxed text-[var(--ui-muted)]">몸 상태와 먹기 편한 음식을 반영해요.</p></div>
-                    </section>
-                    <section className="uiCard flex items-start gap-4 p-5">
-                        <span className="mt-1 text-[var(--ui-accent)]" aria-hidden="true"><ClipboardList size={22} /></span>
-                        <div><h2 className="font-semibold">간편한 식사 기록</h2><p className="mt-1 text-sm leading-relaxed text-[var(--ui-muted)]">음식을 검색하고 한 끼씩 저장해요.</p></div>
-                    </section>
-                </div>
+                {!openRecordView && (
+                    <details className="recommendationDisclosure">
+                        <summary>건강 소식</summary>
+                        <HealthNewsFeed />
+                    </details>
+                )}
                 <p className="px-1 text-xs leading-relaxed text-[var(--ui-muted)]">{DISCLAIMER_TEXT}</p>
             </main>
         );
     }
 
     return (
-        <main className="dietWorkspace space-y-5 pb-8">
-            <div className={openRecordView ? undefined : 'mealMainHeader'}>
+        <main className={`dietWorkspace space-y-5 pb-8 ${openRecordView ? 'recordWorkspace' : 'recommendationWorkspace'}`}>
+            <div className={openRecordView ? undefined : 'recommendationOverview'}>
                 <header className="uiPageHeader min-w-0">
                     <p>{profile?.nickname ? `${profile.nickname} 님의 하루 한 끼` : '나를 돌보는 한 끼'}</p>
-                    {openRecordView ? <h1>오늘의 식사를 기록해요.</h1> : <DailyVerse />}
+                    {openRecordView ? <h1>오늘의 식사를 기록해요.</h1> : <h1>나를 위한 식단</h1>}
                     {openRecordView && <p>먹은 음식을 한 끼씩 남겨 보세요.</p>}
                 </header>
+            {!openRecordView && (
+            <section className="recommendationPlan" aria-label="식단 추천">
+                <div className="recommendationPlanHeader">
+                    <div className="min-w-0">
+                        <h2 className="text-lg font-semibold">{viewedTodayLabel} 식단</h2>
+                        <p className="mt-0.5 text-xs text-[var(--ui-muted)]">{viewedTodayDateLabel}</p>
+                    </div>
+                    <div className="recommendationDateControls">
+                        <button type="button" onClick={() => setTodayPlanOffset((prev) => Math.max(-1, prev - 1))} disabled={todayPlanOffset <= -1} className="uiIconButton" aria-label="이전 날짜 식단 보기"><ChevronLeft size={19} /></button>
+                        <button type="button" onClick={() => setTodayPlanOffset((prev) => Math.min(1, prev + 1))} disabled={todayPlanOffset >= 1} className="uiIconButton" aria-label="다음 날짜 식단 보기"><ChevronRight size={19} /></button>
+                    </div>
+                </div>
+                <p className="recommendationPlanHint">끼니를 선택하면 식단이 열려요.</p>
+                <RecommendedMeals
+                    plan={viewedTodayPlan}
+                    dateLabel={viewedTodayDateLabel}
+                    medicationsBySlot={{
+                        breakfast: medicationSchedulesByTiming.breakfast.map((item) => item.name),
+                        lunch: medicationSchedulesByTiming.lunch.map((item) => item.name),
+                        dinner: medicationSchedulesByTiming.dinner.map((item) => item.name),
+                    }}
+                    renderPortions={renderRecommendedPortions}
+                />
+            </section>
+            )}
                 {!openRecordView && <NextVisitSummary />}
             </div>
             {!openRecordView && (
-            <section className="space-y-4">
-                <div className="flex items-center justify-between gap-3 px-1">
-                    <div className="flex min-w-0 items-center gap-2">
-                        <button type="button" onClick={() => setTodayPlanOffset((prev) => Math.max(-1, prev - 1))} disabled={todayPlanOffset <= -1} className="uiIconButton" aria-label="이전 날짜 식단 보기"><ChevronLeft size={19} /></button>
-                        <div className="min-w-0 text-center">
-                            <h2 className="text-lg font-semibold">{viewedTodayLabel} 식단</h2>
-                            <p className="mt-0.5 text-xs text-[var(--ui-muted)]">{viewedTodayDateLabel}</p>
-                        </div>
-                        <button type="button" onClick={() => setTodayPlanOffset((prev) => Math.min(1, prev + 1))} disabled={todayPlanOffset >= 1} className="uiIconButton" aria-label="다음 날짜 식단 보기"><ChevronRight size={19} /></button>
-                    </div>
-                    <Link href="/profile#food-personalization" className="uiButton uiButton--ghost uiButton--small">맞춤 설정</Link>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-                    {SLOT_ORDER.map((slot) => {
-                        const meal = viewedTodayPlan[slot];
-                        const MealIcon = slot === 'breakfast' ? Sunrise : slot === 'lunch' ? Sun : slot === 'dinner' ? Moon : Utensils;
-                        const time = slot === 'breakfast' ? '오전 7–9시' : slot === 'lunch' ? '낮 12–1시' : slot === 'dinner' ? '오후 6–7시' : snackCoffeeRecommendedTime.snack;
-                        const mealMedicationList = slot === 'snack' ? [] : medicationSchedulesByTiming[slot];
-                        return (
-                            <article key={slot} className="uiCard flex flex-col p-5 sm:p-6">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div className="flex items-center gap-2.5">
-                                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--ui-accent-soft)] text-[var(--ui-accent)]" aria-hidden="true"><MealIcon size={20} /></span>
-                                        <h3 className="font-semibold">{mealTypeLabel(slot)}</h3>
-                                    </div>
-                                    <span className="text-xs text-[var(--ui-muted)]">{time}</span>
-                                </div>
-                                <div className="flex-1 pb-5 pt-5">
-                                    <p className="text-xl font-semibold leading-relaxed tracking-tight">{meal.main || '식사 구성 확인 필요'}</p>
-                                    <p className="mt-2 text-sm leading-relaxed text-[var(--ui-muted)]">{slot === 'snack' ? [...meal.sides, meal.soup].filter(Boolean).join(' · ') : [meal.riceType, meal.soup].filter(Boolean).join(' · ')}</p>
-                                    {mealMedicationList.length > 0 && <p className="mt-3 text-xs leading-relaxed text-[var(--ui-accent)]">식후 복용 · {mealMedicationList.map((medication) => `${medication.name}${viewedTodayMedicationTakenSet.has(medication.id) ? ' ✓' : ''}`).join(', ')}</p>}
-                                </div>
-                                <div className="flex items-center justify-between gap-2 border-t border-[var(--ui-border)] pt-3">
-                                    <button type="button" onClick={() => setOpenRecipeSlot(slot)} className="uiButton uiButton--ghost uiButton--small">조리법</button>
-                                    {viewedTodayDateKey <= todayKey && <Link href={`/diet?view=record&meal=${slot}&date=${viewedTodayDateKey}`} onClick={() => setOpenSubstituteTarget(null)} className="uiButton uiButton--secondary uiButton--small">{mealTypeLabel(slot)} 기록 <ArrowRight size={15} aria-hidden="true" /></Link>}
-                                </div>
-                                <details className="mt-1">
-                                    <summary className="cursor-pointer py-3 text-sm text-[var(--ui-muted)]">식사량과 구성 보기</summary>
-                                    {slot !== 'snack' && <p className="mb-3 text-sm leading-relaxed text-gray-600">반찬 · {meal.sides.join(' · ')}</p>}
-                                    <button type="button" onClick={() => {
-                                        const guide = mealPortionGuideFromPlan(meal, slot);
-                                        setOpenPortionGuideContent({ title: `${mealTypeLabel(slot)} 식사량 참고`, slot, guide, substitutes: guide.items.map((item) => { const substitute = buildSubstituteCandidates(item.name, slot, manualFoodCandidates, foodPersonalization.avoidedIngredients); return { hint: substitute.hint, options: substitute.options.slice(0, 5) }; }) });
-                                    }} className="uiButton uiButton--secondary uiButton--small">먹는 양 확인하기</button>
-                                    {meal.nutritionUnavailable ? <p className="mt-3 text-xs leading-relaxed text-[var(--ui-muted)]">상세 영양량은 아직 계산하지 않아요.</p> : <><p className="mt-3 text-xs leading-relaxed text-[var(--ui-muted)]">기본 구성 비율이며 실제 영양 분석값은 아니에요.</p><MealNutrientBalance nutrient={meal.nutrient} /></>}
-                                </details>
-                            </article>
-                        );
-                    })}
-                </div>
-                <HealthNewsFeed />
-                <details className="uiCard px-5 pb-2">
-                    <summary className="cursor-pointer py-4 text-sm font-semibold">식단 설정과 추천 이유</summary>
+                <details className="recommendationDisclosure">
+                    <summary className="cursor-pointer py-4 text-sm font-semibold">식단 설정 · 추천 이유</summary>
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm leading-relaxed text-[var(--ui-muted)]">{describeFoodPersonalization(foodPersonalization).join(' · ') || '먹기 편한 음식과 피할 재료를 알려 주세요.'}</p>
-                        <Link href="/diet/calendar" className="uiButton uiButton--ghost uiButton--small">월간 식단</Link>
-                        <Link href="/diet/report" className="uiButton uiButton--ghost uiButton--small">추천 리포트</Link>
+                        <Link href="/profile#food-personalization" className="uiButton uiButton--secondary uiButton--small">맞춤 설정</Link>
                     </div>
                 <details className="mt-3 rounded-xl border border-gray-200 px-3 dark:border-gray-700">
                     <summary className="cursor-pointer py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">체중 관리 설정</summary>
@@ -3618,6 +3541,17 @@ export default function DietPage() {
 
                 <details className="mt-3 rounded-xl border border-gray-200 px-3 pb-3 dark:border-gray-700">
                     <summary className="cursor-pointer py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">간식과 음료 안내</summary>
+                    <div className="snackSuggestion">
+                        <p className="font-semibold">{viewedTodayPlan.snack.main || '간식 구성 확인 필요'}</p>
+                        <p className="text-sm text-[var(--ui-muted)]">{[...viewedTodayPlan.snack.sides, viewedTodayPlan.snack.soup].filter(Boolean).join(' · ')}</p>
+                        <details className="mealDialogDetail">
+                            <summary>간식 준비 방법과 양</summary>
+                            <ol className="list-decimal space-y-2 pl-5 text-sm">
+                                {uniqueRecipeSteps(viewedTodayPlan.snack.recipeSteps).map((step) => <li key={step}>{step}</li>)}
+                            </ol>
+                            {renderRecommendedPortions('snack')}
+                        </details>
+                    </div>
                     {hasRenalDietRestrictions(userDietContext) ? <p className="text-sm leading-relaxed text-[var(--ui-muted)]">간식과 음료 종류·양은 의료진과 정한 식사·수분 지침을 따라 주세요.</p> : <>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- 간식 권장 시간: {snackCoffeeRecommendedTime.snack}</p>
                     <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">- {timingGuide.snack}</p>
@@ -3675,7 +3609,6 @@ export default function DietPage() {
                     </div>
                 </details>
                 </details>
-            </section>
             )}
 
             {showDietModeInfoModal && (
@@ -3747,71 +3680,6 @@ export default function DietPage() {
                 </div>
             )}
 
-            {openPortionGuideContent && (
-                <div
-                    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
-                    onClick={() => setOpenPortionGuideContent(null)}
-                >
-                    <section
-                        className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
-                        onClick={(event) => event.stopPropagation()}
-                        role="dialog" aria-modal="true" aria-label="식단 상세 안내" tabIndex={-1}
-                    >
-                        <div className="galaxySafeHeader">
-                            <h2 className="galaxySafeHeader__main text-xl font-semibold text-gray-900 dark:text-gray-100">
-                                {openPortionGuideContent.title}
-                            </h2>
-                            <button
-                                type="button"
-                                onClick={() => setOpenPortionGuideContent(null)}
-                                className="uiButton uiButton--secondary uiButton--small"
-                            >
-                                닫기
-                            </button>
-                        </div>
-                        <div className="mt-3 space-y-2 text-base text-gray-800 dark:text-gray-100">
-                            {openPortionGuideContent.guide.items.map((item, index) => {
-                                const substitute = openPortionGuideContent.substitutes[index];
-                                return (
-                                    <div
-                                        key={`portion-modal-${item.name}-${index}`}
-                                        className="rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-950/40"
-                                    >
-                                        <p>
-                                            - <span className="font-semibold">{item.name}</span>: {item.amount}
-                                        </p>
-                                        {substitute && substitute.options.length > 0 && (
-                                            <div className="mt-1.5 space-y-1">
-                                                <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                                    대체 가능한 음식({substitute.hint})
-                                                </p>
-                                                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                                                    {substitute.options.map((option) => (
-                                                        <span
-                                                            key={`portion-modal-substitute-${item.name}-${index}-${option}`}
-                                                            className="uiBadge flex min-h-11 w-full items-center justify-center whitespace-normal px-3 py-2 text-center"
-                                                        >
-                                                            {option}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        {openPortionGuideContent.guide.notes.length > 0 && (
-                            <div className="mt-3 space-y-1 text-sm text-gray-600 dark:text-gray-300">
-                                {openPortionGuideContent.guide.notes.map((note) => (
-                                    <p key={`portion-modal-note-${note}`}>· {note}</p>
-                                ))}
-                            </div>
-                        )}
-                    </section>
-                </div>
-            )}
-
             {error && (
                 <section
                     role="alert"
@@ -3844,10 +3712,10 @@ export default function DietPage() {
             )}
 
             {!openRecordView && (
-                <section className="uiCard p-5">
+                <section className="recommendationDisclosure recommendationAdjustment">
                     <div className="galaxySafeHeader">
-                        <h2 className="galaxySafeHeader__main galaxySafeText text-lg font-semibold text-gray-900 dark:text-gray-100">
-                            오늘 식단 조정하기
+                        <h2 className="galaxySafeHeader__main galaxySafeText text-base font-semibold text-[var(--ui-ink)]">
+                            오늘 식단 바꾸기
                         </h2>
                         <button
                             type="button"
@@ -4402,8 +4270,8 @@ export default function DietPage() {
                 </>
             )}
 
-            <details className="uiCard px-5 pb-2">
-                <summary className="cursor-pointer py-4 text-sm font-semibold">식사 도움말과 내 정보 반영 내용</summary>
+            <details className="recommendationDisclosure">
+                <summary className="cursor-pointer py-4 text-sm font-semibold">식사 도움말</summary>
             <details className="rounded-xl border border-gray-200 bg-white px-5 pb-4 dark:border-gray-800 dark:bg-gray-900">
                 <summary className="cursor-pointer py-4 text-base font-semibold text-gray-900 dark:text-gray-100">치료 중 음식 선택 도움말</summary>
                 <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -4473,9 +4341,19 @@ export default function DietPage() {
             </details>
 
             </details>
-            <section className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                <p>{DISCLAIMER_TEXT}</p>
-            </section>
+            {!openRecordView && (
+                <details className="recommendationDisclosure">
+                    <summary>오늘의 말씀</summary>
+                    <DailyVerse />
+                </details>
+            )}
+            {!openRecordView && (
+                <details className="recommendationDisclosure">
+                    <summary>건강 소식</summary>
+                    <HealthNewsFeed />
+                </details>
+            )}
+            <p className="dietDisclaimer">{DISCLAIMER_TEXT}</p>
         </main>
     );
 }

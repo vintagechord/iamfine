@@ -5,40 +5,40 @@
   --font-mono: var(--font-geist-mono);
 }
 :root {
-  --ui-bg: #f5f3ed;
-  --ui-surface: #fffefb;
-  --ui-surface-muted: #eaece4;
-  --ui-border: #c8d2c8;
-  --ui-control-border: #809486;
-  --ui-ink: #20382d;
-  --ui-muted: #53645a;
-  --ui-accent: #24563f;
-  --ui-accent-soft: #e5eee5;
-  --ui-primary: #24563f;
-  --ui-primary-hover: #193e2d;
+  --ui-bg: #f5f7fa;
+  --ui-surface: #ffffff;
+  --ui-surface-muted: #eef2f7;
+  --ui-border: #e0e6ef;
+  --ui-control-border: #b2c0d2;
+  --ui-ink: #202c41;
+  --ui-muted: #5d6b80;
+  --ui-accent: #245bb0;
+  --ui-accent-soft: #edf3fc;
+  --ui-primary: #245bb0;
+  --ui-primary-hover: #184788;
   --ui-on-primary: #fff;
-  --ui-news-bg: #eee8da;
-  --ui-news-ink: #6b4d25;
-  --ui-news-border: #c4b69b;
+  --ui-news-bg: #f5f8fc;
+  --ui-news-ink: #355b89;
+  --ui-news-border: #dbe5f1;
   --ui-text-scale: 1;
   color-scheme: light;
 }
 html.dark {
-  --ui-bg: #171e19;
-  --ui-surface: #202b23;
-  --ui-surface-muted: #2c382e;
-  --ui-border: #4c6051;
-  --ui-control-border: #7e9885;
-  --ui-ink: #f1f3e9;
-  --ui-muted: #bdcbbb;
-  --ui-accent: #b2d2ac;
-  --ui-accent-soft: #304936;
-  --ui-primary: #b2d2ac;
-  --ui-primary-hover: #c6e3c1;
-  --ui-on-primary: #193223;
-  --ui-news-bg: #302d24;
-  --ui-news-ink: #e0c38f;
-  --ui-news-border: #75664c;
+  --ui-bg: #141b27;
+  --ui-surface: #1c2635;
+  --ui-surface-muted: #253246;
+  --ui-border: #35465e;
+  --ui-control-border: #6c829f;
+  --ui-ink: #edf2fa;
+  --ui-muted: #b6c4d8;
+  --ui-accent: #a6c8ff;
+  --ui-accent-soft: #253e60;
+  --ui-primary: #a6c8ff;
+  --ui-primary-hover: #c0d8ff;
+  --ui-on-primary: #12284a;
+  --ui-news-bg: #1b2b40;
+  --ui-news-ink: #adc9ef;
+  --ui-news-border: #3c5475;
   color-scheme: dark;
 }
 html {
@@ -78,7 +78,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
 .appHeader {
   position: sticky; top: 0; z-index: 30;
   padding-top: env(safe-area-inset-top);
-  border-bottom: 1px solid var(--ui-border); background: var(--ui-bg);
+  border-bottom: 1px solid var(--ui-border); background: var(--ui-surface);
 }
 .appHeaderInner {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
@@ -97,7 +97,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
   gap: 0.45rem; padding: 0.65rem 0.85rem; border-radius: 10px;
   color: var(--ui-muted); font-size: 0.9375rem; font-weight: 650; line-height: 1.3; white-space: nowrap;
 }
-.desktopNavigation a[aria-current="page"] { background: var(--ui-primary); color: var(--ui-on-primary); }
+.desktopNavigation a[aria-current="page"] { background: var(--ui-accent-soft); color: var(--ui-accent); }
 .bottomNavigation { display: none; }
 /* One text baseline, balanced padding and a consistent touch target. */
 .uiButton, .ctaMono, .primarySaveButton, .popupCloseButton, .navPill {
@@ -230,8 +230,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
 .dailyVerseReference { color: var(--ui-accent); font-weight: 700; text-decoration: underline; text-underline-offset: 0.2em; }
 .dailyVerseNote { color: var(--ui-muted); font-weight: 400; }
 
-/* Health news has the rhythm of a reading list, with its own warm palette. */
-.healthNews { margin-top: 2rem; padding: 1.75rem; border: 1px solid var(--ui-news-border); border-top: 4px solid var(--ui-news-ink); border-radius: 4px 4px 18px 18px; background: var(--ui-news-bg); }
+/* Secondary reading stays visually quiet until opened. */
+.healthNews { margin-top: 2rem; padding: 1.75rem; border: 1px solid var(--ui-news-border); border-radius: 16px; background: var(--ui-news-bg); }
 .healthNewsHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .healthNewsEyebrow { display: flex; align-items: center; gap: 0.45rem; color: var(--ui-news-ink); font-size: 0.875rem; font-weight: 700; }
 .healthNewsIcon { width: 18px; height: 18px; flex-shrink: 0; }
@@ -249,6 +249,106 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
 .healthNewsKind { color: var(--ui-news-ink); font-weight: 700; }
 .healthNews .healthNewsMore { width: 100%; margin-top: 1.25rem; border-color: var(--ui-news-ink); background: transparent; color: var(--ui-news-ink); }
 .healthNewsFooter { margin-top: 1rem; color: var(--ui-muted); font-size: 0.875rem; line-height: 1.75; }
+
+/* Three meal choices stay in one row, including narrow mobile screens. */
+.welcomePanel { padding: 2.5rem; border-radius: 24px; background: var(--ui-accent-soft); }
+.recommendationOverview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.recommendationOverview > .uiPageHeader { min-width: 0; padding: 0.25rem; }
+.recommendationOverview > .uiPageHeader h1 { font-size: 1.5rem; }
+.recommendationOverview > .uiPageHeader > p:first-child { margin-bottom: 0.35rem; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recommendationOverview > .nextVisitSummary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.25rem 0.5rem; border: 1px solid var(--ui-border); }
+.recommendationOverview .nextVisitSummary__label, .recommendationOverview .nextVisitSummary__details { grid-column: 1; }
+.recommendationOverview .nextVisitSummary__date { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+.recommendationOverview .nextVisitSummary__empty { grid-column: 2; grid-row: 1; margin: 0; }
+@media (min-width: 768px) {
+  .recommendationOverview { grid-template-columns: minmax(0, 1fr) 250px; align-items: center; gap: 1.25rem; }
+  .recommendationOverview > .recommendationPlan { grid-column: 1 / -1; grid-row: 2; }
+  .recommendationOverview > .nextVisitSummary { grid-column: 2; grid-row: 1; display: flex; align-items: stretch; }
+}
+.recommendationWorkspace .dailyVerseLabel { margin-bottom: 0.3rem; font-size: 0.75rem; font-weight: 500; color: var(--ui-muted); }
+.recommendationWorkspace .dailyVerseText { font-size: clamp(1.15rem, 2.5vw, 1.5rem); font-weight: 600; line-height: 1.55; }
+.recommendationWorkspace .dailyVerseMeta { margin-top: 0.5rem; font-size: 0.75rem; }
+.recommendationWorkspace .nextVisitSummary { border: 0; background: var(--ui-surface); padding: 1rem; border-radius: 12px; }
+.recommendationPlan { padding: 1.75rem; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 20px; }
+.recommendationPlanHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.recommendationDateControls { display: flex; flex-shrink: 0; gap: 0.4rem; }
+.recommendationPlanHeader .uiIconButton { border: 0; background: transparent; color: var(--ui-muted); }
+.recommendationPlanHeader h2 { font-size: 1.25rem; letter-spacing: -0.035em; }
+.recommendationPlanHint { margin: 1.25rem 0 1rem; color: var(--ui-muted); font-size: 0.875rem; }
+.recommendationMealChoices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.recommendationMealChoice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; min-width: 0; min-height: 132px; padding: 1.2rem 0.5rem; border: 1px solid var(--ui-border); border-radius: 16px; background: var(--ui-surface); color: var(--ui-ink); font-size: 1.0625rem; font-weight: 650; transition: background-color 160ms ease, border-color 160ms ease; }
+.recommendationMealIcon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--ui-accent-soft); color: var(--ui-accent); }
+.recommendationMealChoice[aria-expanded="true"] { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
+.recommendationDisclosure { padding: 0 1.25rem; border: 1px solid var(--ui-border); border-radius: 14px; background: var(--ui-surface); }
+.recommendationDisclosure > summary, .mealDialogDetail > summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 60px; padding-block: 1rem; list-style: none; font-size: 0.9375rem; font-weight: 600; color: var(--ui-ink); }
+.recommendationDisclosure > summary::-webkit-details-marker, .mealDialogDetail > summary::-webkit-details-marker { display: none; }
+.recommendationDisclosure > summary::after, .mealDialogDetail > summary::after { content: ""; width: 7px; height: 7px; flex-shrink: 0; margin-right: 0.2rem; border-right: 1.5px solid var(--ui-muted); border-bottom: 1.5px solid var(--ui-muted); transform: rotate(45deg); }
+.recommendationDisclosure[open] > summary::after, .mealDialogDetail[open] > summary::after { transform: rotate(225deg); }
+.recommendationDisclosure[open] { padding-bottom: 1rem; }
+.recommendationDisclosure .healthNews { margin-top: 0; padding: 0.5rem 0; border: 0; background: transparent; }
+.recommendationAdjustment { padding-block: 0.5rem; }
+.recommendationAdjustment .galaxySafeHeader { align-items: center; min-height: 44px; }
+.dietDisclaimer { padding: 0.4rem 0.25rem; color: var(--ui-muted); font-size: 0.75rem; line-height: 1.7; }
+.mealDialog { position: fixed; inset: 0; width: calc(100% - 2rem); max-width: 540px; max-height: min(85dvh, 800px); margin: auto; padding: 0; overflow: hidden; border: 1px solid var(--ui-border); border-radius: 24px; background: var(--ui-surface); color: var(--ui-ink); box-shadow: 0 24px 90px #0b1d3833; }
+.mealDialog::backdrop { background: #10233c66; backdrop-filter: blur(4px); }
+.mealDialogInner { display: flex; flex-direction: column; max-height: min(85dvh, 800px); }
+.mealDialogHeader { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.5rem 1.5rem 1.15rem; }
+.mealDialogHeader p { margin-bottom: 0.25rem; color: var(--ui-muted); font-size: 0.8125rem; }
+.mealDialogHeader h2 { font-size: 1.35rem; line-height: 1.4; letter-spacing: -0.035em; font-weight: 700; }
+.mealDialogHeader .uiIconButton { border: 0; background: var(--ui-surface-muted); border-radius: 50%; }
+.mealDialogTabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.25rem; flex-shrink: 0; margin: 0 1.5rem; padding: 0.25rem; border-radius: 12px; background: var(--ui-surface-muted); }
+.mealDialogTabs button { min-width: 0; min-height: 44px; border-radius: 9px; color: var(--ui-muted); font-size: 0.9375rem; font-weight: 600; }
+.mealDialogTabs button[aria-pressed="true"] { background: var(--ui-surface); color: var(--ui-accent); box-shadow: 0 1px 5px #0b1d3812; }
+.mealDialogBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1.5rem; }
+.mealDialogMain { padding: 1.25rem; border-radius: 14px; background: var(--ui-accent-soft); font-size: 1.4rem; font-weight: 650; line-height: 1.55; letter-spacing: -0.03em; }
+.mealDialogMenu { margin: 1rem 0 1.25rem; }
+.mealDialogMenu > div { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 0.75rem; padding: 0.55rem 0; font-size: 0.9375rem; }
+.mealDialogMenu dt { color: var(--ui-muted); }
+.mealDialogMenu dd { margin: 0; }
+.mealDialogMedication { margin-bottom: 1.25rem; color: var(--ui-accent); font-size: 0.875rem; }
+.mealDialogDetail { border-top: 1px solid var(--ui-border); }
+.mealDialogDetail[open] { padding-bottom: 1rem; }
+.mealDialogDetail ol { padding-left: 1.4rem; list-style: decimal; }
+.mealDialogDetail li { margin-bottom: 0.65rem; padding-left: 0.2rem; font-size: 0.9375rem; line-height: 1.8; }
+.recommendedPortions dl { margin-bottom: 1rem; }
+.recommendedPortions dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.25rem 1rem; padding: 0.65rem 0; border-bottom: 1px solid var(--ui-border); font-size: 0.875rem; }
+.recommendedPortions dd { color: var(--ui-muted); }
+.recommendedPortions > p { margin: 0.5rem 0; font-size: 0.8125rem; color: var(--ui-muted); }
+.snackSuggestion { margin-bottom: 1rem; }
+@media (hover: hover) {
+  .recommendationMealChoice:hover { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
+}
+@media (max-width: 767px) {
+  .welcomePanel { padding: 1.5rem; }
+  .recommendationWorkspace .nextVisitSummary { padding: 0.8rem; }
+  .recommendationPlan { padding: 1rem; }
+  .recommendationPlanHeader { flex-wrap: nowrap; }
+  .recommendationPlanHeader h2 { font-size: 1.0625rem; }
+  .recommendationPlanHint { margin-top: 1rem; font-size: 0.8125rem; }
+  .recommendationMealChoices { gap: 0.5rem; }
+  .recommendationMealChoice { min-height: 96px; padding: 0.75rem 0.25rem; gap: 0.5rem; font-size: 1rem; border-radius: 12px; }
+  .recommendationMealIcon { width: 40px; height: 40px; }
+  .recommendationDisclosure { padding-inline: 1rem; }
+  .mealDialog { --meal-dialog-height: min(92dvh, calc(100dvh - env(safe-area-inset-top) - 0.5rem)); width: 100%; max-width: 540px; max-height: var(--meal-dialog-height); inset: auto 0 0; margin: auto auto 0; border-radius: 24px 24px 0 0; border-bottom: 0; }
+  .mealDialogInner { max-height: var(--meal-dialog-height); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .mealDialogHeader { padding: 1rem 1rem 0.75rem; }
+  .mealDialogTabs { margin-inline: 1rem; }
+  .mealDialogTabs button { min-height: 48px; }
+  .mealDialogBody { padding: 1rem; }
+  .mealDialogMain { padding: 1rem; font-size: 1.25rem; }
+}
+@media (max-height: 500px) and (max-width: 1023px) {
+  .mealDialog { --meal-dialog-height: calc(100dvh - env(safe-area-inset-top) - 0.5rem); max-height: var(--meal-dialog-height); }
+  .mealDialogInner { max-height: var(--meal-dialog-height); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .mealDialogHeader { padding: 0.6rem 1rem; }
+  .mealDialogHeader h2 { font-size: 1.125rem; }
+  .mealDialogHeader p { margin: 0; font-size: 0.75rem; }
+  .mealDialogTabs { margin-inline: 1rem; }
+  .mealDialogBody { padding: 0.75rem 1rem; }
+  .mealDialogMain { padding: 0.75rem; font-size: 1.125rem; }
+  .mealDialogMenu { margin-block: 0.6rem; }
+  .mealDialogMenu > div { padding-block: 0.35rem; }
+}
 
 /* Spacious profile forms: distinguish sections, field groups and chosen options. */
 .profilePage { --profile-section-space: 2rem; }
@@ -294,7 +394,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
   .finderSection__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
-  .mealStatusButton { padding-inline: 0.55rem; white-space: nowrap; }
+  .mealStatusButton { min-width: 0; padding-inline: 0.35rem; gap: 0.25rem; white-space: normal; }
   .mealMainHeader { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
   .mealMainHeader .uiPageHeader h1 { font-size: clamp(1.35rem, 4.2vw, 1.8rem); }
   .nextVisitSummary { padding: 1rem; }
@@ -303,8 +403,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
   .mealMainHeader .nextVisitSummary__date { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
   .mealMainHeader .nextVisitSummary__details { grid-column: 1; }
   .mealMainHeader .nextVisitSummary__empty { grid-column: 1 / -1; }
-  .appHeaderInner { min-height: 64px; gap: 0.5rem; padding: 0.5rem 1rem; }
-  .appMain { padding: 1.75rem 1rem calc(7rem + env(safe-area-inset-bottom)); }
+  .appHeaderInner { min-height: 60px; gap: 0.5rem; padding: 0.5rem max(1rem, env(safe-area-inset-right)) 0.5rem max(1rem, env(safe-area-inset-left)); }
+  .appHeaderActions { gap: 0.35rem; }
+  .appHeaderActions .textSizeToggle { padding-inline: 0.6rem; font-size: 0.875rem; }
+  .textSizeToggleIcon { display: none; }
+  .appMain { padding: 1rem max(1rem, env(safe-area-inset-right)) calc(6rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); }
   .desktopNavigation { display: none; }
   .bottomNavigation {
     position: fixed; z-index: 35; inset: auto 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -316,7 +419,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
     min-height: 56px; border-radius: 12px; color: var(--ui-muted);
     font-size: 0.875rem; font-weight: 650; line-height: 1.3; text-decoration: none;
   }
-  .bottomNavigation a[aria-current="page"] { color: var(--ui-on-primary); background: var(--ui-primary); font-weight: 700; }
+  .bottomNavigation a[aria-current="page"] { color: var(--ui-accent); background: var(--ui-accent-soft); font-weight: 700; }
   .bottomNavigation svg { display: block; flex-shrink: 0; }
   input, select, textarea { font-size: max(16px, 1rem); }
   .uiCard, .surfacePanel { border-radius: 18px; }
@@ -330,15 +433,16 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
   .profileSummary, .profileListItem { padding: 1.1rem; }
 }
 @media (max-width: 359px) {
-  .appHeaderInner { padding-inline: 0.75rem; }
+  .appHeaderInner { padding-left: max(0.75rem, env(safe-area-inset-left)); padding-right: max(0.75rem, env(safe-area-inset-right)); }
   .appBrand { font-size: 1.05rem; gap: 0.25rem; }
   .appHeaderActions .uiButton { padding-inline: 0.5rem; }
+  .mealStatusButton { font-size: 0.875rem; }
   .profileFieldGroup > .grid { grid-template-columns: minmax(0, 1fr); }
-  .mealMainHeader .nextVisitSummary { display: flex; }
+  .mealMainHeader .nextVisitSummary, .recommendationOverview > .nextVisitSummary { display: flex; align-items: stretch; }
 }
 @media (max-width: 430px) {
   .ui-text-large .profileFieldGroup > .grid { grid-template-columns: minmax(0, 1fr); }
-  .ui-text-large .mealMainHeader .nextVisitSummary { display: flex; }
+  .ui-text-large .mealMainHeader .nextVisitSummary, .ui-text-large .recommendationOverview > .nextVisitSummary { display: flex; align-items: stretch; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }

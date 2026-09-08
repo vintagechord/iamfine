@@ -171,13 +171,13 @@ export default function TextSizeToggle() {
     return (
         <button
             type="button"
-            className="uiButton uiButton--ghost uiButton--small whitespace-nowrap"
+            className="uiButton uiButton--ghost uiButton--small textSizeToggle whitespace-nowrap"
             onClick={toggleTextScale}
             aria-label={mode === 'large' ? '글자 크기를 기본으로 변경' : '글자 크기를 크게 변경'}
             aria-pressed={mode === 'large'}
             disabled={saving}
         >
-            <span className="text-base font-semibold" aria-hidden="true">가</span>
+            <span className="textSizeToggleIcon text-base font-semibold" aria-hidden="true">가</span>
             <span suppressHydrationWarning>{mode === 'large' ? '기본 글자' : '큰 글자'}</span>
         </button>
     );
