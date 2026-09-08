@@ -1,5 +1,13 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## 식사량과 복약 참고
+
+- 개인 식사량은 프로필과 질환·증상의 적용 조건을 확인한 참고 범위입니다. 정보 부족이나 별도 영양 관리가 필요한 상태에서는 계산을 보류하며, 에너지·단백질 목표를 임의로 처방하지 않습니다.
+- 계산 가능한 경우 선택한 끼니의 예시 분량을 영양 그래프에 함께 적용합니다. 실제 섭취 기록이나 의료진의 개별 안내를 대신하지 않습니다.
+- 복약 체크는 저장 성공 후 완료로 표시하고, 미래 날짜는 체크할 수 없는 **복용 예정**으로 표시합니다.
+
+산정 근거·보류 조건·검증 범위는 [식단 영양 문서](docs/meal-nutrition.md)를 참고하세요.
+
 ## Getting Started
 
 First, run the development server:

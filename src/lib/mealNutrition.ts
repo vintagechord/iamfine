@@ -34,12 +34,14 @@ function addValues(target: NutritionValues, values: NutritionValues, factor: num
     target.fatG += values.fatG * factor;
 }
 
-function estimateFood(name: string): EstimatedFood | null {
+function estimateFood(name: string, portionGrams?: number): EstimatedFood | null {
     const key = normalizeNutritionFoodName(name);
     const recipe = MEAL_NUTRITION_RECIPES[key];
     if (!recipe) return null;
-    const grams = recipe.ingredients.reduce((sum, [, amount]) => sum + amount, 0);
-    if (!(grams > 0) || !Number.isFinite(grams)) return null;
+    const recipeGrams = recipe.ingredients.reduce((sum, [, amount]) => sum + amount, 0);
+    const grams = portionGrams ?? recipeGrams;
+    if (!(recipeGrams > 0) || !Number.isFinite(recipeGrams) || !(grams > 0) || !Number.isFinite(grams)) return null;
+    const portionScale = grams / recipeGrams;
 
     const prepared = Object.hasOwn(NUTRITION_DISHES, key) ? NUTRITION_DISHES[key] : undefined;
     if (prepared) {
@@ -61,8 +63,9 @@ function estimateFood(name: string): EstimatedFood | null {
         const ingredient = NUTRITION_INGREDIENTS[ingredientKey];
         if (!ingredient || !Number.isFinite(amount) || amount <= 0
             || !hasValidValues(ingredient.per100g)) return null;
-        addValues(nutrients, ingredient.per100g, amount / 100);
-        ingredients.push(`${ingredient.label} ${amount} g`);
+        const scaledAmount = amount * portionScale;
+        addValues(nutrients, ingredient.per100g, scaledAmount / 100);
+        ingredients.push(`${ingredient.label} ${Number(scaledAmount.toFixed(1))} g`);
         if (ingredient.source.url) sources.set(ingredient.source.foodCode, ingredient.source);
     }
     const sourceList = [...sources.values()];
@@ -78,7 +81,10 @@ function estimateFood(name: string): EstimatedFood | null {
  * nutrient percentages and nutritionUnavailable. Never changes the plan,
  * patient portions, meal recommendations, or clinical nutrient limits.
  */
-export function estimateMealNutrition(meal: Pick<MealSuggestion, 'main' | 'riceType' | 'soup' | 'sides'>): MealNutritionEstimate {
+export function estimateMealNutrition(
+    meal: Pick<MealSuggestion, 'main' | 'riceType' | 'soup' | 'sides'>,
+    portionsByFood?: Readonly<Record<string, number>>,
+): MealNutritionEstimate {
     // Match the popup's exact-name de-duplication; integrated rice is included
     // only in its recipe, and no grain is invented when riceType is empty.
     const names = [...new Set([meal.main, meal.riceType, meal.soup, ...meal.sides].map((name) => name.trim()).filter(Boolean))];
@@ -87,7 +93,8 @@ export function estimateMealNutrition(meal: Pick<MealSuggestion, 'main' | 'riceT
     for (const name of names) {
         // Explicit omissions contribute neither food count nor a fabricated 0.
         if (/^(?:없음|생략|국\s*생략|밥\s*생략|해당\s*없음)$/.test(name)) continue;
-        const item = estimateFood(name);
+        const portionGrams = portionsByFood && Object.hasOwn(portionsByFood, name) ? portionsByFood[name] : undefined;
+        const item = estimateFood(name, portionGrams);
         if (item) items.push(item);
         else missingFoods.push(name);
     }

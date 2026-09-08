@@ -5,9 +5,10 @@ function formatAmount(value: number) {
     return value.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
 }
 
-export default function MealNutrition({ meal }: { meal: MealSuggestion }) {
-    const nutrition = estimateMealNutrition(meal);
+export default function MealNutrition({ meal, portionsByFood }: { meal: MealSuggestion; portionsByFood?: Readonly<Record<string, number>> }) {
+    const nutrition = estimateMealNutrition(meal, portionsByFood);
     const { totals, items, missingFoods, energyShares } = nutrition;
+    const hasPortionOverrides = items.some((item) => portionsByFood && Object.hasOwn(portionsByFood, item.name));
 
     if (nutrition.status === 'unavailable' || !totals) {
         return (
@@ -37,7 +38,9 @@ export default function MealNutrition({ meal }: { meal: MealSuggestion }) {
                 <span className="mealNutritionEstimate">{isPartial ? '일부 음식 제외' : '추정치'}</span>
             </div>
             {isPartial && <p className="mealNutritionCoverage">{items.length + missingFoods.length}개 중 {items.length}개 음식 기준</p>}
-            <p className="mealNutritionNote">계산용 분량 기준이며, 실제 섭취량이나 개인 권장량이 아니에요.</p>
+            <p className="mealNutritionNote">{hasPortionOverrides
+                ? '식사량 참고의 예시 분량 기준이며, 실제 섭취량이나 처방량은 아니에요.'
+                : '계산용 분량 기준이며, 실제 섭취량이나 개인 권장량이 아니에요.'}</p>
 
             <p className="mealNutritionChartLabel">{isPartial ? '확인된 음식의 열량 구성' : '열량 구성'}</p>
             <div className="mealNutritionBar" aria-hidden="true">

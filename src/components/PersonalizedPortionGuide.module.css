@@ -1,0 +1,22 @@
+.guide { min-width: 0; color: var(--ui-ink); }
+.heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.heading p { margin: 0; font-size: .9rem; font-weight: 700; }
+.heading > span { border-radius: 6px; padding: .2rem .5rem; font-size: .75rem; color: var(--ui-accent); background: var(--ui-accent-soft); }
+.foods { margin: .65rem 0 0; }
+.foods > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: .6rem; padding: .75rem 0; border-bottom: 1px solid var(--ui-border); font-size: .875rem; line-height: 1.6; }
+.foods > div:last-child { border-bottom: 0; }
+.foods dt { overflow-wrap: anywhere; }
+.foods dd { margin: 0; font-weight: 700; color: var(--ui-accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.foods dd span { font-weight: 500; }
+.note { margin: .65rem 0 0; font-size: .8125rem; color: var(--ui-muted); line-height: 1.7; }
+.empty p { margin: 0 0 .8rem; font-size: .875rem; line-height: 1.7; }
+.basis { margin-top: .9rem; border-top: 1px solid var(--ui-border); }
+.basis > summary { min-height: 48px; padding: .9rem 0; font-size: .8125rem; font-weight: 600; cursor: pointer; }
+.profile { margin: .3rem 0 .75rem; font-size: .8125rem; line-height: 1.7; }
+.target { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .3rem .8rem; font-size: .8125rem; line-height: 1.7; }
+.target strong { font-variant-numeric: tabular-nums; }
+.ranges { margin: .6rem 0; font-size: .8125rem; color: var(--ui-muted); }
+.ranges > div { display: flex; justify-content: space-between; align-items: baseline; gap: .6rem; padding: .35rem 0; }
+.ranges dd { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sources { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-top: .6rem; }
+.sources a, .profileLink { display: inline-flex; align-items: center; gap: .35rem; min-height: 44px; color: var(--ui-accent); font-size: .8125rem; text-decoration: underline; text-underline-offset: .2em; }

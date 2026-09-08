@@ -27,13 +27,17 @@ import {
 import { searchFoods, normalizeFoodQuery, type FoodSearchResult } from '@/lib/foodSearch';
 import { applyFoodPersonalization, describeFoodPersonalization, hasRenalDietRestrictions, matchesAvoidedIngredient, parseFoodPersonalization, readFoodPersonalization, type AvoidedIngredient } from '@/lib/personalization';
 import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
-import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
+import { getAuthSessionUser, hasSupabaseEnv, supabase, updateUserMetadataForSession } from '@/lib/supabaseClient';
+import { createSerialLogSaveQueue, isEditableMedicationDate, withMedicationTaken } from '@/lib/medicationLog';
 import { applyMealRecordGuidance, buildDietRecordContext } from '@/lib/dietRecordContext';
 import HealthNewsFeed from '@/components/HealthNewsFeed';
 import NextVisitSummary from '@/components/NextVisitSummary';
 import DailyVerse from '@/components/DailyVerse';
 import MealNutrition from '@/components/MealNutrition';
+import PersonalizedPortionGuide from '@/components/PersonalizedPortionGuide';
+import { buildPersonalizedPortions } from '@/lib/personalizedPortions';
 import RecommendedMeals from '@/components/RecommendedMeals';
+import MedicationChecklist, { type MedicationChecklistItem } from '@/components/MedicationChecklist';
 
 type StageStatus = 'planned' | 'active' | 'completed';
 
@@ -108,6 +112,9 @@ type DietStore = {
 };
 
 type DailyLogsStorageMode = 'unknown' | 'table' | 'local';
+type LogAccount = { userId: string; revision: number };
+type LogSaveResult = { status: 'saved'; storage: 'table' | 'local' } | { status: 'failed'; message: string } | { status: 'stale' };
+type MedicationLogChange = { dateKey: string; medicationId: string; taken: boolean; defaultLog: DayLog };
 
 type DayAnalysis = {
     matchScore: number;
@@ -1933,7 +1940,7 @@ export default function DietPage() {
 
     const [loading, setLoading] = useState(true);
     const [storeReady, setStoreReady] = useState(false);
-    const [dailyLogsStorageMode, setDailyLogsStorageMode] = useState<DailyLogsStorageMode>('unknown');
+    const dailyLogsStorageModeRef = useRef<DailyLogsStorageMode>('unknown');
     const [userId, setUserId] = useState<string | null>(null);
     const [accountStartDateKey, setAccountStartDateKey] = useState(todayKey);
     const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -1941,6 +1948,7 @@ export default function DietPage() {
     const [stages, setStages] = useState<TreatmentStageRow[]>([]);
 
     const [logs, setLogs] = useState<Record<string, DayLog>>({});
+    const logsRef = useRef<Record<string, DayLog>>({});
     const [medications, setMedications] = useState<string[]>([]);
     const [medicationSchedules, setMedicationSchedules] = useState<MedicationSchedule[]>([]);
     const [additionalConditions, setAdditionalConditions] = useState<AdditionalCondition[]>([]);
@@ -1978,6 +1986,13 @@ export default function DietPage() {
     const [saveSuccessPopupOpen, setSaveSuccessPopupOpen] = useState(false);
     const [saveSuccessPopupMessage, setSaveSuccessPopupMessage] = useState('');
     const syncedLogSignaturesRef = useRef<Record<string, string>>({});
+    const saveQueueRef = useRef(createSerialLogSaveQueue());
+    const accountRef = useRef<{ userId: string | null; revision: number; ready: boolean; mounted: boolean }>({
+        userId: null, revision: 0, ready: false, mounted: false,
+    });
+    const pendingMedicationRef = useRef(new Set<string>());
+    const [pendingMedicationKeys, setPendingMedicationKeys] = useState<string[]>([]);
+    const [medicationFeedback, setMedicationFeedback] = useState<Record<string, { notice?: string; error?: string }>>({});
     const saveSuccessPopupTimerRef = useRef<number | null>(null);
     const lastManualAddRef = useRef<{
         slot: MealSlot;
@@ -2493,6 +2508,14 @@ export default function DietPage() {
         () => getPlanNotesForDate(viewedTodayDateKey),
         [getPlanNotesForDate, viewedTodayDateKey]
     );
+    const viewedPortions = useMemo(
+        () => buildPersonalizedPortions(viewedTodayPlan, userDietContext, foodPersonalization),
+        [viewedTodayPlan, userDietContext, foodPersonalization]
+    );
+    const selectedPortions = useMemo(
+        () => buildPersonalizedPortions(selectedPlan, userDietContext, foodPersonalization),
+        [selectedPlan, userDietContext, foodPersonalization]
+    );
     const sortedMedicationSchedules = useMemo(
         () =>
             [...medicationSchedules].sort(
@@ -2517,10 +2540,6 @@ export default function DietPage() {
                 }
             ),
         [sortedMedicationSchedules]
-    );
-    const selectedMedicationTakenSet = useMemo(
-        () => new Set(selectedLog.medicationTakenIds ?? []),
-        [selectedLog.medicationTakenIds]
     );
     const selectedAnalysis = useMemo(
         () => analyzeDay(selectedPlan, selectedLog, stageType),
@@ -2729,13 +2748,15 @@ export default function DietPage() {
         return sorted;
     }, [accountStartDateKey, selectedDate, todayKey]);
 
-    const syncDailyLogsToLocalFallback = useCallback(async (nextLogs: Record<string, DayLog>) => {
-        if (!userId) {
-            return false;
-        }
+    const isCurrentLogAccount = useCallback((account: LogAccount) => {
+        const current = accountRef.current;
+        return current.mounted && current.userId === account.userId && current.revision === account.revision;
+    }, []);
 
+    const syncDailyLogsToLocalFallback = useCallback((account: LogAccount, nextLogs: Record<string, DayLog>) => {
+        if (!isCurrentLogAccount(account)) return false;
         try {
-            const storeKey = getStoreKey(userId);
+            const storeKey = getStoreKey(account.userId);
             const latestStored = parseStore(localStorage.getItem(storeKey));
             localStorage.setItem(
                 storeKey,
@@ -2749,26 +2770,118 @@ export default function DietPage() {
             console.error('식단 로그 로컬 저장 실패', syncError);
             return false;
         }
-    }, [userId]);
+    }, [isCurrentLogAccount]);
+
+    const persistLogDates = useCallback((account: LogAccount, dateKeys: string[], medicationChange?: MedicationLogChange): Promise<LogSaveResult> => {
+        return saveQueueRef.current.enqueue(async (): Promise<LogSaveResult> => {
+            if (!isCurrentLogAccount(account) || !accountRef.current.ready || !supabase) return { status: 'stale' };
+            try {
+                const { data, error: sessionError } = await supabase.auth.getSession();
+                if (!isCurrentLogAccount(account)) return { status: 'stale' };
+                if (sessionError || data.session?.user.id !== account.userId) {
+                    return { status: 'failed', message: '로그인을 확인한 뒤 다시 저장해 주세요.' };
+                }
+                const currentTodayKey = formatDateKey(new Date());
+                if (medicationChange && !isEditableMedicationDate(medicationChange.dateKey, currentTodayKey)) {
+                    return { status: 'failed', message: '오늘까지의 복용 기록만 남길 수 있어요.' };
+                }
+                // Read when the queued write starts, not when an old debounce was scheduled.
+                const candidateLogs = { ...logsRef.current };
+                if (medicationChange) {
+                    const { dateKey, medicationId, taken, defaultLog } = medicationChange;
+                    candidateLogs[dateKey] = withMedicationTaken(candidateLogs[dateKey] ?? defaultLog, medicationId, taken);
+                }
+                const entries = [...new Set(dateKeys)]
+                    .filter((dateKey) => isEditableMedicationDate(dateKey, currentTodayKey) && candidateLogs[dateKey])
+                    .map((dateKey) => [dateKey, candidateLogs[dateKey]] as const);
+                if (entries.length === 0) return { status: 'failed', message: '저장할 기록을 확인해 주세요.' };
+                const dirtyEntries = entries.filter(([dateKey, log]) => syncedLogSignaturesRef.current[dateKey] !== JSON.stringify(log));
+                let storage: 'table' | 'local' = dailyLogsStorageModeRef.current === 'local' ? 'local' : 'table';
+                if (storage === 'table' && dirtyEntries.length > 0) {
+                    const { error: saveError } = await supabase.from(DIET_DAILY_LOGS_TABLE).upsert(
+                        dirtyEntries.map(([dateKey, log]) => ({
+                            user_id: account.userId, date_key: dateKey, log_payload: log, updated_at: new Date().toISOString(),
+                        })),
+                        { onConflict: 'user_id,date_key' }
+                    );
+                    if (!isCurrentLogAccount(account)) return { status: 'stale' };
+                    if (saveError) {
+                        if (!isDietLogTableMissingError(saveError)) {
+                            return { status: 'failed', message: '기록을 저장하지 못했어요. 다시 시도해 주세요.' };
+                        }
+                        storage = 'local';
+                    }
+                }
+                if (!isCurrentLogAccount(account)) return { status: 'stale' };
+                // Preserve meal edits made while the request was running. Only the confirmed
+                // medication value is merged; pending checkboxes never masquerade as saved.
+                const confirmedLogs = { ...logsRef.current };
+                if (medicationChange) {
+                    const { dateKey, medicationId, taken, defaultLog } = medicationChange;
+                    confirmedLogs[dateKey] = withMedicationTaken(confirmedLogs[dateKey] ?? defaultLog, medicationId, taken);
+                }
+                if (storage === 'local' && !syncDailyLogsToLocalFallback(account, confirmedLogs)) {
+                    return { status: 'failed', message: '이 기기에 기록을 저장하지 못했어요. 저장공간을 확인한 뒤 다시 시도해 주세요.' };
+                }
+                dailyLogsStorageModeRef.current = storage;
+                if (medicationChange) {
+                    logsRef.current = confirmedLogs;
+                    setLogs(confirmedLogs);
+                }
+                for (const [dateKey, log] of entries) {
+                    syncedLogSignaturesRef.current[dateKey] = JSON.stringify(storage === 'local' ? confirmedLogs[dateKey] : log);
+                }
+                return { status: 'saved', storage };
+            } catch {
+                return isCurrentLogAccount(account)
+                    ? { status: 'failed', message: '기록을 저장하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.' }
+                    : { status: 'stale' };
+            }
+        });
+    }, [isCurrentLogAccount, syncDailyLogsToLocalFallback]);
 
     const loadInitial = useCallback(async () => {
+        const revision = accountRef.current.revision + 1;
+        accountRef.current.revision = revision;
+        accountRef.current.ready = false;
+        const isActiveLoad = () => accountRef.current.mounted && accountRef.current.revision === revision;
         setLoading(true);
+        setStoreReady(false);
         setError('');
         setMessage('');
-
+        pendingMedicationRef.current.clear();
+        setPendingMedicationKeys([]);
+        setMedicationFeedback({});
+        setSaving(false);
+        try {
         if (!hasSupabaseEnv || !supabase) {
             setLoading(false);
             return;
         }
-
+        // Finish any already-started save before reading the account's server rows.
+        await saveQueueRef.current.enqueue(async () => undefined);
+        if (!isActiveLoad()) return;
         const { user, error: userError } = await getAuthSessionUser();
+        if (!isActiveLoad()) return;
         if (userError || !user) {
+            accountRef.current.userId = null;
+            logsRef.current = {};
+            setLogs({});
+            setUserId(null);
             setLoading(false);
             return;
         }
 
         const uid = user.id;
-        setUserId(uid);
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!isActiveLoad()) return;
+        if (sessionData.session?.user.id !== uid) {
+            setLoading(false);
+            setError('로그인을 확인한 뒤 다시 불러와 주세요.');
+            return;
+        }
+        const accessToken = sessionData.session.access_token;
+        accountRef.current.userId = uid;
         const createdAt = user.created_at;
         const createdAtDateKey =
             typeof createdAt === 'string' && createdAt.length >= 10
@@ -2796,7 +2909,7 @@ export default function DietPage() {
                 .order('stage_order', { ascending: true })
                 .order('created_at', { ascending: true }),
         ]);
-
+        if (!isActiveLoad()) return;
         setProfile((profileData as ProfileRow | null) ?? null);
         setStages((stageData as TreatmentStageRow[] | null) ?? []);
 
@@ -2807,16 +2920,18 @@ export default function DietPage() {
             .select('date_key, log_payload')
             .eq('user_id', uid)
             .order('date_key', { ascending: true });
+        if (!isActiveLoad()) return;
         if (serverLogsError) {
             if (isDietLogTableMissingError(serverLogsError)) {
                 tableMode = 'local';
-                setDailyLogsStorageMode('local');
+                dailyLogsStorageModeRef.current = 'local';
             } else {
                 console.error('서버 기록 조회 실패', serverLogsError);
+                throw serverLogsError;
             }
         } else {
             serverLogs = parseServerDietLogs(serverLogRows as unknown);
-            setDailyLogsStorageMode('table');
+            dailyLogsStorageModeRef.current = 'table';
         }
 
         const store = parseStore(localStorage.getItem(getStoreKey(uid)));
@@ -2838,10 +2953,11 @@ export default function DietPage() {
                     onConflict: 'user_id,date_key',
                 }
             );
+            if (!isActiveLoad()) return;
             if (backfillError) {
                 if (isDietLogTableMissingError(backfillError)) {
                     tableMode = 'local';
-                    setDailyLogsStorageMode('local');
+                    dailyLogsStorageModeRef.current = 'local';
                 } else {
                     console.error('기존 로컬 기록 서버 백필 실패', backfillError);
                 }
@@ -2879,9 +2995,8 @@ export default function DietPage() {
         }
         if (Object.keys(syncPatch).length > 0 || hasVolatileDietMetadata(user.user_metadata)) {
             const updatedMetadata = buildTrimmedDietMetadata(user.user_metadata, syncPatch);
-            const { error: metadataSyncError } = await supabase.auth.updateUser({
-                data: updatedMetadata,
-            });
+            const { error: metadataSyncError } = await updateUserMetadataForSession(accessToken, updatedMetadata);
+            if (!isActiveLoad()) return;
             if (metadataSyncError) {
                 console.error('식단 초기 메타데이터 동기화 실패', metadataSyncError);
             }
@@ -2905,9 +3020,11 @@ export default function DietPage() {
         }
 
         syncedLogSignaturesRef.current = Object.fromEntries(
-            Object.entries(mergedLogs).map(([dateKey, log]) => [dateKey, JSON.stringify(log)])
+            Object.entries(tableMode === 'local' ? mergedLogs : serverLogs).map(([dateKey, log]) => [dateKey, JSON.stringify(log)])
         );
+        logsRef.current = mergedLogs;
         setLogs(mergedLogs);
+        setUserId(uid);
         setMedications(resolvedMedications);
         setMedicationSchedules(resolvedMedicationSchedules);
         setAdditionalConditions(resolvedAdditionalConditions);
@@ -2916,22 +3033,56 @@ export default function DietPage() {
         setDraftTodayPreferences([]);
         setProposalRequested(false);
 
+        accountRef.current.ready = true;
         setStoreReady(true);
         setLoading(false);
+        } catch {
+            if (!isActiveLoad()) return;
+            accountRef.current.ready = false;
+            setStoreReady(false);
+            setLoading(false);
+            setError('기록을 불러오지 못했어요. 연결과 브라우저 저장공간을 확인한 뒤 다시 불러와 주세요.');
+        }
     }, [todayKey]);
 
     useEffect(() => {
-        const timer = window.setTimeout(() => {
-            void loadInitial();
-        }, 0);
-        return () => window.clearTimeout(timer);
+        accountRef.current.mounted = true;
+        let timer = window.setTimeout(() => { void loadInitial(); }, 0);
+        const subscription = supabase?.auth.onAuthStateChange((event, session) => {
+            if (event === 'INITIAL_SESSION') return;
+            const nextUserId = session?.user.id ?? null;
+            if (event !== 'SIGNED_OUT' && nextUserId === accountRef.current.userId) return;
+            accountRef.current = { userId: nextUserId, revision: accountRef.current.revision + 1, ready: false, mounted: true };
+            logsRef.current = {};
+            syncedLogSignaturesRef.current = {};
+            pendingMedicationRef.current.clear();
+            dailyLogsStorageModeRef.current = 'unknown';
+            setStoreReady(false);
+            setUserId(null);
+            setLogs({});
+            setMedicationSchedules([]);
+            setPendingMedicationKeys([]);
+            setMedicationFeedback({});
+            setSaving(false);
+            setLoading(true);
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => { void loadInitial(); }, 0);
+        }).data.subscription;
+        return () => {
+            accountRef.current.mounted = false;
+            accountRef.current.ready = false;
+            accountRef.current.revision += 1;
+            window.clearTimeout(timer);
+            subscription?.unsubscribe();
+        };
     }, [loadInitial]);
 
     useEffect(() => {
-        if (!storeReady || !userId) {
+        if (!storeReady || !userId || !accountRef.current.ready || accountRef.current.userId !== userId) {
             return;
         }
-
+        const account = { userId, revision: accountRef.current.revision };
+        try {
         const storeKey = getStoreKey(userId);
         const latestStored = parseStore(localStorage.getItem(storeKey));
         const payload: DietStore = {
@@ -2945,73 +3096,31 @@ export default function DietPage() {
         };
 
         localStorage.setItem(storeKey, JSON.stringify(payload));
-    }, [storeReady, userId, logs, dailyPreferences, carryPreferences]);
+        } catch {
+            queueMicrotask(() => {
+                if (isCurrentLogAccount(account)) setError('이 기기에 기록을 보관하지 못했어요. 브라우저 저장공간을 확인해 주세요.');
+            });
+        }
+    }, [storeReady, userId, logs, dailyPreferences, carryPreferences, isCurrentLogAccount]);
 
     useEffect(() => {
-        if (!storeReady || !userId || !hasSupabaseEnv || !supabase) {
+        if (!storeReady || !userId || !accountRef.current.ready || accountRef.current.userId !== userId) {
             return;
         }
-
-        const dirtyLogEntries = Object.entries(logs).filter(([dateKey, log]) => {
-            const signature = JSON.stringify(log);
-            return syncedLogSignaturesRef.current[dateKey] !== signature;
-        });
-        if (dirtyLogEntries.length === 0) {
-            return;
-        }
-
-        const supabaseClient = supabase;
-        const targetUserId = userId;
+        const dirtyDateKeys = Object.keys(logs).filter((dateKey) =>
+            isEditableMedicationDate(dateKey, formatDateKey(new Date()))
+            && syncedLogSignaturesRef.current[dateKey] !== JSON.stringify(logs[dateKey])
+        );
+        if (dirtyDateKeys.length === 0) return;
+        const account = { userId, revision: accountRef.current.revision };
         const timer = window.setTimeout(() => {
             void (async () => {
-                if (dailyLogsStorageMode === 'local') {
-                    const localSyncOk = await syncDailyLogsToLocalFallback(logs);
-                    if (!localSyncOk) {
-                        return;
-                    }
-
-                    dirtyLogEntries.forEach(([dateKey, log]) => {
-                        syncedLogSignaturesRef.current[dateKey] = JSON.stringify(log);
-                    });
-                    return;
-                }
-
-                const nowIso = new Date().toISOString();
-                const { error: saveError } = await supabaseClient.from(DIET_DAILY_LOGS_TABLE).upsert(
-                    dirtyLogEntries.map(([dateKey, log]) => ({
-                        user_id: targetUserId,
-                        date_key: dateKey,
-                        log_payload: log,
-                        updated_at: nowIso,
-                    })),
-                    {
-                        onConflict: 'user_id,date_key',
-                    }
-                );
-
-                if (saveError) {
-                    if (isDietLogTableMissingError(saveError)) {
-                        setDailyLogsStorageMode('local');
-                        const localSyncOk = await syncDailyLogsToLocalFallback(logs);
-                        if (!localSyncOk) {
-                            return;
-                        }
-                    } else {
-                        console.error('자동 기록 서버 저장 실패', saveError);
-                        return;
-                    }
-                } else if (dailyLogsStorageMode === 'unknown') {
-                    setDailyLogsStorageMode('table');
-                }
-
-                dirtyLogEntries.forEach(([dateKey, log]) => {
-                    syncedLogSignaturesRef.current[dateKey] = JSON.stringify(log);
-                });
+                const result = await persistLogDates(account, dirtyDateKeys);
+                if (isCurrentLogAccount(account) && result.status === 'failed') setError(result.message);
             })();
         }, 900);
-
         return () => window.clearTimeout(timer);
-    }, [storeReady, userId, logs, dailyLogsStorageMode, syncDailyLogsToLocalFallback]);
+    }, [storeReady, userId, logs, persistLogDates, isCurrentLogAccount]);
 
     const changeRecordSelection = (dateKey: string, slot: MealSlot) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -3033,15 +3142,14 @@ export default function DietPage() {
     };
 
     const updateCurrentLog = useCallback((updater: (current: DayLog) => DayLog) => {
-        setLogs((prev) => {
-            const current = prev[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
-            const updated = updater(current);
-            return {
-                ...prev,
-                [selectedDate]: updated,
-            };
-        });
-    }, [selectedDate, selectedPlan]);
+        if (!accountRef.current.ready || accountRef.current.userId !== userId
+            || !isEditableMedicationDate(selectedDate, formatDateKey(new Date()))) return;
+        const previous = logsRef.current;
+        const current = previous[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
+        const next = { ...previous, [selectedDate]: updater(current) };
+        logsRef.current = next;
+        setLogs(next);
+    }, [selectedDate, selectedPlan, userId]);
 
     const toggleDraftTodayPreference = (pref: PreferenceType) => {
         setProposalRequested(false);
@@ -3281,100 +3389,87 @@ export default function DietPage() {
         }));
     }, [newItemBySlot, selectedDate, updateCurrentLog]);
 
-    const toggleMedicationTaken = (medicationId: string) => {
-        updateCurrentLog((current) => {
-            const currentTaken = current.medicationTakenIds ?? [];
-            const takenSet = new Set(currentTaken);
-            if (takenSet.has(medicationId)) {
-                takenSet.delete(medicationId);
-            } else {
-                takenSet.add(medicationId);
-            }
-
-            return {
-                ...current,
-                medicationTakenIds: Array.from(takenSet),
-            };
+    const changeMedicationTakenForDate = async (dateKey: string, medicationId: string, taken: boolean) => {
+        const currentAccount = accountRef.current;
+        const fail = (text: string) => setMedicationFeedback((previous) => ({ ...previous, [dateKey]: { error: text } }));
+        if (!currentAccount.ready || !currentAccount.mounted || !userId || currentAccount.userId !== userId) {
+            fail('로그인을 확인한 뒤 다시 시도해 주세요.');
+            return;
+        }
+        if (!isEditableMedicationDate(dateKey, formatDateKey(new Date()))) {
+            fail('오늘까지의 복용 기록만 남길 수 있어요.');
+            return;
+        }
+        if (!medicationId.trim() || medicationSchedules.filter((item) => item.id === medicationId).length !== 1) {
+            fail('복용 일정을 확인하지 못했어요. 내 정보에서 다시 확인해 주세요.');
+            return;
+        }
+        const key = `${dateKey}|${medicationId}`;
+        if ([...pendingMedicationRef.current].some((pendingKey) => pendingKey.startsWith(`${dateKey}|`))) return;
+        const account = { userId, revision: currentAccount.revision };
+        pendingMedicationRef.current.add(key);
+        setPendingMedicationKeys([...pendingMedicationRef.current]);
+        setMedicationFeedback((previous) => ({ ...previous, [dateKey]: {} }));
+        const result = await persistLogDates(account, [dateKey], {
+            dateKey, medicationId, taken, defaultLog: buildDefaultLog(dateKey, getPlanForDate(dateKey)),
         });
+        if (!isCurrentLogAccount(account)) return;
+        pendingMedicationRef.current.delete(key);
+        setPendingMedicationKeys([...pendingMedicationRef.current]);
+        if (result.status === 'saved') {
+            setMedicationFeedback((previous) => ({
+                ...previous,
+                [dateKey]: { notice: result.storage === 'local' ? '이 기기에 복용 기록을 저장했어요.' : '복용 기록을 저장했어요.' },
+            }));
+        } else if (result.status === 'failed') {
+            fail(`${result.message} 체크를 다시 누르면 재시도할 수 있어요.`);
+        }
     };
 
+    const medicationItemsForDate = (dateKey: string, schedules: MedicationSchedule[]): MedicationChecklistItem[] => {
+        const takenIds = new Set(logs[dateKey]?.medicationTakenIds ?? []);
+        const savingDate = pendingMedicationKeys.some((key) => key.startsWith(`${dateKey}|`));
+        return schedules.map((item) => ({
+            id: item.id,
+            name: item.name,
+            timingLabel: medicationTimingLabel(item.timing),
+            taken: takenIds.has(item.id),
+            scheduled: dateKey > todayKey,
+            pending: pendingMedicationKeys.includes(`${dateKey}|${item.id}`),
+            disabled: savingDate || !storeReady || loading || !userId || medicationSchedules.filter((schedule) => schedule.id === item.id).length !== 1,
+        }));
+    };
+    const medicationErrorForDate = (dateKey: string) => medicationFeedback[dateKey]?.error
+        || (medicationSchedules.some((item) => medicationSchedules.filter((other) => other.id === item.id).length !== 1)
+            ? '중복된 복용 일정이 있어요. 내 정보에서 확인해 주세요.' : undefined);
+
     const saveCurrentRecord = async () => {
-        if (saving) {
+        if (saving) return;
+        const currentAccount = accountRef.current;
+        if (!userId || !currentAccount.ready || currentAccount.userId !== userId) {
+            setError('로그인을 확인한 뒤 다시 저장해 주세요.');
             return;
+        }
+        if (!isEditableMedicationDate(selectedDate, formatDateKey(new Date()))) {
+            setError('오늘까지의 기록만 저장할 수 있어요.');
+            return;
+        }
+        const account = { userId, revision: currentAccount.revision };
+        const dateKey = selectedDate;
+        if (!logsRef.current[dateKey]) {
+            const next = { ...logsRef.current, [dateKey]: buildDefaultLog(dateKey, selectedPlan) };
+            logsRef.current = next;
+            setLogs(next);
         }
         setSaving(true);
         setError('');
-
-        if (!hasSupabaseEnv || !supabase) {
-            setSaving(false);
-            setError('서비스에 연결하지 못했어요. 잠시 후 다시 이용해 주세요.');
-            return;
-        }
-
-        if (!userId) {
-            setSaving(false);
-            setError('로그인이 필요해요.');
-            return;
-        }
-
-        const currentLog = logs[selectedDate] ?? buildDefaultLog(selectedDate, selectedPlan);
-        const nextLogs = {
-            ...logs,
-            [selectedDate]: currentLog,
-        };
-
-        if (dailyLogsStorageMode === 'local') {
-            const localSyncOk = await syncDailyLogsToLocalFallback(nextLogs);
-            setSaving(false);
-            if (!localSyncOk) {
-                setError('로컬 저장에 실패했어요. 브라우저 저장공간을 확인해 주세요.');
-                return;
-            }
-
-            syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
-            showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE_LOCAL);
-            return;
-        }
-
-        const { error: saveError } = await supabase.from(DIET_DAILY_LOGS_TABLE).upsert(
-            {
-                user_id: userId,
-                date_key: selectedDate,
-                log_payload: currentLog,
-                updated_at: new Date().toISOString(),
-            },
-            {
-                onConflict: 'user_id,date_key',
-            }
-        );
-
-        if (saveError) {
-            if (isDietLogTableMissingError(saveError)) {
-                setDailyLogsStorageMode('local');
-                const localSyncOk = await syncDailyLogsToLocalFallback(nextLogs);
-                setSaving(false);
-                if (!localSyncOk) {
-                    setError('로컬 저장에 실패했어요. 브라우저 저장공간을 확인해 주세요.');
-                    return;
-                }
-
-                syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
-                showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE_LOCAL);
-                return;
-            }
-
-            setSaving(false);
-            console.error('오늘 기록 서버 저장 실패', saveError);
-            setError('서버 저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
-            return;
-        }
-
+        const result = await persistLogDates(account, [dateKey]);
+        if (!isCurrentLogAccount(account)) return;
         setSaving(false);
-        if (dailyLogsStorageMode === 'unknown') {
-            setDailyLogsStorageMode('table');
-        }
-        syncedLogSignaturesRef.current[selectedDate] = JSON.stringify(currentLog);
-        showSaveSuccessPopup(RECORD_SAVE_SUCCESS_MESSAGE);
+        if (result.status === 'failed') setError(result.message);
+        else if (result.status === 'saved') showSaveSuccessPopup(
+            result.storage === 'local' ? RECORD_SAVE_SUCCESS_MESSAGE_LOCAL : RECORD_SAVE_SUCCESS_MESSAGE
+        );
     };
 
     const saveRecord = async (event: FormEvent<HTMLFormElement>) => {
@@ -3386,12 +3481,7 @@ export default function DietPage() {
         const guide = mealPortionGuideFromPlan(viewedTodayPlan[slot], slot);
         return (
             <div className="recommendedPortions">
-                <dl>
-                    {guide.items.map((item) => (
-                        <div key={item.name}><dt>{item.name}</dt><dd>{item.amount}</dd></div>
-                    ))}
-                </dl>
-                {guide.notes.map((note) => <p key={note}>{note}</p>)}
+                <PersonalizedPortionGuide guide={viewedPortions} slot={slot} />
                 <details className="mealDialogDetail">
                     <summary>대체할 수 있는 음식</summary>
                     {guide.items.map((item) => {
@@ -3430,6 +3520,18 @@ export default function DietPage() {
                 <section className="uiCard p-6" role="alert">
                     <p className="text-gray-600">잠시 후 다시 방문해 주세요.</p>
                     <button type="button" onClick={() => window.location.reload()} className="uiButton uiButton--primary mt-5">다시 불러오기</button>
+                </section>
+            </main>
+        );
+    }
+
+    if (!storeReady && error) {
+        return (
+            <main className="dietWorkspace space-y-6">
+                <header className="uiPageHeader"><h1>기록을 불러오지 못했어요</h1></header>
+                <section className="uiCard p-6" role="alert">
+                    <p className="text-[var(--ui-muted)]">{error}</p>
+                    <button type="button" onClick={() => { void loadInitial(); }} className="uiButton uiButton--primary mt-5">다시 불러오기</button>
                 </section>
             </main>
         );
@@ -3491,11 +3593,15 @@ export default function DietPage() {
                     plan={viewedTodayPlan}
                     dateLabel={viewedTodayDateLabel}
                     medicationsBySlot={{
-                        breakfast: medicationSchedulesByTiming.breakfast.map((item) => item.name),
-                        lunch: medicationSchedulesByTiming.lunch.map((item) => item.name),
-                        dinner: medicationSchedulesByTiming.dinner.map((item) => item.name),
+                        breakfast: medicationItemsForDate(viewedTodayDateKey, medicationSchedulesByTiming.breakfast),
+                        lunch: medicationItemsForDate(viewedTodayDateKey, medicationSchedulesByTiming.lunch),
+                        dinner: medicationItemsForDate(viewedTodayDateKey, medicationSchedulesByTiming.dinner),
                     }}
+                    onMedicationTakenChange={(id, taken) => { void changeMedicationTakenForDate(viewedTodayDateKey, id, taken); }}
+                    medicationNotice={medicationFeedback[viewedTodayDateKey]?.notice}
+                    medicationError={medicationErrorForDate(viewedTodayDateKey)}
                     renderPortions={renderRecommendedPortions}
+                    renderNutrition={(slot) => <MealNutrition meal={viewedTodayPlan[slot]} portionsByFood={viewedPortions.status === 'ready' ? viewedPortions.meals[slot].gramsByFood : undefined} />}
                 />
             </section>
             )}
@@ -3894,7 +4000,6 @@ export default function DietPage() {
                                                   : slot === 'dinner'
                                                     ? selectedPlan.dinner
                                                     : selectedPlan.snack;
-                                        const mealPortionGuide = mealPortionGuideFromPlan(meal, slot);
                                         const isRecordPortionOpen = openRecordPortionSlot === slot;
                                         return (
                                             <article
@@ -3915,23 +4020,12 @@ export default function DietPage() {
                                                 </button>
                                                 {isRecordPortionOpen && (
                                                     <div className="mt-2 rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
-                                                        <div className="space-y-1">
-                                                            {mealPortionGuide.items.map((item) => (
-                                                                <p key={`record-inline-${slot}-portion-${item.name}`}>- {item.name}: {item.amount}</p>
-                                                            ))}
-                                                        </div>
-                                                        {mealPortionGuide.notes.length > 0 && (
-                                                            <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
-                                                                {mealPortionGuide.notes.map((note) => (
-                                                                    <p key={`record-inline-${slot}-portion-note-${note}`}>· {note}</p>
-                                                                ))}
-                                                            </div>
-                                                        )}
+                                                        <PersonalizedPortionGuide guide={selectedPortions} slot={slot} />
                                                     </div>
                                                 )}
                                                 <details className="mt-2">
                                                     <summary className="cursor-pointer py-3 text-sm font-semibold">추천 식단 영양 구성</summary>
-                                                    <MealNutrition meal={meal} />
+                                                    <MealNutrition meal={meal} portionsByFood={selectedPortions.status === 'ready' ? selectedPortions.meals[slot].gramsByFood : undefined} />
                                                 </details>
                                             </article>
                                         );
@@ -4188,7 +4282,7 @@ export default function DietPage() {
                                 {SLOT_ORDER.map((slot) => (
                                     <details key={slot} className="mt-2">
                                         <summary className="cursor-pointer py-3 font-semibold">{mealTypeLabel(slot)} 추천 영양 구성</summary>
-                                        <MealNutrition meal={selectedPlan[slot]} />
+                                        <MealNutrition meal={selectedPlan[slot]} portionsByFood={selectedPortions.status === 'ready' ? selectedPortions.meals[slot].gramsByFood : undefined} />
                                     </details>
                                 ))}
                             </div>
@@ -4230,44 +4324,13 @@ export default function DietPage() {
                                 등록된 복용 약이 없어요. 내 정보에서 먼저 등록해 주세요.
                             </p>
                         ) : (
-                            <div className="mt-3 space-y-2">
-                                {sortedMedicationSchedules.map((medication) => {
-                                    const taken = selectedMedicationTakenSet.has(medication.id);
-                                    return (
-                                        <div
-                                            key={medication.id}
-                                            className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 dark:border-gray-800 dark:bg-gray-950/40 sm:flex-row sm:items-center sm:justify-between"
-                                        >
-                                            <p className="min-w-0 text-sm text-gray-800 dark:text-gray-100">
-                                                <span className="font-semibold">{medicationTimingLabel(medication.timing)}</span>
-                                                {' · '}
-                                                {medication.category}
-                                                {' · '}
-                                                {medication.name}
-                                            </p>
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleMedicationTaken(medication.id)}
-                                                aria-pressed={taken}
-                                                className={`uiButton uiButton--small ${taken ? 'uiButton--primary' : 'uiButton--secondary'}`}
-                                            >
-                                                {taken ? '복용했어요' : '복용 전'}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            <MedicationChecklist
+                                medications={medicationItemsForDate(selectedDate, sortedMedicationSchedules)}
+                                onTakenChange={(id, taken) => { void changeMedicationTakenForDate(selectedDate, id, taken); }}
+                                notice={medicationFeedback[selectedDate]?.notice}
+                                error={medicationErrorForDate(selectedDate)}
+                            />
                         )}
-                        <div className="mt-3">
-                            <button
-                                type="button"
-                                onClick={() => void saveCurrentRecord()}
-                                disabled={saving}
-                                className="uiButton uiButton--secondary w-full"
-                            >
-                                {saving ? '저장 중...' : '저장하기'}
-                            </button>
-                        </div>
                     </details>
                 </>
             )}

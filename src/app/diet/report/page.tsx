@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import MealNutrition from '@/components/MealNutrition';
+import PersonalizedPortionGuide from '@/components/PersonalizedPortionGuide';
+import { buildPersonalizedPortions } from '@/lib/personalizedPortions';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     applyDinnerCarbSafety,
@@ -776,6 +778,10 @@ export default function DietReportPage() {
         [contextAdjusted.plan, foodPersonalization, userDietContext]
     );
     const finalPlan: DayPlan = personalized.plan;
+    const finalPortions = useMemo(
+        () => buildPersonalizedPortions(finalPlan, userDietContext, foodPersonalization),
+        [finalPlan, userDietContext, foodPersonalization]
+    );
     const profileMatch = useMemo(() => detectCancerProfileMatch(userDietContext.cancerType), [userDietContext.cancerType]);
     const mergedNotes = useMemo(
         () => [
@@ -1137,8 +1143,12 @@ export default function DietReportPage() {
                                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</p>
                                 <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">최종: {item.final.summary || '식사 구성 확인 필요'}</p>
                                 <details className="mt-2">
+                                    <summary className="cursor-pointer py-3 text-sm font-semibold">식사량 참고</summary>
+                                    <PersonalizedPortionGuide guide={finalPortions} slot={item.key} />
+                                </details>
+                                <details className="mt-2">
                                     <summary className="cursor-pointer py-3 text-sm font-semibold">영양 구성</summary>
-                                    <MealNutrition meal={item.final} />
+                                    <MealNutrition meal={item.final} portionsByFood={finalPortions.status === 'ready' ? finalPortions.meals[item.key].gramsByFood : undefined} />
                                 </details>
                                 <div className="mt-3 space-y-2 text-sm leading-relaxed text-[var(--ui-muted)]">
                                     {changes.length > 0 ? changes.map((change) => <p key={change}>- {change}</p>) : <p>- 변경 없음</p>}

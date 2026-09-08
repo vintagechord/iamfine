@@ -51,6 +51,94 @@ test('an ingredient example scales cooked rice and raw black rice independently 
     checkValues(blackRice.totals, { energyKcal: 234.9, carbG: 52.352, proteinG: 4.802, fatG: 0.605 });
 });
 
+test('prepared-food portion overrides double grams and nutrients while keeping official values and energy shares', () => {
+    const meal = menu('달걀찜', { riceType: '흰쌀밥' });
+    const baseline = estimateMealNutrition(meal);
+    const doubled = estimateMealNutrition(meal, { 달걀찜: 200, 흰쌀밥: 300 });
+    assert.equal(doubled.status, 'complete');
+    assert.deepEqual(doubled.items.map((item) => item.grams), [200, 300]);
+    checkValues(doubled.totals, { energyKcal: 714, carbG: 114.05, proteinG: 28.1, fatG: 15.96 });
+    assert.deepEqual(doubled.energyShares, baseline.energyShares);
+    for (const [index, item] of doubled.items.entries()) {
+        assert.deepEqual(item.sources, baseline.items[index].sources);
+        assert.equal(item.sourceUrl, baseline.items[index].sourceUrl);
+        assert.ok(item.ingredients.includes(`${item.grams} g`));
+    }
+    checkValues(NUTRITION_DISHES['달걀찜'].per100g, { energyKcal: 108, carbG: 1.03, proteinG: 9.01, fatG: 7.5 });
+});
+
+test('ingredient portion overrides scale each disclosed ingredient amount together with the nutrition', () => {
+    const doubled = estimateMealNutrition(menu('흑미밥'), { 흑미밥: 300 });
+    assert.equal(doubled.status, 'complete');
+    assert.equal(doubled.items[0].grams, 300);
+    checkValues(doubled.totals, { energyKcal: 469.8, carbG: 104.704, proteinG: 9.604, fatG: 1.21 });
+    assert.match(doubled.items[0].ingredients, /쌀밥 240 g/);
+    assert.match(doubled.items[0].ingredients, /마른 흑미 20 g/);
+    assert.match(doubled.items[0].ingredients, /물.*40 g/);
+    assert.deepEqual(doubled.items[0].sources, estimateMealNutrition(menu('흑미밥')).items[0].sources);
+});
+
+test('mixed portion overrides apply once to trimmed displayed names and leave other food portions unchanged', () => {
+    const meal = menu(' 달걀찜 ', { riceType: '흰쌀밥', soup: '물', sides: ['흑미밥', '달걀찜'] });
+    const mixed = estimateMealNutrition(meal, { 달걀찜: 200, 흑미밥: 75, '표시되지 않은 음식': 900 });
+    assert.equal(mixed.status, 'complete');
+    assert.deepEqual(mixed.items.map((item) => [item.name, item.grams]), [
+        ['달걀찜', 200], ['흰쌀밥', 150], ['물', 200], ['흑미밥', 75],
+    ]);
+    checkValues(mixed.totals, { energyKcal: 582.45, carbG: 84.231, proteinG: 25.461, fatG: 15.7825 });
+    closeTo(mixed.energyShares.fat, 142.0425 / 580.8105 * 100);
+    closeTo(Object.values(mixed.energyShares).reduce((sum, value) => sum + value, 0), 100);
+    assert.deepEqual(mixed.missingFoods, []);
+    const unknown = estimateMealNutrition(menu('등록되지 않은 음식'), { '등록되지 않은 음식': 150 });
+    assert.equal(unknown.status, 'unavailable');
+    assert.equal(unknown.totals, null);
+});
+
+test('zero, negative and nonfinite overrides withhold only the affected prepared food or ingredient example', () => {
+    for (const name of ['달걀찜', '흑미밥']) {
+        for (const grams of [0, -1, Number.NaN, Infinity, -Infinity]) {
+            const portions = { [name]: grams };
+            const unavailable = estimateMealNutrition(menu(name), portions);
+            assert.equal(unavailable.status, 'unavailable', `${name}: ${grams}`);
+            assert.equal(unavailable.totals, null);
+            assert.deepEqual(unavailable.missingFoods, [name]);
+            assert.deepEqual(unavailable.energyShares, { carb: 0, protein: 0, fat: 0 });
+            const partial = estimateMealNutrition(menu(name, { riceType: '흰쌀밥' }), portions);
+            assert.equal(partial.status, 'partial');
+            assert.deepEqual(partial.items.map((item) => item.name), ['흰쌀밥']);
+            assert.deepEqual(partial.missingFoods, [name]);
+            checkValues(partial.totals, { energyKcal: 249, carbG: 55.995, proteinG: 5.04, fatG: 0.48 });
+        }
+    }
+    const scaledWater = estimateMealNutrition(menu('물'), { 물: 350 });
+    assert.equal(scaledWater.status, 'complete');
+    checkValues(scaledWater.totals, { energyKcal: 0, carbG: 0, proteinG: 0, fatG: 0 });
+    assert.deepEqual(scaledWater.energyShares, { carb: 0, protein: 0, fat: 0 });
+});
+
+test('portion overrides preserve inputs and source catalogues, and omitted or unrelated overrides preserve defaults', () => {
+    const meal = {
+        ...generatePlanForDate('2026-09-08', 'other', 70).breakfast,
+        ...menu('달걀찜', { riceType: '흑미밥' }),
+    };
+    Object.freeze(meal.sides);
+    Object.freeze(meal);
+    const portions = Object.freeze({ 달걀찜: 175, 흑미밥: 225 });
+    const mealBefore = structuredClone(meal);
+    const portionsBefore = { ...portions };
+    const sourceBefore = JSON.stringify({ NUTRITION_INGREDIENTS, NUTRITION_DISHES, MEAL_NUTRITION_RECIPES });
+    const baseline = estimateMealNutrition(meal);
+    estimateMealNutrition(meal, portions);
+    assert.deepEqual(meal, mealBefore);
+    assert.deepEqual(portions, portionsBefore);
+    assert.equal(JSON.stringify({ NUTRITION_INGREDIENTS, NUTRITION_DISHES, MEAL_NUTRITION_RECIPES }), sourceBefore);
+    assert.deepEqual(estimateMealNutrition(meal), baseline);
+    assert.deepEqual(estimateMealNutrition(meal, undefined), baseline);
+    assert.deepEqual(estimateMealNutrition(meal, {}), baseline);
+    assert.deepEqual(estimateMealNutrition(meal, { '이전 메뉴': 300 }), baseline);
+    assert.deepEqual(estimateMealNutrition(meal, Object.create({ 달걀찜: 300 }) as Record<string, number>), baseline);
+});
+
 test('the graph shows 4/4/9 macro energy shares rather than gram shares or database energy progress', () => {
     const estimate = estimateMealNutrition(menu('달걀찜'));
     closeTo(estimate.energyShares.carb, 4.12 / 107.66 * 100);

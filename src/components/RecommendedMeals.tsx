@@ -4,12 +4,17 @@ import { Moon, Sun, Sunrise, X } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { mealTypeLabel, type DayPlan, type MealSlot } from '@/lib/dietEngine';
 import MealNutrition from '@/components/MealNutrition';
+import MedicationChecklist, { MedicationProgress, type MedicationChecklistItem } from '@/components/MedicationChecklist';
 
 type RecommendedMealsProps = {
     plan: DayPlan;
     dateLabel: string;
-    medicationsBySlot: Partial<Record<MealSlot, string[]>>;
+    medicationsBySlot: Partial<Record<MealSlot, MedicationChecklistItem[]>>;
+    onMedicationTakenChange?: (id: string, taken: boolean) => void;
+    medicationNotice?: string;
+    medicationError?: string;
     renderPortions: (slot: MealSlot) => ReactNode;
+    renderNutrition?: (slot: MealSlot) => ReactNode;
 };
 
 const MEALS = [
@@ -23,7 +28,7 @@ function isOutsideDialog(dialog: HTMLDialogElement, clientX: number, clientY: nu
     return clientX < bounds.left || clientX > bounds.right || clientY < bounds.top || clientY > bounds.bottom;
 }
 
-export default function RecommendedMeals({ plan, dateLabel, medicationsBySlot, renderPortions }: RecommendedMealsProps) {
+export default function RecommendedMeals({ plan, dateLabel, medicationsBySlot, onMedicationTakenChange, medicationNotice, medicationError, renderPortions, renderNutrition }: RecommendedMealsProps) {
     const [selectedSlot, setSelectedSlot] = useState<(typeof MEALS)[number]['slot']>('breakfast');
     const [isOpen, setIsOpen] = useState(false);
     const dialogRef = useRef<HTMLDialogElement>(null);
@@ -102,6 +107,7 @@ export default function RecommendedMeals({ plan, dateLabel, medicationsBySlot, r
                     >
                         <span className="recommendationMealIcon"><Icon size={27} strokeWidth={1.6} aria-hidden="true" /></span>
                         <span>{mealTypeLabel(slot)}</span>
+                        <MedicationProgress medications={medicationsBySlot[slot] ?? []} />
                     </button>
                 ))}
             </div>
@@ -152,6 +158,12 @@ export default function RecommendedMeals({ plan, dateLabel, medicationsBySlot, r
                         ))}
                     </div>
                     <div key={`${selectedSlot}-${isOpen}`} className="mealDialogBody">
+                        <MedicationChecklist
+                            medications={medications}
+                            onTakenChange={onMedicationTakenChange}
+                            notice={medicationNotice}
+                            error={medicationError}
+                        />
                         <h3 className="mealDialogMain">{meal.main || '식사 구성 확인 필요'}</h3>
                         {menu.length > 0 && (
                             <dl className="mealDialogMenu">
@@ -163,7 +175,6 @@ export default function RecommendedMeals({ plan, dateLabel, medicationsBySlot, r
                                 ))}
                             </dl>
                         )}
-                        {medications.length > 0 && <p className="mealDialogMedication">식후 복용 · {medications.join(', ')}</p>}
                         <details className="mealDialogDetail">
                             <summary>조리법</summary>
                             {recipeSteps.length > 0 ? (
@@ -178,7 +189,7 @@ export default function RecommendedMeals({ plan, dateLabel, medicationsBySlot, r
                         </details>
                         <details className="mealDialogDetail">
                             <summary>영양 구성</summary>
-                            <MealNutrition meal={meal} />
+                            {renderNutrition ? renderNutrition(selectedSlot) : <MealNutrition meal={meal} />}
                         </details>
                     </div>
                 </div>
