@@ -936,8 +936,7 @@ export default function DietReportPage() {
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{DISCLAIMER_TEXT}</p>
                 </section>
                 <section className="uiCard p-5 text-[var(--ui-muted)] sm:p-6">
-                    <p className="text-sm font-semibold">설정이 필요해요</p>
-                    <p className="mt-1 text-sm">`.env.local` 파일의 Supabase 연결 설정을 확인해 주세요.</p>
+                    <p className="text-sm">서비스에 연결하지 못했어요. 잠시 후 다시 이용해 주세요.</p>
                 </section>
             </main>
         );
@@ -978,7 +977,7 @@ export default function DietReportPage() {
             </section>
 
             <section className="uiCard p-5 text-sm leading-relaxed sm:p-6">
-                <p className="font-semibold">입력 데이터 스냅샷</p>
+                <p className="font-semibold">내 정보</p>
                 <div className="mt-2 space-y-1">
                     <p>- 사용자: {profile?.nickname || '미입력'} / {sexLabel(profile?.sex ?? 'unknown')}</p>
                     <p>
@@ -1073,7 +1072,7 @@ export default function DietReportPage() {
             </section>
 
             <section className="uiCard p-5 sm:p-6">
-                <p className="text-base font-semibold text-gray-900 dark:text-gray-100">규칙 적용 로그</p>
+                <p className="text-base font-semibold text-gray-900 dark:text-gray-100">식단을 추천한 이유</p>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                     <div className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] p-4">
                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">1) 개인 정보/암 정보 반영</p>
@@ -1117,7 +1116,7 @@ export default function DietReportPage() {
                     </div>
                 </div>
                 <div className="mt-4 space-y-1 rounded-xl bg-[var(--ui-surface-muted)] p-4 text-sm leading-relaxed text-[var(--ui-muted)]">
-                    <p className="font-semibold text-gray-900 dark:text-gray-100">최종 적용 노트(통합)</p>
+                    <p className="font-semibold text-gray-900 dark:text-gray-100">추천 이유 요약</p>
                     {mergedNotes.length > 0 ? mergedNotes.map((note) => <p key={note}>- {note}</p>) : <p className="mt-1">- 적용 없음</p>}
                 </div>
             </section>
@@ -1153,11 +1152,7 @@ export default function DietReportPage() {
             <section className="uiCard p-5 text-sm leading-relaxed sm:p-6">
                 <p className="font-semibold">검토 필요 항목</p>
                 <div className="mt-2 space-y-1">
-                    {reviewWarnings.length > 0 ? (
-                        reviewWarnings.map((warning) => <p key={warning}>- {warning}</p>)
-                    ) : (
-                        <p>- 필수 입력값 기준으로 누락 없이 계산되었습니다.</p>
-                    )}
+                    {reviewWarnings.map((warning) => <p key={warning}>- {warning}</p>)}
                     <p>- 임상 수치(혈액검사, 신장기능, 전해질, 체중변화)가 반영되지 않았으므로 처방 전 의료진 확인이 필요합니다.</p>
                 </div>
             </section>

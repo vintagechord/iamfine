@@ -598,9 +598,6 @@ export default function RestaurantsPage() {
                         적용 중 키워드: {selectedKeyword}
                     </p>
                 )}
-                <p className="mt-2 text-xs text-gray-700 dark:text-gray-200">
-                    선택한 카테고리 키워드 + 위치(또는 지역명)로 웹 문서를 수집하고, 언급 식당을 점수화해 추천해요.
-                </p>
             </section>
 
             <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">

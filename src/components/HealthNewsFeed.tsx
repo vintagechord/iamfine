@@ -241,8 +241,7 @@ export default function HealthNewsFeed() {
                     {visibleCount < items.length && <button type="button" onClick={() => setVisibleCount((value) => value + PAGE_SIZE)} className="uiButton uiButton--secondary healthNewsMore">소식 더 보기</button>}
                 </>
             )}
-            {!loading && currentFeed?.partial && !currentFeed.error && <p className="healthNewsFooter">일부 출처에 연결되지 않아 확인된 소식만 보여드려요.</p>}
-            {!loading && updatedAgo && <p className="healthNewsFooter">{updatedAgo} · 같은 소식은 한 번만</p>}
+            {!loading && updatedAgo && <p className="healthNewsFooter">{updatedAgo}</p>}
         </section>
     );
 }

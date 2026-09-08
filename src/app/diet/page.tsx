@@ -3307,7 +3307,7 @@ export default function DietPage() {
 
         if (!hasSupabaseEnv || !supabase) {
             setSaving(false);
-            setError('설정이 필요해요. .env.local 파일을 확인해 주세요.');
+            setError('서비스에 연결하지 못했어요. 잠시 후 다시 이용해 주세요.');
             return;
         }
 

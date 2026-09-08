@@ -1349,7 +1349,7 @@ export default function ShoppingPage() {
                 setMemoSavedAt('메모는 비웠지만 계정 동기화에 실패했어요. 잠시 후 다시 저장해 주세요.');
                 return;
             }
-            setMemoSavedAt('메모를 비웠어요. 계정에도 반영했어요.');
+            setMemoSavedAt('메모를 비웠어요.');
             return;
         }
 
@@ -1376,7 +1376,7 @@ export default function ShoppingPage() {
             return;
         }
 
-        setMemoSavedAt(`${timeText} 저장 완료 (계정 동기화)`);
+        setMemoSavedAt(`${timeText} 저장 완료`);
     };
 
     if (loading) {
@@ -1410,8 +1410,7 @@ export default function ShoppingPage() {
                     role="alert"
                     className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
                 >
-                    <p className="text-sm font-semibold">설정이 필요해요</p>
-                    <p className="mt-1 text-sm">`.env.local` 파일에서 연결 설정을 확인해 주세요.</p>
+                    <p className="text-sm">서비스에 연결하지 못했어요. 잠시 후 다시 이용해 주세요.</p>
                 </section>
             </main>
         );
