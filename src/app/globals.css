@@ -254,7 +254,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
 .welcomePanel { padding: 2.5rem; border-radius: 24px; background: var(--ui-accent-soft); }
 .recommendationOverview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
 .recommendationOverview > .uiPageHeader { min-width: 0; padding: 0.25rem; }
-.recommendationOverview > .uiPageHeader h1 { font-size: 1.5rem; }
 .recommendationOverview > .uiPageHeader > p:first-child { margin-bottom: 0.35rem; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recommendationOverview > .nextVisitSummary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.25rem 0.5rem; border: 1px solid var(--ui-border); }
 .recommendationOverview .nextVisitSummary__label, .recommendationOverview .nextVisitSummary__details { grid-column: 1; }

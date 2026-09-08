@@ -47,7 +47,7 @@ export default function DailyVerse() {
     return (
         <div className="dailyVerse">
             <p className="dailyVerseLabel"><BookOpen size={16} aria-hidden="true" /> 오늘의 말씀</p>
-            <p className="dailyVerseText">{verse?.text ?? '마음을 위한 오늘의 말씀'}</p>
+            <h1 className="dailyVerseText">{verse?.text ?? '마음을 위한 오늘의 말씀'}</h1>
             <p className="dailyVerseMeta">
                 {verse && (
                     <a

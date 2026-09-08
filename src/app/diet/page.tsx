@@ -3471,7 +3471,7 @@ export default function DietPage() {
             <div className={openRecordView ? undefined : 'recommendationOverview'}>
                 <header className="uiPageHeader min-w-0">
                     <p>{profile?.nickname ? `${profile.nickname} 님의 하루 한 끼` : '나를 돌보는 한 끼'}</p>
-                    {openRecordView ? <h1>오늘의 식사를 기록해요.</h1> : <h1>나를 위한 식단</h1>}
+                    {openRecordView ? <h1>오늘의 식사를 기록해요.</h1> : <DailyVerse />}
                     {openRecordView && <p>먹은 음식을 한 끼씩 남겨 보세요.</p>}
                 </header>
             {!openRecordView && (
@@ -4341,12 +4341,6 @@ export default function DietPage() {
             </details>
 
             </details>
-            {!openRecordView && (
-                <details className="recommendationDisclosure">
-                    <summary>오늘의 말씀</summary>
-                    <DailyVerse />
-                </details>
-            )}
             {!openRecordView && (
                 <details className="recommendationDisclosure">
                     <summary>건강 소식</summary>
