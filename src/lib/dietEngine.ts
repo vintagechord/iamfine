@@ -1919,15 +1919,13 @@ export function getSnackCoffeeTimingGuide(stageType: StageType) {
     };
 }
 
-export function generatePlanForDate(
-    dateKey: string,
-    stageType: StageType,
-    prevMonthScore: number,
-    preferences: PreferenceType[] = []
-): DayPlan {
-    // Retained for call compatibility; a prior score does not justify restricting foods.
-    void prevMonthScore;
-    const dayIndex = calendarDayIndex(dateKey);
+// Only catalog-derived base menus are shared. Patient context, food records and
+// preference results never enter this cache. Keep a small LRU window so browsing
+// years of calendar history cannot grow memory without a limit.
+const BASE_PLAN_CACHE_LIMIT = 128;
+const basePlanCache = new Map<string, DayPlan>();
+
+function buildBasePlan(dateKey: string, dayIndex: number, stageType: StageType): DayPlan {
     const snackTemplate = SNACK_TEMPLATES[positiveModulo(dayIndex, SNACK_TEMPLATES.length)];
     const snack: MealSuggestion = {
         summary: '', riceType: '', main: snackTemplate.main, soup: snackTemplate.hydration,
@@ -1936,19 +1934,47 @@ export function generatePlanForDate(
         recipeName: '', recipeSteps: [],
     };
     syncMealDetails(snack, 'snack');
-    const base: DayPlan = {
+    return {
         date: dateKey,
         breakfast: buildScheduledMeal(dayIndex, 0, stageType),
         lunch: buildScheduledMeal(dayIndex, 1, stageType),
         dinner: buildScheduledMeal(dayIndex, 2, stageType),
         snack,
     };
+}
 
-    if (preferences.length === 0) {
-        return base;
+function immutableBasePlan(plan: DayPlan) {
+    for (const slot of [...MAIN_SLOTS, 'snack'] as const) {
+        Object.freeze(plan[slot].sides);
+        Object.freeze(plan[slot].recipeSteps);
+        Object.freeze(plan[slot].nutrient);
+        Object.freeze(plan[slot]);
+    }
+    return Object.freeze(plan);
+}
+
+export function generatePlanForDate(
+    dateKey: string,
+    stageType: StageType,
+    prevMonthScore: number,
+    preferences: PreferenceType[] = []
+): DayPlan {
+    // Retained for call compatibility; a prior score does not justify restricting foods.
+    void prevMonthScore;
+    // Validate before lookup so malformed or rolled-over dates are never cached.
+    const dayIndex = calendarDayIndex(dateKey);
+    const cacheKey = `${stageType}:${dateKey}`;
+    const base = basePlanCache.get(cacheKey) ?? immutableBasePlan(buildBasePlan(dateKey, dayIndex, stageType));
+    basePlanCache.delete(cacheKey);
+    basePlanCache.set(cacheKey, base);
+    if (basePlanCache.size > BASE_PLAN_CACHE_LIMIT) {
+        const oldestKey = basePlanCache.keys().next().value;
+        if (oldestKey !== undefined) basePlanCache.delete(oldestKey);
     }
 
-    return optimizePlanByPreference(base, preferences).plan;
+    // Every caller owns a mutable copy, including nested arrays and nutrients.
+    // Preference optimization already clones its input and runs afresh per call.
+    return preferences.length === 0 ? clonePlan(base) : optimizePlanByPreference(base, preferences).plan;
 }
 
 export function generateMonthPlans(

@@ -275,7 +275,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
 .recommendationPlanHeader h2 { font-size: 1.25rem; letter-spacing: -0.035em; }
 .recommendationPlanHint { margin: 0.75rem 0 1.25rem; color: var(--ui-muted); font-size: 0.875rem; }
 .recommendationMealChoices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
-.recommendationMealChoice { display: flex; flex-direction: column; align-items: center; gap: 0.45rem; min-width: 0; padding: 1rem 0.5rem; border: 1px solid transparent; border-radius: 16px; background: var(--meal-choice-bg); color: var(--ui-ink); font-size: 1.0625rem; transition: border-color 160ms ease; }
+.recommendationMealChoice { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.45rem; min-width: 0; padding: 1rem 0.5rem; border: 1px solid transparent; border-radius: 16px; background: var(--meal-choice-bg); color: var(--ui-ink); font-size: 1.0625rem; transition: border-color 160ms ease; }
 
 .recommendationMealChoice[aria-expanded="true"] { border-color: var(--ui-accent); }
 .recommendationDisclosure { padding: 0 0.25rem; border: 0; border-bottom: 1px solid var(--ui-border); border-radius: 0; background: transparent; }

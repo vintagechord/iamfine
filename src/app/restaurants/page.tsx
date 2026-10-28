@@ -1,814 +1,244 @@
 'use client';
 
 import Link from 'next/link';
-import { CircleHelp, MapPinned, Search, Truck } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { parseAdditionalConditionsFromUnknown, type AdditionalCondition } from '@/lib/additionalConditions';
-import { getAuthSessionUser, hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
-
-type FinderCategory = 'healthy' | 'veggie' | 'protein' | 'soft';
-
-type FinderOption = {
-    label: string;
-    hint: string;
-    keywords: string[];
-};
-
-type RecommendationSource = {
-    title: string;
-    url: string;
-    source: string;
-};
+import { MapPinned, Search, Truck } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    restaurantMapLinks,
+    type FinderCategory, type RestaurantAvailability, type RestaurantSource,
+} from '@/lib/restaurantSearch';
 
 type RecommendationItem = {
-    name: string;
-    score: number;
-    reason: string;
-    sourceCount: number;
-    mapUrl: string;
-    naverMapUrl?: string;
-    sources: RecommendationSource[];
+    placeId: string; name: string; reason: string; mapUrl: string; naverMapUrl: string; sources: RestaurantSource[];
 };
-
 type RecommendationResponse = {
-    region: string;
-    category: FinderCategory;
-    categoryLabel: string;
-    keyword?: string;
-    queries: string[];
-    items: RecommendationItem[];
-    personalizationApplied?: boolean;
-    personalizationFocusTerms?: string[];
-    generatedAt: string;
+    region?: string; items?: RecommendationItem[]; queries?: string[]; availability?: RestaurantAvailability;
+    message?: string; generatedAt?: string; mapSearchUrls?: ReturnType<typeof restaurantMapLinks>;
 };
-
-type SearchContext = {
-    region: string;
-    lat: number | null;
-    lng: number | null;
-};
-
-type StageType =
-    | 'diagnosis'
-    | 'chemo'
-    | 'chemo_2nd'
-    | 'radiation'
-    | 'targeted'
-    | 'immunotherapy'
-    | 'hormone_therapy'
-    | 'surgery'
-    | 'medication'
-    | 'other';
-
-type StageStatus = 'planned' | 'active' | 'completed';
-
-type TreatmentStageRow = {
-    stage_type: StageType;
-    stage_label: string | null;
-    stage_order: number;
-    status: StageStatus;
-    created_at: string;
-};
-
-type TreatmentMeta = {
-    cancerType: string;
-    cancerStage: string;
-    updatedAt: string;
-};
-
-type FinderPatientContext = {
-    mode: 'guest' | 'personalized';
-    cancerType: string;
-    cancerStage: string;
-    activeStageType: StageType | null;
-    activeStageLabel: string;
-    additionalConditions: AdditionalCondition[];
-    recentDietSignals: string[];
-};
-
-type DeliveryProvider = {
-    name: string;
-    description: string;
-    homepage: string;
-    searchUrlTemplate?: string;
-};
-
-const USER_METADATA_NAMESPACE = 'iamfine';
-
-function parseTreatmentMetaFromUnknown(raw: unknown): TreatmentMeta | null {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        return null;
-    }
-
-    const parsed = raw as Partial<TreatmentMeta>;
-    if (typeof parsed.cancerType !== 'string' || !parsed.cancerType.trim()) {
-        return null;
-    }
-
-    return {
-        cancerType: parsed.cancerType.trim(),
-        cancerStage: typeof parsed.cancerStage === 'string' ? parsed.cancerStage.trim() : '',
-        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
-    };
-}
-
-function readIamfineMetadata(raw: unknown) {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        return {
-            treatmentMeta: null as TreatmentMeta | null,
-            additionalConditions: [] as AdditionalCondition[],
-            recentDietSignals: [] as string[],
-        };
-    }
-
-    const root = raw as Record<string, unknown>;
-    const namespaced = root[USER_METADATA_NAMESPACE];
-    if (!namespaced || typeof namespaced !== 'object' || Array.isArray(namespaced)) {
-        return {
-            treatmentMeta: null as TreatmentMeta | null,
-            additionalConditions: [] as AdditionalCondition[],
-            recentDietSignals: [] as string[],
-        };
-    }
-
-    const scoped = namespaced as Record<string, unknown>;
-    const recentDietSignals = Array.isArray(scoped.recentDietSignals)
-        ? Array.from(
-              new Set(
-                  scoped.recentDietSignals
-                      .filter((item): item is string => typeof item === 'string')
-                      .map((item) => item.trim())
-                      .filter(Boolean)
-              )
-          ).slice(0, 8)
-        : [];
-    return {
-        treatmentMeta: parseTreatmentMetaFromUnknown(scoped.treatmentMeta),
-        additionalConditions: parseAdditionalConditionsFromUnknown(scoped.additionalConditions),
-        recentDietSignals,
-    };
-}
-
+type SearchContext = { region: string; lat: number | null; lng: number | null };
+type FinderOption = { label: string; hint: string; keywords: string[] };
 const FINDER_OPTIONS: Record<FinderCategory, FinderOption> = {
-    healthy: {
-        label: '건강식 일반',
-        hint: '저염·담백한 한식 중심으로 찾기 좋아요.',
-        keywords: [
-            '건강식 식당',
-            '저염식 한식',
-            '한식 백반',
-            '쌈밥',
-            '두부요리',
-            '죽 전문점',
-            '가정식 백반',
-            '생선구이 백반',
-            '나물 반찬',
-            '현미밥 식당',
-            '국물 적은 한식',
-            '담백한 식당',
-            '웰빙 한식',
-            '저자극 식당',
-            '집밥 스타일 식당',
-        ],
-    },
-    veggie: {
-        label: '샐러드/채식',
-        hint: '샐러드, 포케, 채식·비건 식당 중심으로 탐색해요.',
-        keywords: [
-            '샐러드 전문점',
-            '포케',
-            '채식 식당',
-            '비건 식당',
-            '야채 샤브샤브',
-            '샤브샤브',
-            '그린볼',
-            '비건 브런치',
-            '채소 덮밥',
-            '두부 샐러드',
-            '곡물볼',
-            '렌틸콩 샐러드',
-            '채식 도시락',
-            '버섯 요리',
-            '비건 카페',
-        ],
-    },
-    protein: {
-        label: '단백질 중심',
-        hint: '생선·닭가슴살 등 단백질 위주 식당을 우선해요.',
-        keywords: [
-            '생선구이',
-            '닭가슴살 식당',
-            '두부요리',
-            '오븐구이',
-            '포케',
-            '연어 샐러드',
-            '훈제오리 샐러드',
-            '참치 포케',
-            '소고기 안심',
-            '계란 요리',
-            '단백질 도시락',
-            '닭안심 샐러드',
-            '해산물 샐러드',
-            '그릭요거트 볼',
-            '두유 스무디',
-        ],
-    },
-    soft: {
-        label: '부드러운 식사',
-        hint: '치료 중 부담이 적은 죽/국/담백식 위주로 찾아요.',
-        keywords: [
-            '죽 전문점',
-            '맑은 국',
-            '순두부',
-            '된장찌개',
-            '들깨수프',
-            '연두부',
-            '계란찜',
-            '야채죽',
-            '소고기죽',
-            '미음',
-            '북어국',
-            '콩나물국',
-            '부드러운 한식',
-            '연식 가능 식당',
-            '소화 편한 식사',
-        ],
-    },
+    healthy: { label: '한식·집밥', hint: '백반, 쌈밥, 두부요리처럼 평소 먹는 메뉴를 찾아요.', keywords: ['한식 백반', '쌈밥', '두부요리', '생선구이', '가정식', '저염식 한식'] },
+    veggie: { label: '채소 중심', hint: '샐러드, 채식, 채소 요리 메뉴를 찾아요.', keywords: ['샐러드', '포케', '채식 식당', '비건 식당', '야채 샤브샤브', '버섯 요리'] },
+    protein: { label: '생선·고기·두부', hint: '먹고 싶은 재료를 골라 찾아보세요.', keywords: ['생선구이', '닭요리', '두부요리', '오븐구이', '계란 요리', '소고기 구이'] },
+    soft: { label: '부드러운 식사', hint: '죽, 수프, 순두부 메뉴가 있는 식당을 찾아요.', keywords: ['죽 전문점', '순두부', '들깨수프', '계란찜', '야채죽', '소고기죽'] },
 };
-
-const DELIVERY_PROVIDERS: DeliveryProvider[] = [
-    {
-        name: '배달의민족',
-        description: '배민1/가게배달 포함 주요 배달 플랫폼',
-        homepage: 'https://www.baemin.com',
-    },
-    {
-        name: '요기요',
-        description: '지역 기반 배달 식당 탐색과 포장 주문 지원',
-        homepage: 'https://www.yogiyo.co.kr/mobile',
-        searchUrlTemplate: 'https://www.yogiyo.co.kr/mobile/#/search/',
-    },
-    {
-        name: '쿠팡이츠',
-        description: '빠른 배달 중심의 지역 식당 탐색 플랫폼',
-        homepage: 'https://www.coupangeats.com',
-    },
+const DELIVERY_PROVIDERS = [
+    { name: '배달의민족', homepage: 'https://www.baemin.com' },
+    { name: '요기요', homepage: 'https://www.yogiyo.co.kr/mobile' },
+    { name: '쿠팡이츠', homepage: 'https://www.coupangeats.com' },
 ];
 
 export default function RestaurantsPage() {
     const [selectedCategory, setSelectedCategory] = useState<FinderCategory>('healthy');
-    const [selectedKeyword, setSelectedKeyword] = useState<string>('');
-    const [regionInput, setRegionInput] = useState('서울');
-    const [searchContext, setSearchContext] = useState<SearchContext>({
-        region: '서울',
-        lat: null,
-        lng: null,
-    });
+    const [selectedKeyword, setSelectedKeyword] = useState('');
+    const [regionInput, setRegionInput] = useState('');
+    const [searchContext, setSearchContext] = useState<SearchContext>({ region: '', lat: null, lng: null });
     const [resolvedRegion, setResolvedRegion] = useState('');
-    const [usedQueries, setUsedQueries] = useState<string[]>([]);
     const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
-    const [generatedAt, setGeneratedAt] = useState('');
+    const [usedQueries, setUsedQueries] = useState<string[]>([]);
     const [loadingRecommendations, setLoadingRecommendations] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [recommendationError, setRecommendationError] = useState('');
-    const [showFinderInfoModal, setShowFinderInfoModal] = useState(false);
-    const [patientContext, setPatientContext] = useState<FinderPatientContext>({
-        mode: 'guest',
-        cancerType: '',
-        cancerStage: '',
-        activeStageType: null,
-        activeStageLabel: '',
-        additionalConditions: [],
-        recentDietSignals: [],
-    });
-
+    const [availability, setAvailability] = useState<RestaurantAvailability | null>(null);
+    const [statusMessage, setStatusMessage] = useState('');
+    const [responseMapLinks, setResponseMapLinks] = useState<ReturnType<typeof restaurantMapLinks> | null>(null);
+    const [retryKey, setRetryKey] = useState(0);
+    const requestVersion = useRef(0);
+    const activeController = useRef<AbortController | null>(null);
+    const locationVersion = useRef(0);
     const selected = FINDER_OPTIONS[selectedCategory];
-    const quickKeywords = useMemo(
-        () => Array.from(new Set(selected.keywords.map((keyword) => keyword.trim()).filter(Boolean))),
-        [selected]
-    );
-    const deliveryKeywords = useMemo(() => {
-        const recommendationKeywords = recommendations.map((item) => item.name.trim()).filter(Boolean);
-        const merged = [...recommendationKeywords, ...quickKeywords];
-        return Array.from(new Set(merged)).slice(0, 6);
-    }, [quickKeywords, recommendations]);
+    const hasSearchLocation = Boolean(searchContext.region || (searchContext.lat !== null && searchContext.lng !== null));
+    const fallbackMapLinks = useMemo(() => {
+        if (responseMapLinks) return responseMapLinks;
+        const region = resolvedRegion || searchContext.region;
+        return region ? restaurantMapLinks(region, selectedKeyword || selected.keywords[0]) : null;
+    }, [responseMapLinks, resolvedRegion, searchContext.region, selectedKeyword, selected]);
 
-    const deliveryRestaurantNames = useMemo(() => {
-        return recommendations.map((item) => item.name).filter(Boolean).slice(0, 6);
-    }, [recommendations]);
+    const cancelPendingSearch = () => {
+        requestVersion.current += 1;
+        activeController.current?.abort();
+    };
 
-    const generatedAtLabel = useMemo(() => {
-        if (!generatedAt) {
-            return '';
-        }
-        const date = new Date(generatedAt);
-        if (Number.isNaN(date.getTime())) {
-            return '';
-        }
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${month}/${day} ${hours}:${minutes}`;
-    }, [generatedAt]);
+    useEffect(() => {
+        const controller = new AbortController();
+        activeController.current = controller;
+        const version = ++requestVersion.current;
+        const isCurrent = () => requestVersion.current === version;
+        let timedOut = false;
+        let timeout: ReturnType<typeof setTimeout> | undefined;
 
-    const fetchRecommendations = useCallback(
-        async (context: SearchContext) => {
-            setLoadingRecommendations(true);
+        const search = async () => {
+            setRecommendations([]);
+            setUsedQueries([]);
+            setResolvedRegion('');
+            setResponseMapLinks(null);
+            setAvailability(null);
+            setStatusMessage('');
             setRecommendationError('');
-
-            try {
-                const params = new URLSearchParams();
-                params.set('category', selectedCategory);
-                if (context.region.trim()) {
-                    params.set('region', context.region.trim());
-                }
-                if (context.lat !== null && context.lng !== null) {
-                    params.set('lat', String(context.lat));
-                    params.set('lng', String(context.lng));
-                }
-                if (selectedKeyword.trim()) {
-                    params.set('keyword', selectedKeyword.trim());
-                }
-                if (patientContext.mode === 'personalized') {
-                    params.set('personalized', '1');
-                    if (patientContext.cancerType.trim()) {
-                        params.set('cancerType', patientContext.cancerType.trim());
-                    }
-                    if (patientContext.cancerStage.trim()) {
-                        params.set('cancerStage', patientContext.cancerStage.trim());
-                    }
-                    if (patientContext.activeStageType) {
-                        params.set('stageType', patientContext.activeStageType);
-                    }
-                    if (patientContext.activeStageLabel.trim()) {
-                        params.set('stageLabel', patientContext.activeStageLabel.trim());
-                    }
-                    patientContext.additionalConditions.slice(0, 8).forEach((condition) => {
-                        params.append('condition', `${condition.name}:${condition.code}`);
-                    });
-                    patientContext.recentDietSignals.slice(0, 8).forEach((signal) => {
-                        params.append('dietSignal', signal);
-                    });
-                }
-
-                const response = await fetch(`/api/restaurants/recommend?${params.toString()}`, {
-                    cache: 'no-store',
-                });
-                if (!response.ok) {
-                    throw new Error(`추천 API 오류: ${response.status}`);
-                }
-
-                const json = (await response.json()) as RecommendationResponse;
-                setRecommendations(json.items ?? []);
-                setUsedQueries(json.queries ?? []);
-                const nextResolvedRegion = json.region ?? context.region;
-                setResolvedRegion(nextResolvedRegion);
-                if (context.lat !== null && context.lng !== null && nextResolvedRegion.trim()) {
-                    setRegionInput(nextResolvedRegion);
-                }
-                setGeneratedAt(json.generatedAt ?? '');
-            } catch (error) {
-                console.error(error);
-                setRecommendationError('추천 식당을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
-                setRecommendations([]);
-                setUsedQueries([]);
-            } finally {
+            if (!searchContext.region && searchContext.lat === null) {
                 setLoadingRecommendations(false);
-            }
-        },
-        [patientContext, selectedCategory, selectedKeyword]
-    );
-
-    useEffect(() => {
-        void fetchRecommendations(searchContext);
-    }, [fetchRecommendations, searchContext]);
-
-    useEffect(() => {
-        setSelectedKeyword('');
-    }, [selectedCategory]);
-
-    useEffect(() => {
-        if (!navigator.geolocation) {
-            return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                setSearchContext({
-                    region: '',
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                });
-            },
-            () => {
-                // 권한 거부/실패 시 기존 지역 입력 기반 검색을 유지.
-            },
-            {
-                enableHighAccuracy: false,
-                timeout: 10000,
-                maximumAge: 5 * 60 * 1000,
-            }
-        );
-    }, []);
-
-    useEffect(() => {
-        let cancelled = false;
-
-        const loadPatientContext = async () => {
-            if (!hasSupabaseEnv || !supabase) {
                 return;
             }
-
+            setLoadingRecommendations(true);
+            timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 12_000);
             try {
-                const { user, error: userError } = await getAuthSessionUser();
-                if (userError || !user) {
-                    if (!cancelled) {
-                        setPatientContext({
-                            mode: 'guest',
-                            cancerType: '',
-                            cancerStage: '',
-                            activeStageType: null,
-                            activeStageLabel: '',
-                            additionalConditions: [],
-                            recentDietSignals: [],
-                        });
-                    }
+                const params = new URLSearchParams({ category: selectedCategory });
+                if (searchContext.region) params.set('region', searchContext.region);
+                if (searchContext.lat !== null && searchContext.lng !== null) {
+                    params.set('lat', String(searchContext.lat)); params.set('lng', String(searchContext.lng));
+                }
+                if (selectedKeyword) params.set('keyword', selectedKeyword);
+                // Diagnosis, treatment stage and conditions stay out of API URLs and external search.
+                const response = await fetch(`/api/restaurants/recommend?${params.toString()}`, { cache: 'no-store', signal: controller.signal });
+                const json = await response.json() as RecommendationResponse;
+                if (!isCurrent() || controller.signal.aborted) return;
+                setResolvedRegion(json.region || searchContext.region);
+                setResponseMapLinks(json.mapSearchUrls ?? null);
+                setUsedQueries(json.queries ?? []);
+                setAvailability(json.availability ?? null);
+                setStatusMessage(json.message ?? '');
+                if (!response.ok) {
+                    setRecommendationError(json.message || '식당 검색에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.');
                     return;
                 }
-
-                const metadata = readIamfineMetadata(user.user_metadata);
-                const { data: stageData } = await supabase
-                    .from('treatment_stages')
-                    .select('stage_type, stage_label, stage_order, status, created_at')
-                    .eq('user_id', user.id)
-                    .order('stage_order', { ascending: true })
-                    .order('created_at', { ascending: true });
-                const stages = (stageData as TreatmentStageRow[] | null) ?? [];
-                const activeStage = stages.find((stage) => stage.status === 'active') ?? stages[0] ?? null;
-
-                if (!cancelled) {
-                    setPatientContext({
-                        mode: 'personalized',
-                        cancerType: metadata.treatmentMeta?.cancerType ?? '',
-                        cancerStage: metadata.treatmentMeta?.cancerStage ?? '',
-                        activeStageType: activeStage?.stage_type ?? null,
-                        activeStageLabel: activeStage?.stage_label?.trim() ?? '',
-                        additionalConditions: metadata.additionalConditions,
-                        recentDietSignals: metadata.recentDietSignals,
-                    });
-                }
-            } catch (error) {
-                console.error(error);
+                setRecommendations(json.items ?? []);
+            } catch {
+                if (!isCurrent() || (controller.signal.aborted && !timedOut)) return;
+                setAvailability('unavailable');
+                setRecommendationError(timedOut ? '검색이 오래 걸리고 있어요. 지도에서 찾거나 다시 시도해 주세요.' : '식당 검색에 연결하지 못했어요. 지도에서 찾거나 다시 시도해 주세요.');
+            } finally {
+                clearTimeout(timeout);
+                if (isCurrent()) setLoadingRecommendations(false);
             }
         };
+        void search();
+        return () => { requestVersion.current += 1; controller.abort(); clearTimeout(timeout); };
+    }, [retryKey, searchContext, selectedCategory, selectedKeyword]);
 
-        void loadPatientContext();
-        return () => {
-            cancelled = true;
-        };
+    useEffect(() => {
+        return () => { locationVersion.current += 1; };
     }, []);
 
     const updateContextByRegion = () => {
-        const nextRegion = regionInput.trim() || '서울';
-        setSearchContext((prev) => ({
-            region: nextRegion,
-            lat: prev.lat,
-            lng: prev.lng,
-        }));
+        const region = regionInput.trim();
+        if (!region) { setRecommendationError('지역명을 입력해 주세요.'); return; }
+        locationVersion.current += 1;
+        setLocationLoading(false);
+        cancelPendingSearch();
+        setSearchContext({ region, lat: null, lng: null });
     };
 
     const updateContextByLocation = () => {
-        if (!navigator.geolocation) {
-            setRecommendationError('브라우저에서 위치 기능을 지원하지 않아요. 지역명을 직접 입력해 주세요.');
-            return;
-        }
-
+        if (!navigator.geolocation) { setRecommendationError('지역명을 직접 입력해 주세요. 이 브라우저에서는 위치를 사용할 수 없어요.'); return; }
+        const version = ++locationVersion.current;
         setLocationLoading(true);
         setRecommendationError('');
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                setSearchContext({
-                    region: '',
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                });
+                if (locationVersion.current !== version) return;
+                cancelPendingSearch();
+                setSearchContext({ region: '', lat: position.coords.latitude, lng: position.coords.longitude });
+                setRegionInput('');
                 setLocationLoading(false);
             },
             () => {
-                setRecommendationError('위치 권한이 없거나 위치를 가져오지 못했어요. 지역명을 입력해 검색해 주세요.');
+                if (locationVersion.current !== version) return;
+                setRecommendationError('위치를 확인하지 못했어요. 지역명을 직접 입력해 주세요.');
                 setLocationLoading(false);
             },
-            {
-                enableHighAccuracy: false,
-                timeout: 10000,
-                maximumAge: 5 * 60 * 1000,
-            }
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 }
         );
     };
 
     return (
         <main className="mx-auto max-w-3xl space-y-4 py-6">
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                            <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf1e9] text-[#497561] dark:bg-[#24382e] dark:text-[#d6e6dc]">
-                                <MapPinned className="h-5 w-5" />
-                            </span>
-                            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">건강식당 찾기</h1>
-                            <button
-                                type="button"
-                                onClick={() => setShowFinderInfoModal(true)}
-                                className="uiIconButton shrink-0"
-                                aria-label="건강식당 찾기 안내 열기"
-                            >
-                                <CircleHelp className="h-4 w-4" />
-                            </button>
-                        </div>
-                    </div>
-                    <Link
-                        href="/diet"
-                        className="uiButton uiButton--secondary uiButton--small self-start shrink-0"
-                    >
-                        식단 제안으로
-                    </Link>
+            <header className="flex items-start justify-between gap-3 px-1">
+                <div>
+                    <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-gray-100"><MapPinned className="h-6 w-6 text-[#497561]" /> 식당 찾기</h1>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">먹고 싶은 메뉴를 가까운 곳에서 찾아보세요.</p>
                 </div>
-            </section>
+                <Link href="/diet" className="uiButton uiButton--secondary uiButton--small shrink-0">오늘의 식단</Link>
+            </header>
 
-            {showFinderInfoModal && (
-                <div
-                    className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/50 p-3 sm:p-4"
-                    onClick={() => setShowFinderInfoModal(false)}
-                >
-                    <section
-                        className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-xl max-h-[70dvh] overflow-y-auto overscroll-contain dark:border-gray-800 dark:bg-gray-900"
-                        onClick={(event) => event.stopPropagation()}
-                    >
-                        <div className="flex items-start justify-between gap-3">
-                            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">건강식당 찾기 안내</h2>
-                            <button type="button" onClick={() => setShowFinderInfoModal(false)} className="uiButton uiButton--secondary uiButton--small">
-                                닫기
-                            </button>
-                        </div>
-                        <p className="mt-3 text-sm text-gray-700 dark:text-gray-200">
-                            치료 상황에 맞는 식당을 키워드로 빠르게 찾을 수 있어요.
-                        </p>
-                    </section>
+            <section className="uiCard p-4" aria-label="식당 검색 조건">
+                <label htmlFor="restaurant-region" className="text-sm font-semibold text-gray-900 dark:text-gray-100">어디에서 드시나요?</label>
+                <div className="mt-2 flex gap-2">
+                    <input
+                        id="restaurant-region" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="search" maxLength={60}
+                        value={regionInput}
+                        onChange={(event) => { locationVersion.current += 1; setLocationLoading(false); setRegionInput(event.target.value); }}
+                        onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); updateContextByRegion(); } }}
+                        placeholder="예: 서울역, 강남역, 종로구"
+                        className="min-h-12 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                    />
+                    <button type="button" onClick={updateContextByRegion} className="uiButton uiButton--primary shrink-0"><Search className="h-4 w-4" /><span>검색</span></button>
                 </div>
-            )}
-
-            <section className="uiCard p-4">
-                <div className="flex items-center gap-2">
-                    <MapPinned className="h-4 w-4 text-[#497561] dark:text-[#a5c3b1]" />
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">추천 검색 카테고리</p>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {(Object.entries(FINDER_OPTIONS) as Array<[FinderCategory, FinderOption]>).map(([key, option]) => {
-                        const selectedState = selectedCategory === key;
-                        return (
-                            <button
-                                key={key}
-                                type="button"
-                                onClick={() => setSelectedCategory(key)}
-                                aria-pressed={selectedState} className={`uiButton ${selectedState ? 'uiButton--primary' : 'uiButton--secondary'}`}
-                            >
-                                {option.label}
-                            </button>
-                        );
-                    })}
-                </div>
-                <p className="mt-3 text-xs text-gray-700 dark:text-gray-200">{selected.hint}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                    {quickKeywords.map((keyword) => (
-                        <button
-                            key={`${selectedCategory}-${keyword}`}
-                            type="button"
-                            onClick={() => setSelectedKeyword((prev) => (prev === keyword ? '' : keyword))}
-                            className={`uiButton uiButton--small ${selectedKeyword === keyword ? 'uiButton--primary' : 'uiButton--secondary'}`}
-                            aria-pressed={selectedKeyword === keyword}
-                        >
-                            <Search className="h-3.5 w-3.5" />
-                            {keyword}
-                        </button>
+                <button type="button" onClick={updateContextByLocation} disabled={locationLoading} className="uiButton uiButton--secondary uiButton--small mt-2"><MapPinned className="h-4 w-4" />{locationLoading ? '위치 확인 중…' : '내 위치 사용'}</button>
+                <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {(Object.entries(FINDER_OPTIONS) as Array<[FinderCategory, FinderOption]>).map(([key, option]) => (
+                        <button key={key} type="button" onClick={() => { if (selectedCategory === key && !selectedKeyword) return; cancelPendingSearch(); setSelectedKeyword(''); setSelectedCategory(key); }} aria-pressed={selectedCategory === key}
+                            className={`uiButton ${selectedCategory === key ? 'uiButton--primary' : 'uiButton--secondary'}`}>{option.label}</button>
                     ))}
                 </div>
-                {selectedKeyword && (
-                    <p className="mt-2 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                        적용 중 키워드: {selectedKeyword}
-                    </p>
-                )}
+                <p className="mt-3 text-xs text-gray-600 dark:text-gray-300">{selected.hint}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                    {selected.keywords.map((keyword) => (
+                        <button key={keyword} type="button" onClick={() => { cancelPendingSearch(); setSelectedKeyword((previous) => previous === keyword ? '' : keyword); }}
+                            className={`uiButton uiButton--small ${selectedKeyword === keyword ? 'uiButton--primary' : 'uiButton--secondary'}`} aria-pressed={selectedKeyword === keyword}>{keyword}</button>
+                    ))}
+                </div>
             </section>
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="min-w-0 text-sm font-semibold text-gray-900 dark:text-gray-100">위치 기반 추천 식당</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
-                        {resolvedRegion ? `기준 지역: ${resolvedRegion}` : '기준 지역을 찾는 중'}
-                        {generatedAtLabel ? ` · ${generatedAtLabel} 업데이트` : ''}
-                    </p>
+            <section className="uiCard p-4" aria-label="식당 검색 결과" aria-busy={loadingRecommendations}>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{resolvedRegion || searchContext.region || '주변 식당'}{recommendations.length > 0 ? ` · ${recommendations.length}곳` : ''}</h2>
+                <div aria-live="polite" role="status">
+                    {loadingRecommendations ? <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">식당을 찾고 있어요…</p>
+                        : recommendationError ? <p className="mt-3 text-sm text-gray-700 dark:text-gray-200">{recommendationError}</p>
+                            : statusMessage ? <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">{statusMessage}</p>
+                                : !hasSearchLocation ? <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">지역을 검색하거나 내 위치를 사용해 주세요.</p> : null}
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-                    <input
-                        aria-label="지역 입력"
-                        autoComplete="off"
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        enterKeyHint="search"
-                        value={regionInput}
-                        onChange={(event) => setRegionInput(event.target.value)}
-                        onKeyDown={(event) => {
-                            if (event.key !== 'Enter') {
-                                return;
-                            }
-                            event.preventDefault();
-                            updateContextByRegion();
-                        }}
-                        placeholder="예: 서울역, 강남역, 종로구"
-                        className="min-h-12 min-w-0 rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                    />
-                    <button
-                        type="button"
-                        onClick={updateContextByRegion}
-                        className="uiButton uiButton--secondary"
-                    >
-                        지역으로 검색
-                    </button>
-                    <button
-                        type="button"
-                        onClick={updateContextByLocation}
-                        disabled={locationLoading}
-                        className="uiButton uiButton--primary"
-                    >
-                        {locationLoading ? '위치 확인 중…' : '내 위치 사용'}
-                    </button>
-                </div>
-                {usedQueries.length > 0 && (
+                {fallbackMapLinks && (
                     <div className="mt-3 flex flex-wrap gap-2">
-                        {usedQueries.map((query) => (
-                            <span
-                                key={`${selectedCategory}-${query}`}
-                                className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200"
-                            >
-                                {query}
-                            </span>
-                        ))}
+                        <a href={fallbackMapLinks.naver} target="_blank" rel="noreferrer" className="uiButton uiButton--secondary uiButton--small">네이버지도에서 찾기</a>
+                        <a href={fallbackMapLinks.kakao} target="_blank" rel="noreferrer" className="uiButton uiButton--secondary uiButton--small">카카오맵에서 찾기</a>
                     </div>
                 )}
-                {recommendationError && (
-                    <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
-                        {recommendationError}
-                    </p>
+                {!loadingRecommendations && hasSearchLocation && (availability === 'unavailable' || availability === 'partial' || recommendationError) && (
+                    <button type="button" onClick={() => setRetryKey((value) => value + 1)} className="uiButton uiButton--secondary uiButton--small mt-3">다시 불러오기</button>
                 )}
-                {loadingRecommendations ? (
-                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">추천 식당을 분석 중이에요…</p>
-                ) : recommendations.length === 0 ? (
-                    <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
-                        아직 추천 결과가 없어요. 지역명을 입력하거나 위치 권한을 허용해 다시 시도해 주세요.
-                    </p>
-                ) : (
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        {recommendations.map((item) => (
-                            <article
-                                key={`${item.name}-${item.score}`}
-                                className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40"
-                            >
-                                <div className="flex items-start justify-between gap-2">
-                                    <h3 className="min-w-0 truncate text-base font-semibold text-gray-900 dark:text-gray-100">{item.name}</h3>
-                                    <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-semibold text-white dark:bg-emerald-900/40 dark:text-emerald-100">
-                                        근거 {item.sourceCount}건
-                                    </span>
-                                </div>
-                                {item.reason.trim() && (
-                                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{item.reason}</p>
-                                )}
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    <a
-                                        href={item.mapUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="uiButton uiButton--secondary uiButton--small"
-                                    >
-                                        카카오맵 보기
-                                    </a>
-                                    {item.naverMapUrl && (
-                                        <a
-                                            href={item.naverMapUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="uiButton uiButton--secondary uiButton--small"
-                                        >
-                                            네이버지도 근거
-                                        </a>
-                                    )}
-                                </div>
-                                {item.sources.length > 0 && (
-                                    <div className="mt-2 space-y-1">
-                                        {item.sources.slice(0, 3).map((source) => (
-                                            <a
-                                                key={`${item.name}-${source.url}`}
-                                                href={source.url}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="uiButton uiButton--secondary uiButton--small w-full whitespace-normal"
-                                            >
-                                                [{source.source}] {source.title}
-                                            </a>
-                                        ))}
+                {recommendations.length > 0 && (
+                    <>
+                        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">메뉴와 조리 방법, 영업 여부는 방문 전 매장에 확인해 주세요.</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            {recommendations.map((item) => (
+                                <article key={item.placeId} className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                                    <h3 className="break-words text-base font-semibold text-gray-900 dark:text-gray-100">{item.name}</h3>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <a href={item.naverMapUrl} target="_blank" rel="noreferrer" className="uiButton uiButton--primary uiButton--small">네이버지도</a>
+                                        <a href={item.mapUrl} target="_blank" rel="noreferrer" className="uiButton uiButton--secondary uiButton--small">카카오맵</a>
                                     </div>
-                                )}
-                            </article>
-                        ))}
-                    </div>
+                                    {item.sources.length > 0 && (
+                                        <details className="mt-3 text-xs text-gray-600 dark:text-gray-300">
+                                            <summary className="cursor-pointer py-2">관련 글 {item.sources.length}개</summary>
+                                            <div className="mt-1 space-y-2">{item.sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer" className="block break-words underline underline-offset-2">{source.title}</a>)}</div>
+                                        </details>
+                                    )}
+                                </article>
+                            ))}
+                        </div>
+                    </>
+                )}
+                {usedQueries.length > 0 && (
+                    <details className="mt-4 text-xs text-gray-500 dark:text-gray-400"><summary className="cursor-pointer py-2">검색에 사용한 메뉴</summary><p className="mt-1 leading-relaxed">{usedQueries.join(' · ')}</p></details>
                 )}
             </section>
 
-            <section className="grid gap-3">
-                <article className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-sky-600 dark:text-sky-300" />
-                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">배달 업체/식당 보기</p>
-                    </div>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                        현재 추천 키워드를 기준으로 배달 업체와 배달 가능한 식당을 바로 확인할 수 있어요.
-                    </p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                        {DELIVERY_PROVIDERS.map((provider) => (
-                            <article
-                                key={provider.name}
-                                className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40"
-                            >
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-gray-100">{provider.name}</p>
-                                    <a
-                                        href={provider.homepage}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="uiButton uiButton--secondary uiButton--small shrink-0"
-                                    >
-                                        플랫폼 열기
-                                    </a>
-                                </div>
-                                <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{provider.description}</p>
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {deliveryKeywords.slice(0, 3).map((keyword) =>
-                                        provider.searchUrlTemplate ? (
-                                            <a
-                                                key={`${provider.name}-${keyword}`}
-                                                href={`${provider.searchUrlTemplate}${encodeURIComponent(keyword)}`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="uiButton uiButton--secondary uiButton--small"
-                                            >
-                                                {keyword}
-                                            </a>
-                                        ) : (
-                                            <span
-                                                key={`${provider.name}-${keyword}`}
-                                                className="rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                                            >
-                                                {keyword}
-                                            </span>
-                                        )
-                                    )}
-                                </div>
-                                {!provider.searchUrlTemplate && (
-                                    <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                                        플랫폼 내 검색창에서 위 키워드로 검색해 보세요.
-                                    </p>
-                                )}
-                            </article>
-                        ))}
-                    </div>
-                    <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-950/40">
-                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">배달 가능한 식당 후보</p>
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                            {deliveryRestaurantNames.length > 0 ? (
-                                deliveryRestaurantNames.map((name) => (
-                                    <span
-                                        key={`delivery-restaurant-${name}`}
-                                        className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-100"
-                                    >
-                                        {name}
-                                    </span>
-                                ))
-                            ) : (
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    상단 추천 결과가 생성되면 배달 식당 후보를 함께 보여드려요.
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </article>
-
-                {/* 예약/방문 연동 준비는 추후 구현 단계에서 다시 활성화 예정 */}
-                {/*
-                <article className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    ...
-                </article>
-                */}
-            </section>
+            <details className="uiCard p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-gray-900 dark:text-gray-100"><Truck className="mr-2 inline h-4 w-4" />배달 앱에서 찾기</summary>
+                <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">앱에서 메뉴나 식당 이름을 검색하고, 배달 가능한 지역인지 확인해 주세요.</p>
+                <div className="mt-3 flex flex-wrap gap-2">{DELIVERY_PROVIDERS.map((provider) => <a key={provider.name} href={provider.homepage} target="_blank" rel="noreferrer" className="uiButton uiButton--secondary uiButton--small">{provider.name}</a>)}</div>
+            </details>
         </main>
     );
 }

@@ -116,14 +116,6 @@ type LogAccount = { userId: string; revision: number };
 type LogSaveResult = { status: 'saved'; storage: 'table' | 'local' } | { status: 'failed'; message: string } | { status: 'stale' };
 type MedicationLogChange = { dateKey: string; medicationId: string; taken: boolean; defaultLog: DayLog };
 
-type DayAnalysis = {
-    matchScore: number;
-    dailyScore: number;
-    concerns: string[];
-    부족: string[];
-    과다: string[];
-};
-
 type RecipeTarget = MealSlot | 'coffee';
 
 type RecipeModalContent = {
@@ -577,10 +569,6 @@ function offsetDateKey(baseDateKey: string, offset: number) {
     const date = parseDateKey(baseDateKey);
     date.setDate(date.getDate() + offset);
     return formatDateKey(date);
-}
-
-function clamp(value: number, min: number, max: number) {
-    return Math.max(min, Math.min(max, value));
 }
 
 function stripLeadingFieldLabel(value: string, pattern: RegExp) {
@@ -1390,31 +1378,6 @@ function buildDefaultLog(dateKey: string, plan: DayPlan): DayLog {
     };
 }
 
-function hasMeaningfulDayLog(log: DayLog) {
-    if (log.memo.trim().length > 0) {
-        return true;
-    }
-
-    if ((log.medicationTakenIds ?? []).length > 0) {
-        return true;
-    }
-
-    return SLOT_ORDER.some((slot) =>
-        log.meals[slot].some((item) => {
-            if (item.eaten) {
-                return true;
-            }
-            if (item.notEaten) {
-                return true;
-            }
-            if (item.isManual) {
-                return true;
-            }
-            return typeof item.servings === 'number' && Number.isFinite(item.servings) && item.servings !== 1;
-        })
-    );
-}
-
 function normalizeText(input: string) {
     return input.trim().toLowerCase();
 }
@@ -1425,79 +1388,6 @@ function normalizeManualMealName(input: string) {
 
 function compactFoodText(input: string) {
     return input.toLowerCase().replace(/[^0-9a-zA-Z가-힣]/g, '');
-}
-
-function levenshteinDistance(a: string, b: string) {
-    if (a === b) {
-        return 0;
-    }
-
-    if (!a) {
-        return b.length;
-    }
-
-    if (!b) {
-        return a.length;
-    }
-
-    const prev = Array.from({ length: b.length + 1 }, (_, index) => index);
-    const next = new Array<number>(b.length + 1).fill(0);
-
-    for (let i = 1; i <= a.length; i += 1) {
-        next[0] = i;
-        for (let j = 1; j <= b.length; j += 1) {
-            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-            next[j] = Math.min(
-                prev[j] + 1,
-                next[j - 1] + 1,
-                prev[j - 1] + cost
-            );
-        }
-        for (let j = 0; j <= b.length; j += 1) {
-            prev[j] = next[j];
-        }
-    }
-
-    return prev[b.length];
-}
-
-function foodNameSimilarityScore(query: string, candidate: string) {
-    const normalizedQuery = compactFoodText(normalizeManualMealName(query));
-    const normalizedCandidate = compactFoodText(stripPortionLabel(candidate));
-
-    if (!normalizedQuery || !normalizedCandidate) {
-        return 0;
-    }
-
-    if (normalizedQuery === normalizedCandidate) {
-        return 1;
-    }
-
-    let score = 0;
-
-    if (normalizedCandidate.includes(normalizedQuery)) {
-        score = Math.max(
-            score,
-            0.9 + Math.min(normalizedQuery.length / normalizedCandidate.length, 0.08)
-        );
-    }
-    if (normalizedQuery.includes(normalizedCandidate)) {
-        score = Math.max(
-            score,
-            0.84 + Math.min(normalizedCandidate.length / normalizedQuery.length, 0.08)
-        );
-    }
-
-    const distance = levenshteinDistance(normalizedQuery, normalizedCandidate);
-    const distanceScore = 1 - distance / Math.max(normalizedQuery.length, normalizedCandidate.length);
-    score = Math.max(score, distanceScore);
-
-    const queryCharSet = new Set(normalizedQuery.split(''));
-    const overlapCount = normalizedCandidate.split('').filter((char) => queryCharSet.has(char)).length;
-    const overlapScore = overlapCount / Math.max(normalizedQuery.length, normalizedCandidate.length);
-    score = Math.max(score, overlapScore * 0.85);
-
-    return clamp(score, 0, 1);
 }
 
 function searchManualFoodCandidates(query: string, candidates: string[], maxResults = 20) {
@@ -1562,10 +1452,6 @@ function countKeywordsByItems(items: Array<Pick<TrackItem, 'name' | 'servings'>>
     }, 0);
 }
 
-function includesAnyKeywordByItems(items: Array<Pick<TrackItem, 'name' | 'servings'>>, keywords: string[]) {
-    return countKeywordsByItems(items, keywords) > 0;
-}
-
 function includesAnyKeyword(text: string, keywords: string[]) {
     const normalized = normalizeText(text);
     return keywords.some((keyword) => normalized.includes(keyword));
@@ -1602,12 +1488,6 @@ function mergePreferences(...lists: Array<PreferenceType[]>) {
         list.forEach((item) => merged.add(item));
     });
     return Array.from(merged);
-}
-
-function eatenNames(log: DayLog) {
-    return SLOT_ORDER.flatMap((slot) =>
-        log.meals[slot].filter((item) => item.eaten).map((item) => stripPortionLabel(item.name))
-    );
 }
 
 function recommendPreferencesByRecentLogs(logs: Record<string, DayLog>, todayKey: string) {
@@ -1752,185 +1632,6 @@ function recommendAdaptivePreferencesByRecentLogs(logs: Record<string, DayLog>, 
     }
 
     return suggestions.slice(0, 4);
-}
-
-function plannedNamesBySlot(plan: DayPlan, slot: MealSlot) {
-    if (slot === 'breakfast') {
-        return mealItemsFromSuggestion(plan.breakfast, slot);
-    }
-    if (slot === 'lunch') {
-        return mealItemsFromSuggestion(plan.lunch, slot);
-    }
-    if (slot === 'dinner') {
-        return mealItemsFromSuggestion(plan.dinner, slot);
-    }
-    return mealItemsFromSuggestion(plan.snack, slot);
-}
-
-function replacementMatchScore(expectedName: string, eatenName: string, slot: MealSlot) {
-    const normalizedExpected = normalizeManualMealName(stripPortionLabel(expectedName));
-    const normalizedEaten = normalizeManualMealName(stripPortionLabel(eatenName));
-    if (!normalizedExpected || !normalizedEaten) {
-        return 0;
-    }
-
-    let score = foodNameSimilarityScore(normalizedExpected, normalizedEaten);
-    if (normalizedExpected.includes(normalizedEaten) || normalizedEaten.includes(normalizedExpected)) {
-        score = Math.max(score, 0.8);
-    }
-
-    const expectedGroup = findSubstituteGroup(normalizedExpected, slot);
-    const eatenGroup = findSubstituteGroup(normalizedEaten, slot);
-    if (expectedGroup && eatenGroup && expectedGroup.id === eatenGroup.id) {
-        score = Math.max(score, 0.74);
-    }
-
-    return clamp(score, 0, 1);
-}
-
-function countSlotCoveredItems(plan: DayPlan, log: DayLog, slot: MealSlot) {
-    const expectedItems = plannedNamesBySlot(plan, slot).map((name) => stripPortionLabel(name).trim()).filter(Boolean);
-    if (expectedItems.length === 0) {
-        return {
-            covered: 0,
-            total: 0,
-        };
-    }
-
-    const eatenCandidates = log.meals[slot]
-        .filter((item) => item.eaten)
-        .map((item) => stripPortionLabel(item.name).trim())
-        .filter(Boolean);
-    const usedCandidateIndexes = new Set<number>();
-    let covered = 0;
-
-    expectedItems.forEach((expectedItem) => {
-        let bestCandidateIndex = -1;
-        let bestScore = 0;
-
-        eatenCandidates.forEach((candidate, index) => {
-            if (usedCandidateIndexes.has(index)) {
-                return;
-            }
-
-            const score = replacementMatchScore(expectedItem, candidate, slot);
-            if (score > bestScore) {
-                bestScore = score;
-                bestCandidateIndex = index;
-            }
-        });
-
-        if (bestCandidateIndex >= 0 && bestScore >= 0.68) {
-            usedCandidateIndexes.add(bestCandidateIndex);
-            covered += 1;
-        }
-    });
-
-    return {
-        covered,
-        total: expectedItems.length,
-    };
-}
-
-function computePlanCoverage(plan: DayPlan, log: DayLog) {
-    let covered = 0;
-    let total = 0;
-    const bySlot = {
-        breakfast: 0,
-        lunch: 0,
-        dinner: 0,
-        snack: 0,
-    } satisfies Record<MealSlot, number>;
-
-    SLOT_ORDER.forEach((slot) => {
-        const slotCoverage = countSlotCoveredItems(plan, log, slot);
-        covered += slotCoverage.covered;
-        total += slotCoverage.total;
-        bySlot[slot] = slotCoverage.total === 0 ? 0 : Math.round((slotCoverage.covered / slotCoverage.total) * 100);
-    });
-
-    return {
-        covered,
-        total,
-        percent: total === 0 ? 0 : Math.round((covered / total) * 100),
-        bySlot,
-    };
-}
-
-function calcMatchScore(plan: DayPlan, log: DayLog) {
-    const eaten = eatenNames(log);
-    if (eaten.length === 0) {
-        return 0;
-    }
-
-    const coverage = computePlanCoverage(plan, log);
-    return clamp(coverage.percent, 0, 100);
-}
-
-function analyzeDay(plan: DayPlan, log: DayLog, stageType: StageType): DayAnalysis {
-    const eatenItems = eatenTrackItems(log);
-    const matchScore = calcMatchScore(plan, log);
-
-    if (eatenItems.length === 0) {
-        return {
-            matchScore,
-            dailyScore: 0,
-            concerns: [],
-            부족: ['아직 체크한 식사가 없어요. 먹은 메뉴를 체크해 보세요.'],
-            과다: [],
-        };
-    }
-
-    const concerns: string[] = [];
-    const 부족: string[] = [];
-    const 과다: string[] = [];
-
-    const proteinKeywords = ['닭', '생선', '연어', '두부', '달걀', '콩', '요거트', '두유'];
-    const flourKeywords = ['빵', '라면', '면', '파스타', '피자', '케이크', '도넛'];
-    const sugarKeywords = ['케이크', '쿠키', '과자', '초콜릿', '탄산', '아이스크림'];
-    const concernKeywords = ['생회', '육회', '날달걀', '술', '소주', '맥주', '튀김', '매운'];
-
-    if (includesAnyKeywordByItems(eatenItems, concernKeywords)) {
-        concerns.push('치료 중에는 생식/술/자극적인 음식은 주의해 주세요.');
-    }
-
-    if (!includesAnyKeywordByItems(eatenItems, proteinKeywords)) {
-        부족.push('단백질 반찬이 부족해 보여요. 두부·생선·달걀 반찬을 추가해 보세요.');
-    }
-
-    if (countKeywordsByItems(eatenItems, flourKeywords) >= 2) {
-        과다.push('밀가루 음식이 많은 편이에요. 잡곡밥/감자로 일부 바꿔보세요.');
-    }
-
-    if (countKeywordsByItems(eatenItems, sugarKeywords) >= 2) {
-        과다.push('단 간식이 많은 편이에요. 과일·견과류 중심으로 바꿔보세요.');
-    }
-
-    if (
-        (stageType === 'chemo' || stageType === 'chemo_2nd') &&
-        includesAnyKeywordByItems(eatenItems, ['튀김', '매운'])
-    ) {
-        concerns.push('항암 치료 중에는 기름지거나 매운 음식이 속을 불편하게 할 수 있어요.');
-    }
-
-    let dailyScore = matchScore;
-    for (const slot of SLOT_ORDER) {
-        const hasEaten = log.meals[slot].some((item) => item.eaten);
-        if (hasEaten) {
-            dailyScore += 4;
-        }
-    }
-
-    dailyScore -= concerns.length * 10;
-    dailyScore -= 과다.length * 8;
-
-    return {
-        matchScore,
-        dailyScore: clamp(dailyScore, 0, 100),
-        concerns,
-        부족,
-        과다,
-    };
 }
 
 export default function DietPage() {
@@ -2219,40 +1920,9 @@ export default function DietPage() {
         ];
     }, [userDietContext, activeStage, medicationSchedules, additionalConditions, foodPersonalization]);
 
-    const previousMonthScore = useMemo(() => {
-        const now = new Date();
-        const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const month = prevMonthDate.getMonth() + 1;
-        const year = prevMonthDate.getFullYear();
-        const keys: string[] = [];
-        const lastDay = new Date(year, month, 0).getDate();
-
-        for (let day = 1; day <= lastDay; day += 1) {
-            const key = formatDateKey(new Date(year, month - 1, day));
-            keys.push(key);
-        }
-
-        const scores = keys
-            .map((key) => {
-                const log = logs[key];
-                if (!log || !hasMeaningfulDayLog(log)) {
-                    return null;
-                }
-                const plan = applyRecommendationAdjustments(generatePlanForDate(key, stageType, 70), [], key).plan;
-                return analyzeDay(plan, log, stageType).dailyScore;
-            })
-            .filter((score): score is number => typeof score === 'number');
-
-        if (scores.length === 0) {
-            return 70;
-        }
-
-        return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
-    }, [logs, stageType, applyRecommendationAdjustments]);
-
     const baseTodayPlan = useMemo(
-        () => generatePlanForDate(todayKey, stageType, previousMonthScore),
-        [todayKey, stageType, previousMonthScore]
+        () => generatePlanForDate(todayKey, stageType, 70),
+        [todayKey, stageType]
     );
 
     const userSelectedTodayPreferences = useMemo(
@@ -2301,9 +1971,9 @@ export default function DietPage() {
     // reshuffle afterwards: that would overwrite symptoms and excluded foods.
     const getRecommendedPlan = useCallback((dateKey: string) => {
         if (dateKey === todayKey) return optimizedToday;
-        const basePlan = generatePlanForDate(dateKey, stageType, previousMonthScore);
+        const basePlan = generatePlanForDate(dateKey, stageType, 70);
         return applyRecommendationAdjustments(basePlan, resolveAppliedPreferences(dateKey), dateKey);
-    }, [todayKey, optimizedToday, stageType, previousMonthScore, resolveAppliedPreferences, applyRecommendationAdjustments]);
+    }, [todayKey, optimizedToday, stageType, resolveAppliedPreferences, applyRecommendationAdjustments]);
 
     const todayPlan = optimizedToday.plan;
     const getPlanForDate = useCallback((dateKey: string) => getRecommendedPlan(dateKey).plan, [getRecommendedPlan]);

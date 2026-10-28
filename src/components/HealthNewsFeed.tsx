@@ -2,29 +2,26 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowUpRight, Newspaper } from 'lucide-react';
-import { filterAlertArticles, parseArticleDate, type AlertArticle } from '@/lib/alertArticles';
+import { filterAlertArticles, parseArticleDate } from '@/lib/alertArticles';
+import {
+    isNewsSnapshotFresh, mergeNewsSnapshot, parseNewsSnapshot, readNewsSnapshot,
+    requestNewsSnapshot, shouldRefreshNews, type NewsSnapshot,
+} from '@/lib/healthNews';
 import { getAuthSessionUser, supabase } from '@/lib/supabaseClient';
-
-type AlertCache = {
-    items: AlertArticle[];
-    updatedAt: string;
-    partial?: boolean;
-};
 
 type AlertContext = {
     key: string;
     cancerType: string;
 };
 
-type FeedState = AlertCache & {
+type FeedState = NewsSnapshot & {
     contextKey: string;
     loading: boolean;
     error: string;
 };
 
 const PAGE_SIZE = 3;
-const CACHE_PREFIX = 'custom-alert-cache-v2';
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const CACHE_PREFIX = 'custom-alert-cache-v3';
 
 function readCancerType(raw: unknown): string {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
@@ -53,21 +50,6 @@ function contextForUser(user: { id: string; user_metadata?: unknown } | null): A
     return { key: `${user.id}:${cancerType}`, cancerType };
 }
 
-function parseCache(raw: string | null): AlertCache | null {
-    if (!raw) return null;
-    try {
-        const parsed = JSON.parse(raw) as Partial<AlertCache>;
-        if (!parsed || typeof parsed.updatedAt !== 'string' || !parsed.updatedAt) return null;
-        return {
-            updatedAt: parsed.updatedAt,
-            items: filterAlertArticles(Array.isArray(parsed.items) ? parsed.items : []),
-            partial: parsed.partial === true,
-        };
-    } catch {
-        return null;
-    }
-}
-
 function formatDate(raw: string) {
     const timestamp = parseArticleDate(raw);
     return timestamp === null ? '' : new Intl.DateTimeFormat('ko-KR', {
@@ -94,6 +76,11 @@ export default function HealthNewsFeed() {
         contextKey: '', items: [], updatedAt: '', loading: true, error: '', partial: false,
     });
     const activeRequest = useRef<AbortController | null>(null);
+    const latestFeed = useRef(feed);
+    const lastAttemptAt = useRef(0);
+    const forceRefresh = useRef(false);
+
+    useEffect(() => { latestFeed.current = feed; }, [feed]);
 
     useEffect(() => {
         let cancelled = false;
@@ -103,6 +90,8 @@ export default function HealthNewsFeed() {
             if (cancelled || currentKey === next.key) return;
             currentKey = next.key;
             activeRequest.current?.abort();
+            lastAttemptAt.current = 0;
+            forceRefresh.current = false;
             setContext(next);
             setVisibleCount(PAGE_SIZE);
         };
@@ -128,37 +117,38 @@ export default function HealthNewsFeed() {
         if (!context) return;
         const controller = new AbortController();
         activeRequest.current = controller;
+        const bypassCache = forceRefresh.current;
+        forceRefresh.current = false;
         const params = new URLSearchParams();
         if (context.cancerType) params.set('cancerType', context.cancerType);
         else params.set('mode', 'general');
-        const cacheKey = `${CACHE_PREFIX}:${params.toString()}`;
+        const cacheKey = `${CACHE_PREFIX}:${context.key}:${params.toString()}`;
 
         const loadNews = async () => {
-            setVisibleCount(PAGE_SIZE);
-            setFeed({ contextKey: context.key, items: [], updatedAt: '', loading: true, error: '', partial: false });
-            let cached: AlertCache | null = null;
+            let cached: NewsSnapshot | null = null;
             try {
-                cached = parseCache(sessionStorage.getItem(cacheKey));
+                cached = readNewsSnapshot(sessionStorage.getItem(cacheKey));
             } catch {
                 // Fetching news does not depend on browser storage.
             }
-            const cachedTime = cached ? Date.parse(cached.updatedAt) : Number.NaN;
-            const fresh = cached && Number.isFinite(cachedTime) && cachedTime <= Date.now()
-                && Date.now() - cachedTime < CACHE_TTL_MS;
-            if (fresh && cached && retry === 0) {
-                if (!controller.signal.aborted) setFeed({ ...cached, contextKey: context.key, loading: false, error: '' });
-                return;
+            const previous = latestFeed.current.contextKey === context.key
+                ? parseNewsSnapshot(latestFeed.current) : null;
+            if (previous && (!cached || Date.parse(previous.updatedAt) > Date.parse(cached.updatedAt))) {
+                cached = previous;
             }
+            setFeed({
+                contextKey: context.key, items: cached?.items ?? [], updatedAt: cached?.updatedAt ?? '',
+                partial: cached?.partial ?? false, loading: true, error: '',
+            });
             try {
-                const response = await fetch(`/api/custom-alerts?${params.toString()}`, { signal: controller.signal });
-                if (!response.ok) throw new Error('News sources unavailable');
-                const payload = await response.json() as Partial<AlertCache>;
-                const next: AlertCache = {
-                    items: filterAlertArticles(Array.isArray(payload.items) ? payload.items : []),
-                    updatedAt: typeof payload.updatedAt === 'string' && payload.updatedAt ? payload.updatedAt : new Date().toISOString(),
-                    partial: payload.partial === true,
-                };
-                if (controller.signal.aborted) return;
+                if (cached && isNewsSnapshotFresh(cached) && !bypassCache) {
+                    if (!controller.signal.aborted) setFeed({ ...cached, contextKey: context.key, loading: false, error: '' });
+                    return;
+                }
+                lastAttemptAt.current = Date.now();
+                const incoming = await requestNewsSnapshot(`/api/custom-alerts?${params.toString()}`, { signal: controller.signal });
+                if (controller.signal.aborted || activeRequest.current !== controller) return;
+                const next = mergeNewsSnapshot(cached, incoming);
                 setFeed({ ...next, contextKey: context.key, loading: false, error: '' });
                 try {
                     sessionStorage.setItem(cacheKey, JSON.stringify(next));
@@ -166,7 +156,7 @@ export default function HealthNewsFeed() {
                     // A storage failure does not turn a successful request into an error.
                 }
             } catch {
-                if (controller.signal.aborted) return;
+                if (controller.signal.aborted || activeRequest.current !== controller) return;
                 const fallbackItems = filterAlertArticles(cached?.items ?? []);
                 setFeed({
                     contextKey: context.key,
@@ -178,6 +168,8 @@ export default function HealthNewsFeed() {
                         ? '최신 소식을 불러오지 못해 저장된 소식을 보여드려요.'
                         : '소식을 불러오지 못했어요. 다시 시도해 주세요.',
                 });
+            } finally {
+                if (activeRequest.current === controller) activeRequest.current = null;
             }
         };
         void loadNews();
@@ -186,6 +178,38 @@ export default function HealthNewsFeed() {
             if (activeRequest.current === controller) activeRequest.current = null;
         };
     }, [context, retry]);
+
+    useEffect(() => {
+        if (!context) return;
+        const refreshIfNeeded = () => {
+            if (document.visibilityState !== 'visible') return;
+            const current = latestFeed.current.contextKey === context.key ? latestFeed.current : null;
+            const snapshot = parseNewsSnapshot(current);
+            // Long-open tabs also expire articles at the Korean two-calendar-month boundary.
+            if (current && snapshot && current.items.length !== snapshot.items.length) {
+                setFeed((previous) => previous.contextKey === context.key
+                    ? { ...previous, items: snapshot.items } : previous);
+            }
+            if (activeRequest.current || !shouldRefreshNews(snapshot, lastAttemptAt.current)) return;
+            forceRefresh.current = true;
+            setRetry((value) => value + 1);
+        };
+        window.addEventListener('focus', refreshIfNeeded);
+        window.addEventListener('online', refreshIfNeeded);
+        document.addEventListener('visibilitychange', refreshIfNeeded);
+        const timer = window.setInterval(refreshIfNeeded, 60_000);
+        return () => {
+            window.removeEventListener('focus', refreshIfNeeded);
+            window.removeEventListener('online', refreshIfNeeded);
+            document.removeEventListener('visibilitychange', refreshIfNeeded);
+            window.clearInterval(timer);
+        };
+    }, [context]);
+
+    const refreshNews = () => {
+        forceRefresh.current = true;
+        setRetry((value) => value + 1);
+    };
 
     // An account change immediately hides the previous patient's selected news.
     const currentFeed = context?.key === feed.contextKey ? feed : null;
@@ -208,15 +232,15 @@ export default function HealthNewsFeed() {
             <p className="healthNewsIntro">
                 {context?.cancerType ? `${context.cancerType} 관련 기사와 암센터·병원 소식` : '암센터·병원 소식과 건강 기사'}
             </p>
-            {loading && <p role="status" className="healthNewsState">새 소식을 불러오고 있어요…</p>}
+            {loading && <p role="status" className="healthNewsState">{items.length ? '새 소식을 확인하고 있어요…' : '새 소식을 불러오고 있어요…'}</p>}
             {!loading && currentFeed?.error && (
                 <div className="healthNewsState" role="status">
                     <p>{currentFeed.error}</p>
-                    <button type="button" onClick={() => setRetry((value) => value + 1)} className="uiButton uiButton--secondary uiButton--small mt-3">다시 불러오기</button>
                 </div>
             )}
-            {!loading && !currentFeed?.error && items.length === 0 && <p className="healthNewsState">최근 2개월 안에 등록된 관련 소식이 아직 없어요.</p>}
-            {!loading && items.length > 0 && (
+            {!loading && !currentFeed?.error && currentFeed?.partial && <p role="status" className="healthNewsState">{items.length ? '일부 출처를 확인하지 못해 확인된 소식을 먼저 보여드려요.' : '일부 출처를 확인하지 못했어요. 다시 불러와 주세요.'}</p>}
+            {!loading && !currentFeed?.error && !currentFeed?.partial && items.length === 0 && <p className="healthNewsState">최근 2개월 안에 등록된 관련 소식이 아직 없어요.</p>}
+            {items.length > 0 && (
                 <>
                     <ul className="healthNewsList">
                         {items.slice(0, visibleCount).map((item) => (
@@ -241,7 +265,10 @@ export default function HealthNewsFeed() {
                     {visibleCount < items.length && <button type="button" onClick={() => setVisibleCount((value) => value + PAGE_SIZE)} className="uiButton uiButton--secondary healthNewsMore">소식 더 보기</button>}
                 </>
             )}
-            {!loading && updatedAgo && <p className="healthNewsFooter">{updatedAgo}</p>}
+            <div className="flex items-center justify-between gap-3 mt-3">
+                <p className="healthNewsFooter">{updatedAgo}</p>
+                <button type="button" onClick={refreshNews} disabled={loading} aria-label="건강 소식 새로고침" className="uiButton uiButton--secondary uiButton--small">{loading ? '확인 중…' : '새로고침'}</button>
+            </div>
         </section>
     );
 }

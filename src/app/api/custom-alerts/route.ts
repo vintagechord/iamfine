@@ -4,7 +4,7 @@ import { filterAlertArticles, normalizeArticleUrl, type AlertArticle } from '@/l
 const USER_AGENT =
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-const FETCH_REVALIDATE_SECONDS = 60 * 60 * 24;
+const FETCH_REVALIDATE_SECONDS = 60 * 60;
 const SOURCE_LIMIT = 20;
 const TOTAL_LIMIT = 60;
 const GENERAL_ALERT_KEYWORDS = ['암환자', '암 환자', '암생존자', '암 생존자', '항암', '영양', '식단', '식사', '돌봄', '환아'];
@@ -262,14 +262,14 @@ function parseNccBoard(html: string, source: string, press: boolean) {
     return items;
 }
 
-async function fetchText(url: string) {
+async function fetchText(url: string, signal: AbortSignal) {
     const response = await fetch(url, {
         headers: {
             'User-Agent': USER_AGENT,
             Accept: 'text/html,application/xml,text/xml;q=0.9,*/*;q=0.8',
         },
         next: { revalidate: FETCH_REVALIDATE_SECONDS },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
     });
 
     if (!response.ok) {
@@ -279,7 +279,8 @@ async function fetchText(url: string) {
     return response.text();
 }
 
-async function collectArticles(keyword: string) {
+async function collectArticles(keyword: string, signal: AbortSignal) {
+    signal.throwIfAborted();
     const sources: Array<{ url: string; parse: (body: string) => AlertArticle[] }> = [
         { url: 'https://www.cancer.go.kr/', parse: parseCancerNotices },
         { url: 'https://www.nhis.or.kr/nhis/index.do', parse: parseNhisNotices },
@@ -311,12 +312,13 @@ async function collectArticles(keyword: string) {
         });
     }
     const results = await Promise.allSettled(sources.map(async (source) => {
-        const body = await fetchText(source.url);
+        const body = await fetchText(source.url, signal);
         const items = source.parse(body);
         // HTML error pages and changed board layouts should not masquerade as a successful empty feed.
         if (!items.length && !/<(?:rss|feed)\b/i.test(body)) throw new Error('Source layout unavailable');
         return items;
     }));
+    signal.throwIfAborted();
     const fulfilled = results.filter((result) => result.status === 'fulfilled');
     if (!fulfilled.length) throw new Error('All alert sources unavailable');
     return {
@@ -333,7 +335,7 @@ export async function GET(request: NextRequest) {
     const summary = isGeneralMode ? '최근 2개월의 암 건강 소식' : `${keyword} 관련 소식과 공통 건강 정보 · 최근 2개월`;
 
     try {
-        const collected = await collectArticles(keyword);
+        const collected = await collectArticles(keyword, request.signal);
         const matched = collected.items.filter((item) => {
             if (/채용|입찰|구매공고|업무협약|개인정보|이노베이션|직원 모집/.test(item.title)) return false;
             const title = item.title.replace(/국립암센터|국가암정보센터/g, '');
@@ -350,11 +352,14 @@ export async function GET(request: NextRequest) {
             bySourceCount.set(item.source, count + 1);
             return true;
         }).slice(0, TOTAL_LIMIT);
-        return NextResponse.json({ summary, keyword, items, partial: collected.partial, updatedAt: new Date().toISOString() });
+        return NextResponse.json(
+            { summary, keyword, items, partial: collected.partial, updatedAt: new Date().toISOString() },
+            { headers: { 'Cache-Control': 'private, no-store' } }
+        );
     } catch {
         return NextResponse.json(
             { summary, keyword, items: [], error: '소식을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.' },
-            { status: 503 }
+            { status: 503, headers: { 'Cache-Control': 'private, no-store' } }
         );
     }
 }

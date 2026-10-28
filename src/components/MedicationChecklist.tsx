@@ -30,7 +30,7 @@ export function MedicationProgress({ medications }: Pick<MedicationChecklistProp
     return (
         <span className={styles.badge} data-complete={complete}>
             <Pill size={12} strokeWidth={1.8} aria-hidden="true" />
-            <span aria-hidden="true">{scheduled ? '복약 예정' : `복약 ${takenCount}/${medications.length}`}</span>
+            <span aria-hidden="true">복약</span>
             <span className={styles.srOnly}>
                 {scheduled ? `복용 예정 약 ${medications.length}개` : `복약 체크 ${medications.length}개 중 ${takenCount}개 완료`}
             </span>

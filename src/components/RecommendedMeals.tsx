@@ -109,11 +109,11 @@ export default function RecommendedMeals({ plan, dateLabel, recordDate, recorded
                         aria-expanded={isOpen && selectedSlot === slot}
                         onClick={(event) => openMeal(slot, event.currentTarget)}
                     >
+                        <MedicationProgress medications={medicationsBySlot[slot] ?? []} />
                         <MealIllustration slot={slot} className="recommendationMealArt" />
                         <span className="recommendationMealLabel">{mealTypeLabel(slot)}<span className="sr-only"> 식단 보기</span></span>
                         <span className="recommendationMealPreview">{plan[slot].main || '메뉴 보기'}</span>
                         {recordedSlots?.[slot] && <span className="recommendationMealRecorded"><Check size={12} aria-hidden="true" /> 기록 있음</span>}
-                        <MedicationProgress medications={medicationsBySlot[slot] ?? []} />
                     </button>
                 ))}
             </div>

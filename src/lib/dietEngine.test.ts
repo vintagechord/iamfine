@@ -41,6 +41,64 @@ test('month plans equal independent date lookups and remain stable across call o
     assert.throws(() => generatePlanForDate('2026-9-1', 'other', 70), RangeError);
 });
 
+test('repeated plan reads own every mutable field and cannot change cached menus', () => {
+    const expected = generatePlanForDate('2026-10-28', 'other', 70);
+    const changed = generatePlanForDate('2026-10-28', 'other', 70);
+    assert.notEqual(changed, expected);
+    changed.date = '2026-10-29';
+    for (const slot of slots) {
+        assert.notEqual(changed[slot], expected[slot]);
+        assert.notEqual(changed[slot].sides, expected[slot].sides);
+        assert.notEqual(changed[slot].recipeSteps, expected[slot].recipeSteps);
+        assert.notEqual(changed[slot].nutrient, expected[slot].nutrient);
+        changed[slot].main = '직접 바꾼 음식';
+        changed[slot].sides.push('직접 추가한 반찬');
+        changed[slot].recipeSteps[0] = '직접 바꾼 조리법';
+        changed[slot].nutrient.protein = 999;
+    }
+    assert.deepEqual(generatePlanForDate('2026-10-28', 'other', 70), expected);
+});
+
+test('cached base plans remain isolated by stage, date and per-call preferences', () => {
+    const date = '2026-10-28';
+    const baseline = generatePlanForDate(date, 'other', 70);
+    const surgery = generatePlanForDate(date, 'surgery', 70);
+    assert.match(surgery.breakfast.cautionFlour, /수술/);
+    assert.doesNotMatch(baseline.breakfast.cautionFlour, /수술/);
+    const preferences: PreferenceType[] = ['pizza', 'fried_chicken'];
+    const personalized = generatePlanForDate(date, 'other', 70, preferences);
+    assert.match(personalized.lunch.main, /피자/);
+    assert.equal(personalized.dinner.main, '치킨');
+    personalized.breakfast.sides.length = 0;
+    preferences.length = 0;
+    assert.deepEqual(generatePlanForDate(date, 'other', 70, preferences), baseline);
+    assert.deepEqual(generatePlanForDate(date, 'surgery', 70), surgery);
+    assert.notDeepEqual(generatePlanForDate('2026-10-29', 'other', 70), baseline);
+    const guarded = optimizePlanByUserContext(generatePlanForDate(date, 'other', 70, ['pizza']), {
+        recentDietSignals: ['구내염'],
+    }).plan;
+    assert.ok(!menuNames(guarded).some((food) => /피자|토마토|키위|샐러드/.test(food)));
+    assert.deepEqual(generatePlanForDate(date, 'other', 70), baseline);
+});
+
+test('month and independent reads stay identical after browsing beyond the cache window', () => {
+    const expected = generateMonthPlans(2028, 1, 'other', 70);
+    const changed = generateMonthPlans(2028, 1, 'other', 70);
+    changed[0].breakfast.main = '다른 음식';
+    changed[1].snack.sides.length = 0;
+    changed.pop();
+    for (let month = 0; month < 12; month += 1) {
+        generateMonthPlans(2030, month, 'surgery', 70);
+    }
+    assert.deepEqual(generateMonthPlans(2028, 1, 'other', 70), expected);
+    for (const plan of expected) {
+        assert.deepEqual(generatePlanForDate(plan.date, 'other', 10), plan);
+    }
+    for (const date of ['2028-02-30', '2027-02-29', '2028-2-29', '2028-02-29T00:00:00Z', '']) {
+        assert.throws(() => generatePlanForDate(date, 'other', 70), RangeError);
+    }
+});
+
 test('protein groups, actual dishes and cooking methods are distributed over each month', () => {
     for (let month = 0; month < 12; month += 1) {
         const plans = generateMonthPlans(2026, month, 'other', 70);
