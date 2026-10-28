@@ -149,7 +149,7 @@ export default function MobileCategoryMenu({ items }: MobileCategoryMenuProps) {
                                         key={item.href}
                                         href={item.href}
                                         onClick={closeMenu}
-                                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-emerald-500 dark:hover:bg-emerald-900/30 dark:hover:text-emerald-200"
+                                        className="inline-flex items-center gap-2 rounded-lg border border-[var(--ui-control-border)] bg-[var(--ui-surface)] px-3 py-2 text-sm font-semibold text-[var(--ui-ink)] transition hover:border-[var(--ui-accent)] hover:bg-[var(--ui-accent-soft)] hover:text-[var(--ui-accent)]"
                                     >
                                         {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
                                         {item.label}

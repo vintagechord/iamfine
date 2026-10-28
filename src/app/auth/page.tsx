@@ -235,7 +235,7 @@ export default function AuthPage() {
                                         placeholder="example@email.com"
                                         value={email}
                                         onChange={(event) => setEmail(event.target.value)}
-                                        className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                        className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[var(--ui-accent)] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                     />
                                 </label>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -248,7 +248,7 @@ export default function AuthPage() {
                                         placeholder="비밀번호를 입력해 주세요"
                                         value={password}
                                         onChange={(event) => setPassword(event.target.value)}
-                                        className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                        className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[var(--ui-accent)] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                     />
                                 </label>
                                 {authMode === 'signup' && (
@@ -262,7 +262,7 @@ export default function AuthPage() {
                                             placeholder="비밀번호를 한 번 더 입력해 주세요"
                                             value={confirmPassword}
                                             onChange={(event) => setConfirmPassword(event.target.value)}
-                                            className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                            className="mt-2 min-h-12 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-base text-gray-900 outline-none placeholder:text-gray-400 focus:border-[var(--ui-accent)] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                         />
                                     </label>
                                 )}

@@ -1384,7 +1384,7 @@ export default function ShoppingPage() {
             <main className="space-y-4">
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="flex items-center gap-2">
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500 text-white shadow-sm dark:bg-sky-600">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--ui-primary)] text-[var(--ui-on-primary)] shadow-sm">
                             <ShoppingCart className="h-5 w-5" />
                         </span>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
@@ -1400,7 +1400,7 @@ export default function ShoppingPage() {
             <main className="space-y-4">
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="flex items-center gap-2">
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500 text-white shadow-sm dark:bg-sky-600">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--ui-primary)] text-[var(--ui-on-primary)] shadow-sm">
                             <ShoppingCart className="h-5 w-5" />
                         </span>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
@@ -1421,7 +1421,7 @@ export default function ShoppingPage() {
             <main className="space-y-4">
                 <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="flex items-center gap-2">
-                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500 text-white shadow-sm dark:bg-sky-600">
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--ui-primary)] text-[var(--ui-on-primary)] shadow-sm">
                             <ShoppingCart className="h-5 w-5" />
                         </span>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>
@@ -1440,7 +1440,7 @@ export default function ShoppingPage() {
         <main className="space-y-4">
             <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex items-center gap-2">
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-500 text-white shadow-sm dark:bg-sky-600">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--ui-primary)] text-[var(--ui-on-primary)] shadow-sm">
                         <ShoppingCart className="h-5 w-5" />
                     </span>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">장보기</h1>

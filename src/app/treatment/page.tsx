@@ -807,7 +807,7 @@ export default function TreatmentPage() {
             {message && (
                 <section
                     role="status"
-                    className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+                    className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-accent-soft)] p-4 text-[var(--ui-accent)] shadow-sm"
                 >
                     <p className="text-sm font-semibold">완료</p>
                     <p className="mt-1 text-sm">{message}</p>
@@ -862,11 +862,11 @@ export default function TreatmentPage() {
                 ) : (
                     <div className="mt-4 space-y-3">
                         {primaryStage && (
-                            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/30">
-                                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                            <div className="rounded-xl border border-[var(--ui-border)] bg-[var(--ui-accent-soft)] p-3">
+                                <p className="text-xs font-semibold text-[var(--ui-accent)]">
                                     {primaryStage.status === 'active' ? '현재 진행중 치료' : '현재 기준 치료'}
                                 </p>
-                                <p className="mt-1 text-sm font-semibold text-blue-900 dark:text-blue-100">
+                                <p className="mt-1 text-sm font-semibold text-[var(--ui-ink)]">
                                     {STAGE_TYPE_LABELS[primaryStage.stage_type]} ·{' '}
                                     {primaryStage.stage_label?.trim() || '이름 없음'}
                                 </p>
@@ -902,9 +902,9 @@ export default function TreatmentPage() {
 
                             const statusBadgeClass =
                                 draft.status === 'active'
-                                    ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500 dark:text-white'
+                                    ? 'border-[var(--ui-primary)] bg-[var(--ui-primary)] text-[var(--ui-on-primary)]'
                                     : draft.status === 'completed'
-                                      ? 'border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
+                                      ? 'border-[var(--ui-border)] bg-[var(--ui-accent-soft)] text-[var(--ui-accent)]'
                                       : 'border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200';
 
                             const stageName = stage.stage_label?.trim() || '이름 없음';

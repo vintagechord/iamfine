@@ -3061,7 +3061,7 @@ export default function DietPage() {
                 </header>
                 <section className="uiCard p-6" role="status">
                     <p className="text-sm text-gray-600">식단을 준비하고 있어요.</p>
-                    <div className="mt-5 h-24 animate-pulse rounded-2xl bg-[#eff2ed]" aria-hidden="true" />
+                    <div className="mt-5 h-24 animate-pulse rounded-2xl bg-[var(--ui-surface-muted)]" aria-hidden="true" />
                 </section>
             </main>
         );
@@ -3174,7 +3174,7 @@ export default function DietPage() {
                     <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">의료진과 체중감량을 정한 경우에만 선택해 주세요. 식사가 불편할 때는 적용하지 않아요.</p>
                     <div className="flex items-center justify-between gap-3 pb-3">
                         <div className="flex min-w-0 items-center gap-1.5">
-                            <p className="truncate text-sm font-semibold text-blue-900 dark:text-blue-100">다이어트 체크</p>
+                            <p className="truncate text-sm font-semibold text-[var(--ui-ink)]">다이어트 체크</p>
                             <button
                                 type="button"
                                 onClick={() => setShowDietModeInfoModal(true)}
@@ -3188,13 +3188,13 @@ export default function DietPage() {
                             type="checkbox"
                             checked={todayDietModeChecked}
                             onChange={(event) => setTodayDietMode(event.target.checked)}
-                            className="h-5 w-5 accent-blue-600"
+                            className="h-5 w-5 accent-[var(--ui-accent)]"
                             aria-label="다이어트 체크"
                             disabled={!isViewingToday || foodPersonalization.symptoms.length > 0}
                         />
                     </div>
                     {!isViewingToday && (
-                        <p className="mt-1.5 text-xs text-blue-800 dark:text-blue-200">
+                        <p className="mt-1.5 text-xs text-[var(--ui-accent)]">
                             다이어트 체크 변경은 오늘 식단에서만 가능해요.
                         </p>
                     )}
@@ -3258,7 +3258,7 @@ export default function DietPage() {
 
                 <details className="mt-3 rounded-xl border border-gray-200 px-3 pb-3 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-200">
                     <summary className="cursor-pointer py-3 font-semibold">이 식단을 추천한 이유</summary>
-                    <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
+                    <p className="mt-1 text-xs text-[var(--ui-accent)]">
                         암 종류/치료 단계/복용 정보를 기준으로 실제 반영된 항목이에요.
                     </p>
                     <div className="mt-2 space-y-1">
@@ -3361,7 +3361,7 @@ export default function DietPage() {
 
             {saveSuccessPopupOpen && (
                 <div className="fixed inset-x-0 bottom-24 z-[60] px-4" role="status">
-                    <section className="mx-auto w-full max-w-lg rounded-2xl bg-[#232d29] p-4 text-white shadow-xl">
+                    <section className="mx-auto w-full max-w-lg rounded-2xl bg-[var(--ui-ink)] p-4 text-[var(--ui-surface)] shadow-xl">
                         <div className="flex items-center gap-2">
                             <p className="min-w-0 flex-1 text-sm font-semibold">{saveSuccessPopupMessage}</p>
                             <button type="button" onClick={closeSaveSuccessPopup} className="uiButton uiButton--secondary uiButton--small">
@@ -3458,7 +3458,7 @@ export default function DietPage() {
                                 (proposedTodayOptimization.notes.length > 0 || proposalWarnings.length > 0) && (
                                     <div className="mt-3 space-y-2">
                                         {proposedTodayOptimization.notes.length > 0 && (
-                                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                                            <div className="rounded-lg border border-[var(--ui-border)] bg-[var(--ui-accent-soft)] p-3 text-sm text-[var(--ui-accent)]">
                                                 <p className="font-semibold">당일 수정 제안</p>
                                                 {proposedTodayOptimization.notes.map((note) => (
                                                     <p key={note}>- {note}</p>

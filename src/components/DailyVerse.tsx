@@ -60,7 +60,6 @@ export default function DailyVerse() {
                         {verse.reference}
                     </a>
                 )}
-                <span className="dailyVerseNote">성경전서 개역한글판 © 대한성서공회 1961</span>
             </p>
         </div>
     );

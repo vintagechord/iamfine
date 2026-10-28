@@ -155,7 +155,7 @@ export default function RestaurantsPage() {
         <main className="mx-auto max-w-3xl space-y-4 py-6">
             <header className="flex items-start justify-between gap-3 px-1">
                 <div>
-                    <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-gray-100"><MapPinned className="h-6 w-6 text-[#497561]" /> 식당 찾기</h1>
+                    <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-gray-100"><MapPinned className="h-6 w-6 text-[var(--ui-accent)]" /> 식당 찾기</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">먹고 싶은 메뉴를 가까운 곳에서 찾아보세요.</p>
                 </div>
                 <Link href="/diet" className="uiButton uiButton--secondary uiButton--small shrink-0">오늘의 식단</Link>
@@ -170,7 +170,7 @@ export default function RestaurantsPage() {
                         onChange={(event) => { locationVersion.current += 1; setLocationLoading(false); setRegionInput(event.target.value); }}
                         onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); updateContextByRegion(); } }}
                         placeholder="예: 서울역, 강남역, 종로구"
-                        className="min-h-12 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-[#497561] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                        className="min-h-12 min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900 outline-none focus:border-[var(--ui-accent)] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                     />
                     <button type="button" onClick={updateContextByRegion} className="uiButton uiButton--primary shrink-0"><Search className="h-4 w-4" /><span>검색</span></button>
                 </div>
