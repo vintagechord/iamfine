@@ -5,8 +5,8 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { Ellipsis, NotebookPen, Utensils } from 'lucide-react';
 
 const ITEMS = [
-    { href: '/diet', label: '식단 제안', icon: Utensils, key: 'diet' },
-    { href: '/diet?view=record#today-record-section', label: '식단 관리', icon: NotebookPen, key: 'record' },
+    { href: '/diet', label: '오늘의 식단', icon: Utensils, key: 'diet' },
+    { href: '/diet?view=record', label: '식사 기록', icon: NotebookPen, key: 'record' },
     { href: '/more', label: '더보기', icon: Ellipsis, key: 'more' },
 ];
 

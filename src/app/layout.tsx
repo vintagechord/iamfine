@@ -26,7 +26,7 @@ export const viewport: Viewport = {
     width: 'device-width',
     initialScale: 1,
     viewportFit: 'cover',
-    themeColor: '#f5f7fa',
+    themeColor: '#faf9f6',
 };
 
 const TEXT_SCALE_KEY = 'iamfine:text-scale:v1';
@@ -71,7 +71,7 @@ export default function RootLayout({
                         <div className="appHeaderInner">
                             <Link
                                 href="/diet"
-                                aria-label="IamFine 식단 제안"
+                                aria-label="IamFine 오늘의 식단"
                                 className="appBrand"
                             >
                                 <span className="brandMark">

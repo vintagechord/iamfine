@@ -5,17 +5,17 @@
   --font-mono: var(--font-geist-mono);
 }
 :root {
-  --ui-bg: #f5f7fa;
+  --ui-bg: #faf9f6;
   --ui-surface: #ffffff;
-  --ui-surface-muted: #eef2f7;
-  --ui-border: #e0e6ef;
-  --ui-control-border: #b2c0d2;
-  --ui-ink: #202c41;
-  --ui-muted: #5d6b80;
-  --ui-accent: #245bb0;
-  --ui-accent-soft: #edf3fc;
-  --ui-primary: #245bb0;
-  --ui-primary-hover: #184788;
+  --ui-surface-muted: #f2f2ed;
+  --ui-border: #e5e5dd;
+  --ui-control-border: #b6c2b9;
+  --ui-ink: #293b32;
+  --ui-muted: #69756d;
+  --ui-accent: #28644c;
+  --ui-accent-soft: #edf3ed;
+  --ui-primary: #28644c;
+  --ui-primary-hover: #1c4b39;
   --ui-on-primary: #fff;
   --ui-news-bg: #f5f8fc;
   --ui-news-ink: #355b89;
@@ -24,18 +24,18 @@
   color-scheme: light;
 }
 html.dark {
-  --ui-bg: #141b27;
-  --ui-surface: #1c2635;
-  --ui-surface-muted: #253246;
-  --ui-border: #35465e;
-  --ui-control-border: #6c829f;
-  --ui-ink: #edf2fa;
-  --ui-muted: #b6c4d8;
-  --ui-accent: #a6c8ff;
-  --ui-accent-soft: #253e60;
-  --ui-primary: #a6c8ff;
-  --ui-primary-hover: #c0d8ff;
-  --ui-on-primary: #12284a;
+  --ui-bg: #171d1a;
+  --ui-surface: #202923;
+  --ui-surface-muted: #2c3630;
+  --ui-border: #3e4c43;
+  --ui-control-border: #788d7f;
+  --ui-ink: #eff3ed;
+  --ui-muted: #bdc8c0;
+  --ui-accent: #a4d7b6;
+  --ui-accent-soft: #2b4133;
+  --ui-primary: #a4d7b6;
+  --ui-primary-hover: #bee6cc;
+  --ui-on-primary: #193c29;
   --ui-news-bg: #1b2b40;
   --ui-news-ink: #adc9ef;
   --ui-news-border: #3c5475;
@@ -88,7 +88,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
   display: inline-flex; align-items: center; gap: 0.45rem; min-height: 44px; flex-shrink: 0;
   color: var(--ui-ink); font-size: 1.2rem; font-weight: 750; letter-spacing: -0.055em; text-decoration: none;
 }
-.brandMark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--ui-primary); color: var(--ui-on-primary); }
+.brandMark { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--ui-accent-soft); color: var(--ui-accent); }
 .appHeaderActions { display: flex; align-items: center; gap: 0.5rem; }
 .appMain { width: 100%; max-width: 880px; margin-inline: auto; padding: 2.5rem 1.5rem 4rem; }
 .desktopNavigation { display: flex; align-items: center; gap: 0.25rem; }
@@ -253,7 +253,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
 /* Three meal choices stay in one row, including narrow mobile screens. */
 .welcomePanel { padding: 2.5rem; border-radius: 24px; background: var(--ui-accent-soft); }
 .recommendationOverview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
-.recommendationOverview > .uiPageHeader { min-width: 0; padding: 0.25rem; }
+.recommendationOverview > .uiPageHeader { min-width: 0; padding: 0.25rem 0.25rem 0.75rem; }
 .recommendationOverview > .uiPageHeader > p:first-child { margin-bottom: 0.35rem; font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recommendationOverview > .nextVisitSummary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.25rem 0.5rem; border: 1px solid var(--ui-border); }
 .recommendationOverview .nextVisitSummary__label, .recommendationOverview .nextVisitSummary__details { grid-column: 1; }
@@ -265,20 +265,20 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
   .recommendationOverview > .nextVisitSummary { grid-column: 2; grid-row: 1; display: flex; align-items: stretch; }
 }
 .recommendationWorkspace .dailyVerseLabel { margin-bottom: 0.3rem; font-size: 0.75rem; font-weight: 500; color: var(--ui-muted); }
-.recommendationWorkspace .dailyVerseText { font-size: clamp(1.15rem, 2.5vw, 1.5rem); font-weight: 600; line-height: 1.55; }
+.recommendationWorkspace .dailyVerseText { font-size: clamp(1.05rem, 2.2vw, 1.35rem); font-weight: 500; line-height: 1.75; letter-spacing: -0.035em; }
 .recommendationWorkspace .dailyVerseMeta { margin-top: 0.5rem; font-size: 0.75rem; }
 .recommendationWorkspace .nextVisitSummary { border: 0; background: var(--ui-surface); padding: 1rem; border-radius: 12px; }
-.recommendationPlan { padding: 1.75rem; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 20px; }
+.recommendationPlan { padding: 1.5rem; background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: 20px; }
 .recommendationPlanHeader { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
 .recommendationDateControls { display: flex; flex-shrink: 0; gap: 0.4rem; }
 .recommendationPlanHeader .uiIconButton { border: 0; background: transparent; color: var(--ui-muted); }
 .recommendationPlanHeader h2 { font-size: 1.25rem; letter-spacing: -0.035em; }
-.recommendationPlanHint { margin: 1.25rem 0 1rem; color: var(--ui-muted); font-size: 0.875rem; }
+.recommendationPlanHint { margin: 0.75rem 0 1.25rem; color: var(--ui-muted); font-size: 0.875rem; }
 .recommendationMealChoices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
-.recommendationMealChoice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.8rem; min-width: 0; min-height: 132px; padding: 1.2rem 0.5rem; border: 1px solid var(--ui-border); border-radius: 16px; background: var(--ui-surface); color: var(--ui-ink); font-size: 1.0625rem; font-weight: 650; transition: background-color 160ms ease, border-color 160ms ease; }
-.recommendationMealIcon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--ui-accent-soft); color: var(--ui-accent); }
-.recommendationMealChoice[aria-expanded="true"] { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
-.recommendationDisclosure { padding: 0 1.25rem; border: 1px solid var(--ui-border); border-radius: 14px; background: var(--ui-surface); }
+.recommendationMealChoice { display: flex; flex-direction: column; align-items: center; gap: 0.45rem; min-width: 0; padding: 1rem 0.5rem; border: 1px solid transparent; border-radius: 16px; background: var(--meal-choice-bg); color: var(--ui-ink); font-size: 1.0625rem; transition: border-color 160ms ease; }
+
+.recommendationMealChoice[aria-expanded="true"] { border-color: var(--ui-accent); }
+.recommendationDisclosure { padding: 0 0.25rem; border: 0; border-bottom: 1px solid var(--ui-border); border-radius: 0; background: transparent; }
 .recommendationDisclosure > summary, .mealDialogDetail > summary { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 60px; padding-block: 1rem; list-style: none; font-size: 0.9375rem; font-weight: 600; color: var(--ui-ink); }
 .recommendationDisclosure > summary::-webkit-details-marker, .mealDialogDetail > summary::-webkit-details-marker { display: none; }
 .recommendationDisclosure > summary::after, .mealDialogDetail > summary::after { content: ""; width: 7px; height: 7px; flex-shrink: 0; margin-right: 0.2rem; border-right: 1.5px solid var(--ui-muted); border-bottom: 1.5px solid var(--ui-muted); transform: rotate(45deg); }
@@ -299,7 +299,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
 .mealDialogTabs button { min-width: 0; min-height: 44px; border-radius: 9px; color: var(--ui-muted); font-size: 0.9375rem; font-weight: 600; }
 .mealDialogTabs button[aria-pressed="true"] { background: var(--ui-surface); color: var(--ui-accent); box-shadow: 0 1px 5px #0b1d3812; }
 .mealDialogBody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1.5rem; }
-.mealDialogMain { padding: 1.25rem; border-radius: 14px; background: var(--ui-accent-soft); font-size: 1.4rem; font-weight: 650; line-height: 1.55; letter-spacing: -0.03em; }
+.mealDialogMain { padding: 0.5rem 0; font-size: 1.5rem; font-weight: 650; line-height: 1.55; letter-spacing: -0.03em; }
 .mealDialogMenu { margin: 1rem 0 1.25rem; }
 .mealDialogMenu > div { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 0.75rem; padding: 0.55rem 0; font-size: 0.9375rem; }
 .mealDialogMenu dt { color: var(--ui-muted); }
@@ -315,7 +315,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
 .recommendedPortions > p { margin: 0.5rem 0; font-size: 0.8125rem; color: var(--ui-muted); }
 .snackSuggestion { margin-bottom: 1rem; }
 @media (hover: hover) {
-  .recommendationMealChoice:hover { border-color: var(--ui-accent); background: var(--ui-accent-soft); }
+  .recommendationMealChoice:hover { border-color: var(--ui-accent); }
 }
 @media (max-width: 767px) {
   .welcomePanel { padding: 1.5rem; }
@@ -325,16 +325,16 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
   .recommendationPlanHeader h2 { font-size: 1.0625rem; }
   .recommendationPlanHint { margin-top: 1rem; font-size: 0.8125rem; }
   .recommendationMealChoices { gap: 0.5rem; }
-  .recommendationMealChoice { min-height: 96px; padding: 0.75rem 0.25rem; gap: 0.5rem; font-size: 1rem; border-radius: 12px; }
-  .recommendationMealIcon { width: 40px; height: 40px; }
-  .recommendationDisclosure { padding-inline: 1rem; }
+  .recommendationMealChoice { padding: 0.8rem 0.35rem; gap: 0.4rem; font-size: 1rem; border-radius: 14px; }
+
+  .recommendationDisclosure { padding-inline: 0.25rem; }
   .mealDialog { --meal-dialog-height: min(92dvh, calc(100dvh - env(safe-area-inset-top) - 0.5rem)); width: 100%; max-width: 540px; max-height: var(--meal-dialog-height); inset: auto 0 0; margin: auto auto 0; border-radius: 24px 24px 0 0; border-bottom: 0; }
   .mealDialogInner { max-height: var(--meal-dialog-height); padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   .mealDialogHeader { padding: 1rem 1rem 0.75rem; }
   .mealDialogTabs { margin-inline: 1rem; }
   .mealDialogTabs button { min-height: 48px; }
   .mealDialogBody { padding: 1rem; }
-  .mealDialogMain { padding: 1rem; font-size: 1.25rem; }
+  .mealDialogMain { padding: 0.5rem 0; font-size: 1.35rem; }
 }
 @media (max-height: 500px) and (max-width: 1023px) {
   .mealDialog { --meal-dialog-height: calc(100dvh - env(safe-area-inset-top) - 0.5rem); max-height: var(--meal-dialog-height); }
@@ -418,7 +418,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
     min-height: 56px; border-radius: 12px; color: var(--ui-muted);
     font-size: 0.875rem; font-weight: 650; line-height: 1.3; text-decoration: none;
   }
-  .bottomNavigation a[aria-current="page"] { color: var(--ui-accent); background: var(--ui-accent-soft); font-weight: 700; }
+  .bottomNavigation a[aria-current="page"] { color: var(--ui-accent); font-weight: 750; }
+  .bottomNavigation a[aria-current="page"] svg { fill: var(--ui-accent-soft); }
   .bottomNavigation svg { display: block; flex-shrink: 0; }
   input, select, textarea { font-size: max(16px, 1rem); }
   .uiCard, .surfacePanel { border-radius: 18px; }
@@ -495,3 +496,70 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ui-accent); }
   .mealNutrition { padding: 1rem; }
   .mealNutritionValues dd { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; }
 }
+
+/* Meal reference and actual-food logging share a quiet, compact mobile rhythm. */
+.recommendationMealChoice--breakfast { --meal-choice-bg: #fff7e6; }
+.recommendationMealChoice--lunch { --meal-choice-bg: #fff0e9; }
+.recommendationMealChoice--dinner { --meal-choice-bg: #f0f0fc; }
+.dark .recommendationMealChoice--breakfast { --meal-choice-bg: #3b3424; }
+.dark .recommendationMealChoice--lunch { --meal-choice-bg: #3d3029; }
+.dark .recommendationMealChoice--dinner { --meal-choice-bg: #303044; }
+.recommendationMealArt { display: block; width: 76px; height: 76px; flex-shrink: 0; }
+.recommendationMealLabel { font-weight: 700; }
+.recommendationMealPreview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%; min-height: 2.8em; color: var(--ui-muted); font-size: 0.8125rem; font-weight: 400; line-height: 1.4; }
+.recommendationMealRecorded { display: inline-flex; align-items: center; justify-content: center; gap: 0.15rem; color: var(--ui-accent); font-size: 0.6875rem; font-weight: 600; }
+.mealDialogFooter { flex-shrink: 0; padding: 0.85rem 1.5rem 1.25rem; border-top: 1px solid var(--ui-border); }
+.mealDialogFooter .uiButton { width: 100%; }
+.recordWorkspace > div > .uiPageHeader h1 { font-size: 1.65rem; }
+.recordWorkspace > div > .uiPageHeader p { margin-top: 0.25rem; font-size: 0.875rem; }
+.recordCard { padding: 1.5rem; }
+.recordListHint { color: var(--ui-muted); font-size: 0.8125rem; line-height: 1.65; }
+.foodRecordItem { border-bottom: 1px solid var(--ui-border); }
+.foodRecordRow { display: flex; align-items: center; gap: 0.5rem; min-height: 64px; }
+.foodRecordCheck { display: flex; align-items: center; flex: 1; min-width: 0; gap: 0.8rem; min-height: 64px; padding: 0.65rem 0; text-align: left; }
+.foodCheckBox { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; border: 1.5px solid var(--ui-control-border); border-radius: 8px; color: var(--ui-on-primary); }
+.foodRecordCheck[aria-pressed="true"] .foodCheckBox { background: var(--ui-primary); border-color: var(--ui-primary); }
+.foodRecordName { min-width: 0; font-size: 1rem; font-weight: 550; line-height: 1.5; }
+.foodRecordName small { display: block; color: var(--ui-muted); font-size: 0.75rem; font-weight: 400; }
+.foodChangeButton { flex-shrink: 0; min-width: 44px; min-height: 44px; padding: 0.5rem; color: var(--ui-muted); font-size: 0.8125rem; text-decoration: underline; text-underline-offset: 4px; }
+.foodChangeButton[aria-expanded="true"] { color: var(--ui-accent); }
+.foodChangePanel { margin-bottom: 0.75rem; padding: 1rem; border-radius: 12px; background: var(--ui-surface-muted); }
+.foodChangeOptions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+.foodChangeOptions .uiButton { white-space: normal; font-size: 0.8125rem; padding-inline: 0.7rem; }
+.foodSkipButton { margin-top: 0.5rem; padding: 0.5rem 0; color: var(--ui-muted); font-size: 0.8125rem; text-decoration: underline; text-underline-offset: 4px; }
+.recordBatchActions { color: var(--ui-muted); font-size: 0.8125rem; }
+.recordBatchActions summary { padding-block: 0.6rem; }
+.recordSaveBar { position: sticky; z-index: 20; bottom: 0.75rem; padding: 0.75rem 0; background: var(--ui-surface); }
+@media (max-width: 767px) {
+  .recommendationMealArt { width: 62px; height: 62px; max-width: 100%; }
+  .recommendationMealPreview { font-size: 0.75rem; }
+  .mealDialogFooter { padding: 0.75rem 1rem; }
+  .recordCard { padding: 1rem; }
+  .recordSaveBar { bottom: calc(72px + max(0px, env(safe-area-inset-bottom) - 8px)); }
+}
+@media (max-width: 359px) {
+  .recommendationMealArt { width: 52px; height: 52px; }
+  .foodRecordCheck { gap: 0.6rem; }
+}
+
+.recordDateSection { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.25rem 0.75rem; }
+.recordDateBar { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+.recordDateBar .uiIconButton { border-color: transparent; background: transparent; }
+.recordDateBar input { min-width: 0; width: 10rem; min-height: 44px; padding: 0.4rem 0.5rem; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-surface); color: var(--ui-ink); }
+.recordHistoryLinks { display: flex; justify-content: flex-end; margin-left: auto; }
+.recordHistoryLinks .uiButton { font-size: 0.8125rem; padding-inline: 0.65rem; }
+.recordCardHeading { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; }
+.recordCardHeading h2 { font-size: 1rem; }
+.recordCardHeading .uiButton { font-size: 0.75rem; padding-inline: 0.25rem; }
+@media (max-width: 430px) {
+  .recordDateBar { width: 100%; }
+  .recordDateBar input { flex: 1; width: 0; }
+  .recordDateSection { margin-block: 0.5rem; }
+}
+
+.foodAddDisclosure { border: 1px dashed var(--ui-control-border); border-radius: 12px; padding-inline: 0.75rem; }
+.foodAddDisclosure > summary { display: flex; align-items: center; justify-content: center; gap: 0.4rem; min-height: 48px; padding-block: 0.5rem; list-style: none; color: var(--ui-accent); font-size: 0.875rem; font-weight: 600; }
+.foodAddDisclosure > summary::-webkit-details-marker { display: none; }
+.foodAddDisclosure[open] { padding-bottom: 0.75rem; }
+.foodAddDisclosure[open] > summary { margin-bottom: 0.5rem; }
+.foodAddDisclosure .uiButton { padding-inline: 0.65rem; font-size: 0.875rem; }

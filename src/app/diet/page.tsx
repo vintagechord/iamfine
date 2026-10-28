@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Leaf, Minus, Plus, Search } from 'lucide-react';
+import { ArrowRight, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Leaf, Plus, Search } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     formatDateKey,
@@ -153,8 +153,8 @@ const DIET_DAILY_LOGS_TABLE = 'diet_daily_logs';
 const USER_METADATA_NAMESPACE = 'iamfine';
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const METADATA_DAILY_LOG_LIMIT = 60;
-const RECORD_SAVE_SUCCESS_MESSAGE = '저장하였습니다. 같은 계정의 다른 기기에서도 확인할 수 있어요.';
-const RECORD_SAVE_SUCCESS_MESSAGE_LOCAL = '저장하였습니다. 현재 기기에서 확인할 수 있어요.';
+const RECORD_SAVE_SUCCESS_MESSAGE = '식사 기록을 저장했어요.';
+const RECORD_SAVE_SUCCESS_MESSAGE_LOCAL = '이 기기에 식사 기록을 저장했어요.';
 
 const DEFAULT_STORE: DietStore = {
     logs: {},
@@ -1972,7 +1972,6 @@ export default function DietPage() {
         slot: MealSlot;
         itemId: string;
     } | null>(null);
-    const [showNutrients, setShowNutrients] = useState(false);
     const [newItemBySlot, setNewItemBySlot] = useState<Record<MealSlot, string>>({
         breakfast: '',
         lunch: '',
@@ -2541,15 +2540,6 @@ export default function DietPage() {
             ),
         [sortedMedicationSchedules]
     );
-    const selectedAnalysis = useMemo(
-        () => analyzeDay(selectedPlan, selectedLog, stageType),
-        [selectedPlan, selectedLog, stageType]
-    );
-    const todayScore = useMemo(() => {
-        const todayLog = logs[todayKey] ?? buildDefaultLog(todayKey, todayPlan);
-        return analyzeDay(todayPlan, todayLog, stageType).dailyScore;
-    }, [logs, todayKey, todayPlan, stageType]);
-
     const timingGuide = useMemo(() => getSnackCoffeeTimingGuide(stageType), [stageType]);
     const beverageCaution = useMemo(() => coffeeGuidanceByStage(stageType), [stageType]);
     const dailyTeaRecommendations = useMemo(
@@ -2656,97 +2646,6 @@ export default function DietPage() {
         viewedTodayPlan,
         userDietContext,
     ]);
-
-    const weeklyScore = useMemo(() => {
-        const base = new Date(todayKey);
-        const scores: number[] = [];
-
-        for (let offset = 0; offset < 7; offset += 1) {
-            const date = new Date(base);
-            date.setDate(base.getDate() - offset);
-            const key = formatDateKey(date);
-            const log = logs[key];
-            if (!log || !hasMeaningfulDayLog(log)) {
-                continue;
-            }
-            const plan = getPlanForDate(key);
-            scores.push(analyzeDay(plan, log, stageType).dailyScore);
-        }
-
-        if (scores.length === 0) {
-            return 0;
-        }
-
-        return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
-    }, [todayKey, logs, stageType, getPlanForDate]);
-
-    const monthlyScore = useMemo(() => {
-        const now = new Date();
-        const month = now.getMonth();
-        const year = now.getFullYear();
-        const lastDay = new Date(year, month + 1, 0).getDate();
-        const scores: number[] = [];
-
-        for (let day = 1; day <= lastDay; day += 1) {
-            const key = formatDateKey(new Date(year, month, day));
-            const log = logs[key];
-            if (!log || !hasMeaningfulDayLog(log)) {
-                continue;
-            }
-            const plan = getPlanForDate(key);
-            scores.push(analyzeDay(plan, log, stageType).dailyScore);
-        }
-
-        if (scores.length === 0) {
-            return 0;
-        }
-
-        return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
-    }, [logs, stageType, getPlanForDate]);
-
-    const totalScore = useMemo(() => {
-        const meaningfulLogEntries = Object.entries(logs).filter(([, log]) => hasMeaningfulDayLog(log));
-        if (meaningfulLogEntries.length === 0) {
-            return 0;
-        }
-
-        const scores = meaningfulLogEntries.map(([key, log]) => {
-            const plan = getPlanForDate(key);
-            return analyzeDay(plan, log, stageType).dailyScore;
-        });
-
-        return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
-    }, [logs, stageType, getPlanForDate]);
-
-    // const expectedPercentile = useMemo(() => scoreToPercentile(monthlyScore), [monthlyScore]);
-    // const expectedRank = useMemo(
-    //     () => Math.max(1, Math.round(((100 - expectedPercentile) / 100) * 500 + 1)),
-    //     [expectedPercentile]
-    // );
-
-    const recordDateKeys = useMemo(() => {
-        const yesterdayKey = offsetDateKey(todayKey, -1);
-        const keySet = new Set<string>();
-        keySet.add(todayKey);
-        if (yesterdayKey >= accountStartDateKey) {
-            keySet.add(yesterdayKey);
-        }
-
-        if (selectedDate <= todayKey) {
-            keySet.add(selectedDate);
-        }
-
-        const sorted = Array.from(keySet).sort((a, b) => (a === b ? 0 : a > b ? -1 : 1));
-        const todayIndex = sorted.indexOf(todayKey);
-        const yesterdayIndex = sorted.indexOf(yesterdayKey);
-        if (todayIndex >= 0 && yesterdayIndex >= 0 && yesterdayIndex !== todayIndex - 1) {
-            sorted.splice(yesterdayIndex, 1);
-            const nextTodayIndex = sorted.indexOf(todayKey);
-            sorted.splice(Math.max(0, nextTodayIndex), 0, yesterdayKey);
-        }
-
-        return sorted;
-    }, [accountStartDateKey, selectedDate, todayKey]);
 
     const isCurrentLogAccount = useCallback((account: LogAccount) => {
         const current = accountRef.current;
@@ -3253,7 +3152,6 @@ export default function DietPage() {
     };
 
     const setMealSlotStatus = (slot: MealSlot, status: 'eaten' | 'not_eaten' | 'reset') => {
-        const resetItems = buildDefaultLog(selectedDate, selectedPlan).meals[slot];
         if (status === 'reset') {
             setOpenSubstituteTarget((prev) => (prev?.slot === slot ? null : prev));
         }
@@ -3261,9 +3159,7 @@ export default function DietPage() {
             ...current,
             meals: {
                 ...current.meals,
-                [slot]: status === 'reset'
-                    ? resetItems
-                    : current.meals[slot].map((item) => {
+                [slot]: current.meals[slot].map((item) => {
                     if (status === 'eaten') {
                         return {
                             ...item,
@@ -3300,6 +3196,11 @@ export default function DietPage() {
         });
     };
 
+    const closeMealSubstitutePanel = (slot: MealSlot, itemId: string) => {
+        setOpenSubstituteTarget(null);
+        document.getElementById(`food-change-trigger-${slot}-${itemId}`)?.focus({ preventScroll: true });
+    };
+
     const applyMealSubstitute = (
         slot: MealSlot,
         itemId: string,
@@ -3330,7 +3231,7 @@ export default function DietPage() {
             },
         }));
 
-        setOpenSubstituteTarget(null);
+        closeMealSubstitutePanel(slot, itemId);
         setMessage(`"${stripPortionLabel(originalName)}" 대신 "${normalizedSubstitute}"으로 기록했어요.`);
     };
 
@@ -3381,7 +3282,7 @@ export default function DietPage() {
             },
         }));
 
-        setMessage(`"${normalizedName}"을 추가했어요. 아래 저장 버튼을 눌러 주세요.`);
+        setMessage(`"${normalizedName}"을 추가했어요.`);
 
         setNewItemBySlot((prev) => ({
             ...prev,
@@ -3477,33 +3378,16 @@ export default function DietPage() {
         await saveCurrentRecord();
     };
 
-    const renderRecommendedPortions = (slot: MealSlot) => {
-        const guide = mealPortionGuideFromPlan(viewedTodayPlan[slot], slot);
-        return (
-            <div className="recommendedPortions">
-                <PersonalizedPortionGuide guide={viewedPortions} slot={slot} />
-                <details className="mealDialogDetail">
-                    <summary>대체할 수 있는 음식</summary>
-                    {guide.items.map((item) => {
-                        const substitute = buildSubstituteCandidates(item.name, slot, manualFoodCandidates, foodPersonalization.avoidedIngredients);
-                        return substitute.options.length > 0 ? (
-                            <div key={item.name} className="mt-3">
-                                <p className="font-medium">{item.name}</p>
-                                <p className="text-sm text-[var(--ui-muted)]">{substitute.options.slice(0, 5).join(' · ')}</p>
-                            </div>
-                        ) : null;
-                    })}
-                </details>
-            </div>
-        );
-    };
+    const renderRecommendedPortions = (slot: MealSlot) => (
+        <PersonalizedPortionGuide guide={viewedPortions} slot={slot} />
+    );
 
     if (loading) {
         return (
             <main className="dietWorkspace space-y-6" aria-busy="true">
                 <header className="uiPageHeader">
                     <p>매일의 식사를 가볍게</p>
-                    <h1>{openRecordView ? '식단 관리' : '식단 제안'}</h1>
+                    <h1>{openRecordView ? '식사 기록' : '오늘의 식단'}</h1>
                 </header>
                 <section className="uiCard p-6" role="status">
                     <p className="text-sm text-gray-600">식단을 준비하고 있어요.</p>
@@ -3573,9 +3457,7 @@ export default function DietPage() {
         <main className={`dietWorkspace space-y-5 pb-8 ${openRecordView ? 'recordWorkspace' : 'recommendationWorkspace'}`}>
             <div className={openRecordView ? undefined : 'recommendationOverview'}>
                 <header className="uiPageHeader min-w-0">
-                    <p>{profile?.nickname ? `${profile.nickname} 님의 하루 한 끼` : '나를 돌보는 한 끼'}</p>
-                    {openRecordView ? <h1>오늘의 식사를 기록해요.</h1> : <DailyVerse />}
-                    {openRecordView && <p>먹은 음식을 한 끼씩 남겨 보세요.</p>}
+                    {openRecordView ? <><h1>식사 기록</h1><p>추천과 달라도, 먹은 음식 그대로.</p></> : <DailyVerse />}
                 </header>
             {!openRecordView && (
             <section className="recommendationPlan" aria-label="식단 추천">
@@ -3589,9 +3471,12 @@ export default function DietPage() {
                         <button type="button" onClick={() => setTodayPlanOffset((prev) => Math.min(1, prev + 1))} disabled={todayPlanOffset >= 1} className="uiIconButton" aria-label="다음 날짜 식단 보기"><ChevronRight size={19} /></button>
                     </div>
                 </div>
+                <p className="recommendationPlanHint">메뉴는 참고하고, 먹은 음식대로 기록해요.</p>
                 <RecommendedMeals
                     plan={viewedTodayPlan}
                     dateLabel={viewedTodayDateLabel}
+                    recordDate={viewedTodayDateKey <= todayKey ? viewedTodayDateKey : undefined}
+                    recordedSlots={Object.fromEntries(SLOT_ORDER.map((slot) => [slot, logs[viewedTodayDateKey]?.meals[slot].some((item) => item.eaten || item.notEaten) ?? false]))}
                     medicationsBySlot={{
                         breakfast: medicationItemsForDate(viewedTodayDateKey, medicationSchedulesByTiming.breakfast),
                         lunch: medicationItemsForDate(viewedTodayDateKey, medicationSchedulesByTiming.lunch),
@@ -3609,7 +3494,7 @@ export default function DietPage() {
             </div>
             {!openRecordView && (
                 <details className="recommendationDisclosure">
-                    <summary className="cursor-pointer py-4 text-sm font-semibold">식단 설정 · 추천 이유</summary>
+                    <summary className="cursor-pointer py-4 text-sm font-semibold">식단 맞춤 설정</summary>
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm leading-relaxed text-[var(--ui-muted)]">{describeFoodPersonalization(foodPersonalization).join(' · ') || '먹기 편한 음식과 피할 재료를 알려 주세요.'}</p>
                         <Link href="/profile#food-personalization" className="uiButton uiButton--secondary uiButton--small">맞춤 설정</Link>
@@ -3943,16 +3828,16 @@ export default function DietPage() {
 
             {openRecordView && (
                 <>
-                    <section id="today-record-section" className="space-y-3">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                {recordDateKeys.map((key) => <button key={key} type="button" aria-pressed={key === selectedDate} onClick={() => selectRecordDate(key)} className={`uiButton uiButton--small ${key === selectedDate ? 'uiButton--primary' : 'uiButton--ghost'}`}>{key === todayKey ? '오늘' : key === offsetDateKey(todayKey, -1) ? '어제' : formatDateLabel(key)}</button>)}
-                                <input id="record-date" type="date" value={selectedDate} max={todayKey} onChange={(event) => selectRecordDate(event.target.value)} aria-label="기록 날짜 선택" className="min-h-11 min-w-0 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface)] px-3 text-sm text-[var(--ui-ink)]" />
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                                <Link href="/diet/calendar" className="uiButton uiButton--ghost uiButton--small">달력</Link>
-                                <Link href="/diet/report" className="uiButton uiButton--ghost uiButton--small">리포트</Link>
-                            </div>
+                    <section id="today-record-section" className="recordDateSection" aria-label="기록 날짜">
+                        <div className="recordDateBar">
+                            <button type="button" className="uiIconButton" aria-label="이전 날짜 기록" disabled={selectedDate <= accountStartDateKey} onClick={() => selectRecordDate(offsetDateKey(selectedDate, -1))}><ChevronLeft size={18} /></button>
+                            <input id="record-date" type="date" value={selectedDate} max={todayKey} onChange={(event) => selectRecordDate(event.target.value)} aria-label="기록 날짜 선택" />
+                            <button type="button" className="uiIconButton" aria-label="다음 날짜 기록" disabled={selectedDate >= todayKey} onClick={() => selectRecordDate(offsetDateKey(selectedDate, 1))}><ChevronRight size={18} /></button>
+                        </div>
+                        <div className="recordHistoryLinks">
+                            {selectedDate !== todayKey && <button type="button" className="uiButton uiButton--ghost uiButton--small" onClick={() => selectRecordDate(todayKey)}>오늘로</button>}
+                            <Link href="/diet/calendar" className="uiButton uiButton--ghost uiButton--small">달력</Link>
+                            <Link href="/diet/report" className="uiButton uiButton--ghost uiButton--small">리포트</Link>
                         </div>
                     </section>
 
@@ -3974,9 +3859,6 @@ export default function DietPage() {
                                         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                                             {selectedDateLabel} 식단 보기
                                         </h3>
-                                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                                            기록 중 참고가 필요할 때만 확인하고, 기록 완료를 우선해 주세요.
-                                        </p>
                                     </div>
                                     <button
                                         type="button"
@@ -4035,13 +3917,13 @@ export default function DietPage() {
                         </div>
                     )}
 
-                    <section className="uiCard p-5 sm:p-6">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div><h2 className="text-xl font-semibold">무엇을 드셨나요?</h2><p className="mt-1 text-sm text-[var(--ui-muted)]">{selectedDateLabel} · 식사 시간을 고르고 음식을 추가해요.</p></div>
+                    <section className="uiCard recordCard">
+                        <div className="recordCardHeading">
+                            <h2 className="text-lg font-semibold">먹은 음식 체크</h2>
                             <button type="button" onClick={() => { setOpenRecordPortionSlot(null); setShowRecordPlanModal(true); }} className="uiButton uiButton--ghost uiButton--small">추천 식단 보기</button>
                         </div>
                         <div className="uiSegmented uiMealTabs mt-5" role="group" aria-label="기록할 식사 선택">
-                            {SLOT_ORDER.map((slot) => <button key={slot} type="button" aria-pressed={activeRecordSlot === slot} onClick={() => changeRecordSelection(selectedDate, slot)}><span>{mealTypeLabel(slot)}</span>{selectedLog.meals[slot].some((item) => item.eaten) && <><Check size={13} className="hidden sm:block" aria-hidden="true" /><span className="sr-only">기록 있음</span></>}</button>)}
+                            {SLOT_ORDER.map((slot) => <button key={slot} type="button" aria-pressed={activeRecordSlot === slot} onClick={() => changeRecordSelection(selectedDate, slot)}><span>{mealTypeLabel(slot)}</span>{selectedLog.meals[slot].some((item) => item.eaten) && <><Check size={13} aria-hidden="true" /><span className="sr-only">기록 있음</span></>}</button>)}
                         </div>
 
                         <form onSubmit={saveRecord} className="mt-4 space-y-4">
@@ -4055,6 +3937,8 @@ export default function DietPage() {
                                             key={slot}
                                             className="space-y-3"
                                         >
+                                            <details className="foodAddDisclosure">
+                                                <summary><Plus size={17} aria-hidden="true" /> 다른 음식 추가</summary>
                                             <div className="flex items-stretch gap-2">
                                                 <input
                                                     type="search"
@@ -4085,7 +3969,7 @@ export default function DietPage() {
                                                         event.stopPropagation();
                                                         addMealItem(slot);
                                                     }}
-                                                    placeholder="먹은 음식 검색"
+                                                    placeholder="먹은 음식 추가"
                                                     className="min-h-13 min-w-0 flex-1 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-surface-muted)] px-4 py-3 text-base text-[var(--ui-ink)] outline-none focus:border-[var(--ui-accent)] focus:ring-2 focus:ring-[var(--ui-accent-soft)]"
                                                 />
                                                 <button
@@ -4102,7 +3986,7 @@ export default function DietPage() {
                                                     <p className="text-sm font-semibold text-gray-800 dark:text-gray-100" aria-live="polite">
                                                         {manualMatchCandidatesBySlot[slot].some((candidate) => candidate.matchType === 'exact' || candidate.matchType === 'alias')
                                                             ? '찾은 음식과 비슷한 메뉴'
-                                                            : '찾는 음식이 없으면 비슷한 메뉴를 골라 보세요'}
+                                                            : '비슷한 이름의 음식'}
                                                     </p>
                                                     {manualMatchCandidatesBySlot[slot].length > 0 ? (
                                                         <div className="mt-2 grid max-h-72 grid-cols-1 gap-2 overflow-y-auto overscroll-contain sm:grid-cols-2">
@@ -4130,41 +4014,18 @@ export default function DietPage() {
                                                 </div>
                                             )}
                                             <p id={`food-entry-help-${slot}`} className="mt-2 text-xs leading-relaxed text-[var(--ui-muted)] dark:text-gray-400">
-                                                예: 버섯죽, 두부조림 · 검색에 없어도 입력한 이름으로 추가할 수 있어요.
+                                                검색에 없어도 이름을 적어 추가할 수 있어요.
                                             </p>
+                                            </details>
                                             <div className="flex items-center justify-between gap-2">
                                                 <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                    {mealTypeLabel(slot)}
+                                                    먹은 음식만 체크해요
                                                 </p>
                                                 <span className="uiBadge">
                                                     {recordedCount}개 먹었어요
                                                 </span>
                                             </div>
-                                            <p className="text-sm leading-relaxed text-[var(--ui-muted)]">추천 메뉴가 미리 준비되어 있어요. 먹은 음식에 표시해 주세요.</p>
-                                            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={`${mealTypeLabel(slot)} 전체 메뉴 선택`}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setMealSlotStatus(slot, 'eaten')}
-                                                    className="uiButton uiButton--secondary uiButton--small"
-                                                >
-                                                    모두 먹음
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setMealSlotStatus(slot, 'not_eaten')}
-                                                    className="uiButton uiButton--ghost uiButton--small"
-                                                >
-                                                    모두 안 먹음
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setMealSlotStatus(slot, 'reset')}
-                                                    className="uiButton uiButton--ghost uiButton--small"
-                                                >
-                                                    초기화
-                                                </button>
-                                            </div>
-
+                                            <p className="recordListHint">다르게 먹었다면 ‘변경’을 눌러 주세요.</p>
                                             {items.length === 0 && <div className="uiEmptyState py-7"><Search size={24} className="mx-auto mb-3 text-[var(--ui-accent)]" aria-hidden="true" /><p className="text-sm text-[var(--ui-muted)]">먹은 음식을 검색해서 추가해 주세요.</p></div>}
                                             <div className="mt-3 space-y-2">
                                                 {items.map((item) => {
@@ -4174,147 +4035,83 @@ export default function DietPage() {
                                                     const substituteCandidates = isSubstitutePanelOpen
                                                         ? buildSubstituteCandidates(item.name, slot, manualFoodCandidates, foodPersonalization.avoidedIngredients)
                                                         : null;
-                                                    const [displayFoodNameRaw, ...displayAmountParts] = item.name.split(' · ');
-                                                    const displayFoodName = displayFoodNameRaw.trim();
-                                                    const displayAmount = displayAmountParts.join(' · ').trim();
+                                                    const displayFoodName = stripPortionLabel(item.name);
 
                                                     return (
-                                                        <div key={item.id} className="space-y-1.5">
-                                                            <div className="space-y-3 rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-surface)] p-3 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:space-y-0">
+                                                        <div key={item.id} className="foodRecordItem">
+                                                            <div className="foodRecordRow" data-eaten={item.eaten}>
                                                                 <button
                                                                     type="button"
+                                                                    onClick={() => toggleMealItem(slot, item.id)}
+                                                                    aria-pressed={item.eaten}
+                                                                    aria-label={`${displayFoodName} 먹었어요${item.notEaten ? ' (현재 안 먹음으로 기록됨)' : ''}`}
+                                                                    className="foodRecordCheck"
+                                                                >
+                                                                    <span className="foodCheckBox" aria-hidden="true">{item.eaten && <Check size={17} strokeWidth={2.5} />}</span>
+                                                                    <span className="foodRecordName">{displayFoodName}{item.notEaten && <small>안 먹음</small>}</span>
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    id={`food-change-trigger-${slot}-${item.id}`}
                                                                     onClick={() => toggleMealSubstitutePanel(slot, item.id)}
                                                                     aria-expanded={isSubstitutePanelOpen}
-                                                                    aria-label={`${displayFoodName} 대신 먹은 음식 고르기`}
-                                                                    className="flex min-h-11 min-w-0 flex-1 flex-col justify-center gap-1 text-left leading-snug text-[var(--ui-ink)]"
+                                                                    aria-controls={`food-change-${slot}-${item.id}`}
+                                                                    aria-label={`${displayFoodName} 변경`}
+                                                                    className="foodChangeButton"
                                                                 >
-                                                                    <span className="block break-words text-base font-semibold">{displayFoodName}</span>
-                                                                    {displayAmount && <span className="block break-words text-sm text-[var(--ui-muted)]">{displayAmount}</span>}
+                                                                    {isSubstitutePanelOpen ? '닫기' : '변경'}
                                                                 </button>
-                                                                <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0" role="group" aria-label={`${displayFoodName} 식사 여부`}>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => toggleMealItem(slot, item.id)}
-                                                                        aria-pressed={item.eaten}
-                                                                        aria-label={`${displayFoodName} 먹었어요`}
-                                                                        className="mealStatusButton mealStatusButton--eaten"
-                                                                    >
-                                                                        <Check size={17} aria-hidden="true" className={item.eaten ? undefined : 'invisible'} />
-                                                                        먹었어요
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => markMealAsNotEaten(slot, item.id)}
-                                                                        aria-pressed={Boolean(item.notEaten)}
-                                                                        aria-label={`${displayFoodName} 안 먹음`}
-                                                                        className="mealStatusButton mealStatusButton--skipped"
-                                                                    >
-                                                                        <Minus size={17} aria-hidden="true" className={item.notEaten ? undefined : 'invisible'} />
-                                                                        안 먹음
-                                                                    </button>
-                                                                </div>
                                                             </div>
-
                                                             {isSubstitutePanelOpen && (
-                                                                <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 dark:border-gray-700 dark:bg-gray-950/40">
-                                                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                                                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                                                                            대체 가능한 음식
-                                                                        </p>
-                                                                        <span className="text-xs text-[var(--ui-muted)] dark:text-gray-400">
-                                                                            {substituteCandidates?.hint}
-                                                                        </span>
-                                                                    </div>
-
+                                                                <div id={`food-change-${slot}-${item.id}`} className="foodChangePanel">
+                                                                    <p className="font-semibold text-sm">대신 먹은 음식</p>
+                                                                    <p className="mt-1 text-xs text-[var(--ui-muted)]">실제로 먹은 메뉴를 골라 주세요. 영양과 양은 다를 수 있어요.</p>
                                                                     {substituteCandidates && substituteCandidates.options.length > 0 ? (
-                                                                        <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                                                                        <div className="foodChangeOptions">
                                                                             {substituteCandidates.options.map((candidate) => (
                                                                                 <button
                                                                                     key={`${item.id}-${candidate}`}
                                                                                     type="button"
-                                                                                    onClick={() =>
-                                                                                        applyMealSubstitute(
-                                                                                            slot,
-                                                                                            item.id,
-                                                                                            item.name,
-                                                                                            candidate
-                                                                                        )
-                                                                                    }
-                                                                                    className="uiButton uiButton--secondary uiButton--small w-full whitespace-normal"
-                                                                                >
-                                                                                    {candidate}
-                                                                                </button>
+                                                                                    onClick={() => applyMealSubstitute(slot, item.id, item.name, candidate)}
+                                                                                    className="uiButton uiButton--secondary uiButton--small"
+                                                                                >{candidate}</button>
                                                                             ))}
                                                                         </div>
-                                                                    ) : (
-                                                                        <p className="mt-1 text-xs text-[var(--ui-muted)] dark:text-gray-400">
-                                                                            대체 후보를 찾지 못했어요.
-                                                                        </p>
-                                                                    )}
+                                                                    ) : <p className="mt-2 text-sm text-[var(--ui-muted)]">위 검색창에서 먹은 음식을 추가해 주세요.</p>}
+                                                                    <button type="button" className="foodSkipButton" aria-pressed={Boolean(item.notEaten)} onClick={() => { markMealAsNotEaten(slot, item.id); closeMealSubstitutePanel(slot, item.id); }}>
+                                                                        {item.notEaten ? '안 먹음 표시 취소' : '이 음식은 안 먹었어요'}
+                                                                    </button>
                                                                 </div>
                                                             )}
                                                         </div>
                                                     );
                                                 })}
                                             </div>
+                                            {items.length > 0 && <details className="recordBatchActions">
+                                                <summary>한 번에 체크하기</summary>
+                                                <div className="flex flex-wrap gap-2 pb-2">
+                                                    <button type="button" className="uiButton uiButton--secondary uiButton--small" onClick={() => setMealSlotStatus(slot, 'eaten')}>모두 먹었어요</button>
+                                                    <button type="button" className="uiButton uiButton--ghost uiButton--small" onClick={() => setMealSlotStatus(slot, 'not_eaten')}>모두 안 먹었어요</button>
+                                                    <button type="button" className="uiButton uiButton--ghost uiButton--small" onClick={() => setMealSlotStatus(slot, 'reset')}>체크 해제</button>
+                                                </div>
+                                            </details>}
 
                                         </article>
                                     );
                                 })}
                             </div>
 
+                            <div className="recordSaveBar">
                             <button
                                 type="submit"
                                 disabled={saving}
                                 className="uiButton uiButton--primary w-full"
                             >
-                                {saving ? '저장 중...' : '식사 기록 저장하기'}
+                                {saving ? '저장 중…' : '기록 저장'}
                             </button>
-                            <p className="text-center text-xs text-[var(--ui-muted)]">{selectedDateLabel}의 모든 식사 기록을 함께 저장해요.</p>
+                            </div>
                         </form>
 
-                        <details className="mt-4 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
-                            <summary className="cursor-pointer py-2 text-sm font-semibold">식사 기록 살펴보기</summary>
-                            <button type="button" aria-expanded={showNutrients} onClick={() => setShowNutrients((prev) => !prev)} className="uiButton uiButton--ghost uiButton--small">{showNutrients ? '영양 참고 닫기' : '영양 참고 정보'}</button>
-                        {showNutrients && (
-                            <div className="mt-3 rounded-xl bg-gray-50 p-3 text-sm text-gray-600 dark:bg-gray-950/40 dark:text-gray-300">
-                                <p>추천 식단의 예시 분량 기준이에요. 실제 식사 기록의 영양 분석은 아니에요.</p>
-                                {SLOT_ORDER.map((slot) => (
-                                    <details key={slot} className="mt-2">
-                                        <summary className="cursor-pointer py-3 font-semibold">{mealTypeLabel(slot)} 추천 영양 구성</summary>
-                                        <MealNutrition meal={selectedPlan[slot]} portionsByFood={selectedPortions.status === 'ready' ? selectedPortions.meals[slot].gramsByFood : undefined} />
-                                    </details>
-                                ))}
-                            </div>
-                        )}
-
-
-                            <p className="mt-2 text-xs text-[var(--ui-muted)]">메뉴 이름으로 살펴본 참고 정보예요.</p>
-                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">오늘 분석</p>
-                                <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">추천 식단 매칭률: {selectedAnalysis.matchScore}%</p>
-                                <p className="text-sm text-gray-700 dark:text-gray-200">오늘 식단 점수: {selectedAnalysis.dailyScore}점</p>
-                            </div>
-                            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">주의/보완 포인트</p>
-                                {selectedAnalysis.concerns.length === 0 &&
-                                    selectedAnalysis.부족.length === 0 &&
-                                    selectedAnalysis.과다.length === 0 && (
-                                        <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">좋아요. 지금 패턴을 유지해 보세요.</p>
-                                    )}
-                                {selectedAnalysis.concerns.map((item) => (
-                                    <p key={item} className="mt-1 text-sm text-red-700 dark:text-red-300">- {item}</p>
-                                ))}
-                                {selectedAnalysis.부족.map((item) => (
-                                    <p key={item} className="mt-1 text-sm text-amber-700 dark:text-amber-300">- {item}</p>
-                                ))}
-                                {selectedAnalysis.과다.map((item) => (
-                                    <p key={item} className="mt-1 text-sm text-blue-700 dark:text-blue-300">- {item}</p>
-                                ))}
-                            </div>
-                            </div>
-                        </details>
                     </section>
 
                     <details className="uiCard px-5 pb-4">
@@ -4364,37 +4161,6 @@ export default function DietPage() {
                     </div>
                 </div>
             </details>
-
-            {openRecordView && (
-                <details className="rounded-xl border border-gray-200 bg-white px-5 pb-4 dark:border-gray-800 dark:bg-gray-900">
-                    <summary className="cursor-pointer py-4 text-base font-semibold text-gray-900 dark:text-gray-100">식사 기록 돌아보기</summary>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">추천 메뉴와 기록의 유사도를 참고하는 점수예요. 건강 상태를 판단하는 점수는 아니에요.</p>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                            <p className="text-xs text-[var(--ui-muted)] dark:text-gray-400">오늘</p>
-                            <p className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">{todayScore}점</p>
-                        </div>
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                            <p className="text-xs text-[var(--ui-muted)] dark:text-gray-400">최근 7일</p>
-                            <p className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">{weeklyScore}점</p>
-                        </div>
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                            <p className="text-xs text-[var(--ui-muted)] dark:text-gray-400">이번 달</p>
-                            <p className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">{monthlyScore}점</p>
-                        </div>
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
-                            <p className="text-xs text-[var(--ui-muted)] dark:text-gray-400">전체 평균</p>
-                            <p className="mt-1 text-xl font-bold text-gray-900 dark:text-gray-100">{totalScore}점</p>
-                        </div>
-                        {/* 예상 순위 카드는 현재 비활성화 상태입니다.
-                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/30">
-                            <p className="text-xs text-blue-700 dark:text-blue-300">예상 순위</p>
-                            <p className="mt-1 text-xl font-bold text-blue-800 dark:text-blue-200">약 {expectedRank}등 (상위 {expectedPercentile}%)</p>
-                        </div>
-                        */}
-                    </div>
-                </details>
-            )}
 
             <details className="rounded-xl border border-gray-200 bg-white px-5 pb-4 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
                 <summary className="cursor-pointer py-4 text-base font-semibold">내 정보가 어떻게 반영됐나요?</summary>
